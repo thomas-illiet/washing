@@ -1,6 +1,7 @@
 from time import perf_counter
+from typing import Literal
 
-from celery.signals import task_postrun, task_prerun, worker_ready, worker_shutdown
+from celery.signals import beat_init, task_postrun, task_prerun, worker_ready, worker_shutdown
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest, start_http_server
 from starlette.requests import Request
 from starlette.responses import Response
@@ -37,6 +38,10 @@ CELERY_TASKS_IN_PROGRESS = Gauge(
 CELERY_WORKER_UP = Gauge(
     "celery_worker_up",
     "Whether the Celery worker metrics process is running.",
+)
+CELERY_BEAT_UP = Gauge(
+    "celery_beat_up",
+    "Whether the Celery beat metrics process is running.",
 )
 
 _TASK_START_TIMES: dict[str, float] = {}
@@ -88,8 +93,12 @@ def configure_celery_prometheus() -> None:
         return
 
     @worker_ready.connect(weak=False)
-    def _start_metrics_server(**_: object) -> None:
-        start_celery_metrics_server()
+    def _start_worker_metrics_server(**_: object) -> None:
+        start_celery_metrics_server("worker")
+
+    @beat_init.connect(weak=False)
+    def _start_beat_metrics_server(**_: object) -> None:
+        start_celery_metrics_server("beat")
 
     @worker_shutdown.connect(weak=False)
     def _mark_worker_down(**_: object) -> None:
@@ -119,12 +128,19 @@ def configure_celery_prometheus() -> None:
     _CELERY_SIGNALS_REGISTERED = True
 
 
-def start_celery_metrics_server() -> None:
+def start_celery_metrics_server(runtime: Literal["worker", "beat"]) -> None:
     global _CELERY_METRICS_SERVER_STARTED
     settings = get_settings()
-    if not settings.celery_prometheus_enabled or _CELERY_METRICS_SERVER_STARTED:
+    if not settings.celery_prometheus_enabled:
+        return
+
+    if runtime == "worker":
+        CELERY_WORKER_UP.set(1)
+    else:
+        CELERY_BEAT_UP.set(1)
+
+    if _CELERY_METRICS_SERVER_STARTED:
         return
 
     start_http_server(settings.celery_prometheus_port)
-    CELERY_WORKER_UP.set(1)
     _CELERY_METRICS_SERVER_STARTED = True
