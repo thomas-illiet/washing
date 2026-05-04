@@ -26,6 +26,22 @@ body::before {
   mask-image: radial-gradient(circle at center, black 0%, rgba(0, 0, 0, 0.92) 44%, transparent 82%);
 }
 
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.5;
+  background:
+    radial-gradient(circle at 10% 18%, rgba(255, 255, 255, 0.26) 0 10px, rgba(140, 234, 255, 0.12) 11px, transparent 17px),
+    radial-gradient(circle at 22% 74%, rgba(255, 255, 255, 0.2) 0 8px, rgba(140, 234, 255, 0.1) 9px, transparent 14px),
+    radial-gradient(circle at 36% 28%, rgba(255, 255, 255, 0.23) 0 13px, rgba(140, 234, 255, 0.11) 14px, transparent 20px),
+    radial-gradient(circle at 52% 62%, rgba(255, 255, 255, 0.18) 0 9px, rgba(140, 234, 255, 0.08) 10px, transparent 15px),
+    radial-gradient(circle at 68% 16%, rgba(255, 255, 255, 0.21) 0 12px, rgba(140, 234, 255, 0.09) 13px, transparent 18px),
+    radial-gradient(circle at 77% 78%, rgba(255, 255, 255, 0.25) 0 11px, rgba(140, 234, 255, 0.1) 12px, transparent 18px),
+    radial-gradient(circle at 91% 34%, rgba(255, 255, 255, 0.19) 0 8px, rgba(140, 234, 255, 0.08) 9px, transparent 14px);
+}
+
 .swagger-ui {
   color: #edf4f7;
 }
@@ -110,6 +126,9 @@ body::before {
 .swagger-ui .info p,
 .swagger-ui .info li,
 .swagger-ui .info table,
+.swagger-ui .info h1,
+.swagger-ui .info h2,
+.swagger-ui .info h3,
 .swagger-ui .opblock-tag,
 .swagger-ui .opblock-summary,
 .swagger-ui .tab li,
@@ -127,15 +146,15 @@ body::before {
 }
 
 .swagger-ui .info .title {
-  color: #f8fdff;
+  color: #ffffff;
   font-size: 2rem;
   letter-spacing: 0.01em;
 }
 
 .swagger-ui .info .title small {
   border-radius: 999px;
-  background: rgba(111, 225, 255, 0.18);
-  color: #89efff;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
 }
 
 .swagger-ui .info a,
@@ -159,6 +178,18 @@ body::before {
 
 .swagger-ui .opblock-tag small {
   color: #a8bcc7;
+}
+
+.swagger-ui .opblock-tag,
+.swagger-ui .opblock .opblock-summary-method,
+.swagger-ui .opblock .opblock-summary-path,
+.swagger-ui .opblock .opblock-summary-path__deprecated,
+.swagger-ui .responses-inner h4,
+.swagger-ui .responses-inner h5,
+.swagger-ui section.models h4,
+.swagger-ui section.models h5,
+.swagger-ui .model-title {
+  color: #ffffff;
 }
 
 .swagger-ui .opblock {
@@ -294,11 +325,11 @@ body::before {
 }
 
 .swagger-ui .tab li {
-  color: #d6edf3;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .swagger-ui .tab li.active {
-  color: #8cebff;
+  color: #ffffff;
 }
 
 .swagger-ui .response-control-media-type__accept-message {
