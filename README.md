@@ -7,10 +7,12 @@ La stack contient :
 - FastAPI pour l'API REST
 - Celery worker pour les jobs de collecte
 - Celery Beat pour le scheduler
+- Flower pour le pilotage et la supervision temps réel de Celery
 - Postgres pour la persistance
 - Redis pour le broker Celery
 - Alembic pour les migrations
-- Prometheus pour les métriques API et Celery
+- Prometheus pour les métriques API, Celery et Flower
+- Grafana pour les dashboards d'observabilité
 
 ## Lancer en local avec Docker
 
@@ -20,11 +22,30 @@ Créer d'abord un `Dockerfile` local à partir du template :
 cp Dockerfile.example Dockerfile
 ```
 
+Créer ensuite le fichier d'environnement :
+
+```bash
+cp .env.example .env
+```
+
+Variables à adapter avant d'exposer le monitoring :
+
+- `FLOWER_BASIC_AUTH`
+- `FLOWER_COOKIE_SECRET`
+- `GRAFANA_ADMIN_USER`
+- `GRAFANA_ADMIN_PASSWORD`
+
 ```bash
 docker compose up --build
 ```
 
-L'API est disponible sur `http://localhost:8000`.
+Interfaces disponibles :
+
+- API : `http://localhost:8000`
+- Flower : `http://localhost:5555`
+- Grafana : `http://localhost:3000`
+
+Prometheus reste interne au réseau Docker Compose par défaut et n'est pas publié sur l'hôte.
 
 Le `Dockerfile` réel n'est pas versionné volontairement. Le repo fournit un `Dockerfile.example` à copier et adapter localement.
 
@@ -53,12 +74,30 @@ Endpoints utiles :
 - Sync applications : `POST /applications/sync-due`
 - Métriques : `GET /metrics/cpu`, `GET /metrics/ram`, `GET /metrics/disk`
 
-## Observabilité Prometheus
+## Observabilité
 
 Prometheus peut scraper :
 
 - API FastAPI : `http://localhost:8000/metrics`
 - Worker Celery : `http://localhost:9101/metrics`
+- Beat Celery : `http://beat:9101/metrics` depuis le réseau Docker
+- Flower : `http://flower:5555/metrics` depuis le réseau Docker
+
+Flower fournit la vue opérationnelle Celery :
+
+- état des workers
+- historique et état des tâches
+- files, tâches en attente et tâches planifiées
+- actions de contrôle à distance Celery
+
+Grafana charge automatiquement un dashboard `Celery Monitoring` avec :
+
+- throughput des tâches par état
+- percentiles de durée des tâches
+- nombre de tâches en cours
+- statut du worker
+- statut de Beat
+- santé des cibles scrapées par Prometheus
 
 Métriques principales :
 
@@ -68,8 +107,15 @@ Métriques principales :
 - `celery_task_duration_seconds`
 - `celery_tasks_in_progress`
 - `celery_worker_up`
+- `celery_beat_up`
 
 Le endpoint Prometheus `/metrics` ne remplace pas les endpoints métier `/metrics/cpu`, `/metrics/ram` et `/metrics/disk`.
+
+Accès par défaut :
+
+- Flower utilise l'authentification HTTP Basic définie via `FLOWER_BASIC_AUTH`
+- Grafana utilise `GRAFANA_ADMIN_USER` et `GRAFANA_ADMIN_PASSWORD`
+- Prometheus n'est accessible que depuis les autres containers du compose, sauf publication explicite d'un port
 
 ## Métriques Machines
 
@@ -149,4 +195,5 @@ Lancer les runtimes manuellement :
 uv run uvicorn app.api.main:app --reload
 uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
 uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
+uv run celery -A app.worker.celery.celery_app flower
 ```
