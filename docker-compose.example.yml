@@ -45,7 +45,7 @@ services:
   flower:
     build: .
     env_file: .env
-    command: sh ./scripts/start-flower.sh
+    command: uv run celery -A app.worker.celery.celery_app flower
     environment:
       FLOWER_ADDRESS: 0.0.0.0
       FLOWER_PORT: "5555"

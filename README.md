@@ -45,7 +45,6 @@ cp docker-compose.example.yml docker-compose.yml
 docker compose up --build
 ```
 
-Le service Flower demarre via `scripts/start-flower.sh`. En Docker, il conserve la persistence sur `/data/flower.db`. Si ce chemin n'est pas accessible en ecriture, le script bascule automatiquement vers `.data/flower/flower.db`.
 Le scheduler Celery Beat n'ecrit pas son etat dans le code source. Avec le compose d'exemple, son fichier de schedule est persiste dans un volume Docker dedie via `CELERY_BEAT_SCHEDULE_PATH=/var/run/celery/celerybeat-schedule`.
 
 Interfaces disponibles :
@@ -204,8 +203,7 @@ Lancer les runtimes manuellement :
 uv run uvicorn app.api.main:app --reload
 uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
 uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
-sh ./scripts/start-flower.sh
+uv run celery -A app.worker.celery.celery_app flower
 ```
 
 Par defaut, Celery Beat stocke son fichier de schedule dans `/tmp/celerybeat-schedule`. Vous pouvez surcharger ce chemin avec `CELERY_BEAT_SCHEDULE_PATH`.
-Si vous preferez lancer Flower sans le script, assurez-vous que `FLOWER_DB` pointe vers un chemin accessible en ecriture, par exemple `.data/flower/flower.db`.
