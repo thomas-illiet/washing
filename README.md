@@ -133,7 +133,7 @@ Exemple de config provider :
 ## Développement
 
 ```bash
-uv sync --frozen --group dev
+uv sync --group dev
 uv run pytest
 ```
 

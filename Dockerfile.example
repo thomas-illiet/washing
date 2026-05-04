@@ -16,12 +16,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --no-dev
+COPY pyproject.toml ./
+RUN uv sync --no-install-project --no-dev
 
 COPY app ./app
 COPY internal ./internal
-RUN uv sync --frozen --no-dev
+RUN uv sync --no-dev
 
 COPY . .
 
