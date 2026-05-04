@@ -14,11 +14,19 @@ La stack contient :
 
 ## Lancer en local avec Docker
 
+Créer d'abord un `Dockerfile` local à partir du template :
+
+```bash
+cp Dockerfile.example Dockerfile
+```
+
 ```bash
 docker compose up --build
 ```
 
 L'API est disponible sur `http://localhost:8000`.
+
+Le `Dockerfile` réel n'est pas versionné volontairement. Le repo fournit un `Dockerfile.example` à copier et adapter localement.
 
 L'image Docker et les commandes du `docker-compose.yml` utilisent `uv` pour la résolution, l'installation et l'exécution.
 

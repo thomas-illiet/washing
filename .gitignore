@@ -6,6 +6,7 @@ __pycache__/
 .mypy_cache/
 .venv/
 venv/
+Dockerfile
 .env
 .coverage
 htmlcov/
