@@ -31,8 +31,11 @@ services:
     build: .
     env_file: .env
     command: uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
+    environment:
+      CELERY_BEAT_SCHEDULE_PATH: /var/run/celery/celerybeat-schedule
     volumes:
       - .:/app
+      - beat_data:/var/run/celery
     depends_on:
       db:
         condition: service_healthy
@@ -42,7 +45,7 @@ services:
   flower:
     build: .
     env_file: .env
-    command: uv run celery -A app.worker.celery.celery_app flower
+    command: sh ./scripts/start-flower.sh
     environment:
       FLOWER_ADDRESS: 0.0.0.0
       FLOWER_PORT: "5555"
@@ -132,6 +135,7 @@ services:
 
 volumes:
   postgres_data:
+  beat_data:
   flower_data:
   grafana_data:
   prometheus_data:

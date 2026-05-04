@@ -9,6 +9,8 @@ venv/
 Dockerfile
 docker-compose.yml
 .env
+.data/
+celerybeat-schedule*
 .coverage
 htmlcov/
 *.egg-info/
