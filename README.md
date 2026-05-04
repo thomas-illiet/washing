@@ -20,6 +20,8 @@ docker compose up --build
 
 L'API est disponible sur `http://localhost:8000`.
 
+L'image Docker et les commandes du `docker-compose.yml` utilisent `uv` pour la résolution, l'installation et l'exécution.
+
 ## Structure du projet
 
 Le code est désormais séparé par runtime, dans un style proche des projets Go :
@@ -123,12 +125,20 @@ Exemple de config provider :
 ## Développement
 
 ```bash
-python -m pip install -e ".[dev]"
-pytest
+uv sync --frozen --group dev
+uv run pytest
 ```
 
 Pour appliquer les migrations contre Postgres :
 
 ```bash
-alembic upgrade head
+uv run alembic upgrade head
+```
+
+Lancer les runtimes manuellement :
+
+```bash
+uv run uvicorn app.api.main:app --reload
+uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
+uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
 ```
