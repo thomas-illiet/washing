@@ -1,0 +1,318 @@
+html {
+  background:
+    radial-gradient(circle at center, rgba(111, 225, 255, 0.14) 0%, rgba(111, 225, 255, 0.03) 22%, transparent 48%),
+    linear-gradient(180deg, #09111a 0%, #05080d 100%);
+}
+
+body {
+  color: #edf4f7;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(116, 229, 255, 0.11) 0%, transparent 24%),
+    radial-gradient(circle at 50% 14%, rgba(255, 255, 255, 0.06) 0%, transparent 10%),
+    linear-gradient(180deg, #09111a 0%, #05080d 100%);
+  font-family: "Segoe UI", "Trebuchet MS", Arial, sans-serif;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, rgba(112, 228, 255, 0.1) 0%, transparent 36%),
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: auto, 88px 88px, 88px 88px;
+  mask-image: radial-gradient(circle at center, black 0%, rgba(0, 0, 0, 0.92) 44%, transparent 82%);
+}
+
+.swagger-ui {
+  color: #edf4f7;
+}
+
+.swagger-ui .wrapper {
+  max-width: 1360px;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.swagger-ui .topbar {
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(157, 175, 192, 0.24);
+  background:
+    linear-gradient(135deg, rgba(239, 244, 247, 0.18), rgba(239, 244, 247, 0.04)),
+    linear-gradient(180deg, #1d2630 0%, #0d141c 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 32px rgba(0, 0, 0, 0.38);
+}
+
+.swagger-ui .topbar .wrapper {
+  position: relative;
+}
+
+.swagger-ui .topbar .topbar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.swagger-ui .topbar .topbar-wrapper::before {
+  content: "";
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgba(239, 244, 247, 0.2);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.06) 34%, transparent 36%),
+    radial-gradient(circle at center, rgba(111, 225, 255, 0.34), rgba(111, 225, 255, 0.08) 38%, rgba(255, 255, 255, 0.14) 39%, rgba(16, 27, 39, 0.88) 57%, #111821 75%);
+  box-shadow:
+    inset 0 0 0 3px rgba(232, 241, 245, 0.08),
+    0 10px 24px rgba(0, 0, 0, 0.28);
+}
+
+.swagger-ui .topbar .topbar-wrapper::after {
+  content: "Washing Machine API";
+  color: #f7fbfd;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.swagger-ui .topbar a {
+  display: contents;
+}
+
+.swagger-ui .topbar svg {
+  display: none;
+}
+
+.swagger-ui .download-url-wrapper {
+  display: none;
+}
+
+.swagger-ui .scheme-container {
+  margin: 24px 0 0;
+  padding: 18px 24px;
+  border: 1px solid rgba(157, 175, 192, 0.16);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(33, 43, 56, 0.96), rgba(14, 21, 28, 0.94)),
+    rgba(9, 14, 20, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.swagger-ui .scheme-container .schemes > label,
+.swagger-ui .info,
+.swagger-ui .info p,
+.swagger-ui .info li,
+.swagger-ui .info table,
+.swagger-ui .opblock-tag,
+.swagger-ui .opblock-summary,
+.swagger-ui .tab li,
+.swagger-ui .parameter__name,
+.swagger-ui .parameter__type,
+.swagger-ui .response-col_status,
+.swagger-ui .response-col_links,
+.swagger-ui .responses-inner h4,
+.swagger-ui .responses-inner h5 {
+  color: #edf4f7;
+}
+
+.swagger-ui .info {
+  margin: 30px 0 24px;
+}
+
+.swagger-ui .info .title {
+  color: #f8fdff;
+  font-size: 2rem;
+  letter-spacing: 0.01em;
+}
+
+.swagger-ui .info .title small {
+  border-radius: 999px;
+  background: rgba(111, 225, 255, 0.18);
+  color: #89efff;
+}
+
+.swagger-ui .info a,
+.swagger-ui .renderedMarkdown a,
+.swagger-ui a.nostyle {
+  color: #8cebff;
+}
+
+.swagger-ui .opblock-tag {
+  margin: 0 0 14px;
+  padding: 18px 22px;
+  border: 1px solid rgba(157, 175, 192, 0.14);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    rgba(10, 16, 24, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 34px rgba(0, 0, 0, 0.18);
+}
+
+.swagger-ui .opblock-tag small {
+  color: #a8bcc7;
+}
+
+.swagger-ui .opblock {
+  margin: 0 0 18px;
+  border-width: 1px;
+  border-radius: 24px;
+  overflow: hidden;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 20px 38px rgba(0, 0, 0, 0.22);
+}
+
+.swagger-ui .opblock .opblock-summary {
+  padding: 14px 18px;
+}
+
+.swagger-ui .opblock.opblock-get {
+  border-color: rgba(111, 225, 255, 0.38);
+  background: rgba(11, 34, 43, 0.82);
+}
+
+.swagger-ui .opblock.opblock-post {
+  border-color: rgba(89, 213, 198, 0.34);
+  background: rgba(9, 38, 36, 0.82);
+}
+
+.swagger-ui .opblock.opblock-put,
+.swagger-ui .opblock.opblock-patch {
+  border-color: rgba(132, 193, 255, 0.34);
+  background: rgba(12, 30, 46, 0.82);
+}
+
+.swagger-ui .opblock.opblock-delete {
+  border-color: rgba(255, 126, 162, 0.28);
+  background: rgba(50, 16, 28, 0.82);
+}
+
+.swagger-ui .opblock .opblock-section-header,
+.swagger-ui .opblock .opblock-section-header h4 {
+  color: #edf4f7;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.swagger-ui .btn,
+.swagger-ui select,
+.swagger-ui input[type="text"],
+.swagger-ui input[type="password"],
+.swagger-ui input[type="search"],
+.swagger-ui textarea {
+  border-radius: 16px;
+}
+
+.swagger-ui select,
+.swagger-ui input[type="text"],
+.swagger-ui input[type="password"],
+.swagger-ui input[type="search"],
+.swagger-ui textarea {
+  border: 1px solid rgba(163, 182, 194, 0.18);
+  color: #f4fbfd;
+  background: rgba(11, 17, 24, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.swagger-ui .btn {
+  border-width: 1px;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.swagger-ui .btn:hover {
+  transform: translateY(-1px);
+}
+
+.swagger-ui .btn.execute,
+.swagger-ui .btn.authorize,
+.swagger-ui .btn.try-out__btn {
+  border-color: rgba(123, 233, 255, 0.28);
+  background: linear-gradient(180deg, #90f0ff 0%, #38d8f3 100%);
+  color: #06212c;
+  box-shadow: 0 10px 24px rgba(56, 216, 243, 0.24);
+}
+
+.swagger-ui .btn.execute:hover,
+.swagger-ui .btn.authorize:hover,
+.swagger-ui .btn.try-out__btn:hover {
+  border-color: rgba(123, 233, 255, 0.42);
+  box-shadow: 0 14px 28px rgba(56, 216, 243, 0.28);
+}
+
+.swagger-ui .btn.cancel {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #edf4f7;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.swagger-ui .responses-wrapper,
+.swagger-ui .parameters-container,
+.swagger-ui .opblock-description-wrapper,
+.swagger-ui .opblock-external-docs-wrapper,
+.swagger-ui .opblock-title_normal {
+  color: #edf4f7;
+}
+
+.swagger-ui table thead tr td,
+.swagger-ui table thead tr th {
+  color: #d9edf2;
+  border-bottom: 1px solid rgba(157, 175, 192, 0.16);
+}
+
+.swagger-ui table tbody tr td {
+  color: #edf4f7;
+  border-color: rgba(157, 175, 192, 0.08);
+}
+
+.swagger-ui .highlight-code,
+.swagger-ui .microlight,
+.swagger-ui pre,
+.swagger-ui .model-box,
+.swagger-ui section.models {
+  border: 1px solid rgba(157, 175, 192, 0.14);
+  border-radius: 22px;
+  color: #edf4f7;
+  background: rgba(6, 11, 17, 0.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.swagger-ui .model-box-control:focus,
+.swagger-ui .opblock-summary-control:focus,
+.swagger-ui .tab li:focus {
+  outline: 2px solid rgba(123, 233, 255, 0.56);
+  outline-offset: 2px;
+}
+
+.swagger-ui .tab li {
+  color: #d6edf3;
+}
+
+.swagger-ui .tab li.active {
+  color: #8cebff;
+}
+
+.swagger-ui .response-control-media-type__accept-message {
+  color: #a8bcc7;
+}
+
+.swagger-ui section.models {
+  margin-top: 28px;
+  padding: 18px;
+}
+
+.swagger-ui section.models h4,
+.swagger-ui section.models h5,
+.swagger-ui .model-title,
+.swagger-ui .model {
+  color: #edf4f7;
+}

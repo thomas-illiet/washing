@@ -75,12 +75,14 @@ Le code est désormais séparé par runtime, dans un style proche des projets Go
 Endpoints utiles :
 
 - `GET /health`
-- `GET /docs`
+- `GET /` : documentation Swagger personnalisée
 - CRUD : `/platforms`, `/applications`, `/machines`, `/providers`, `/provisioners`, `/metric-types`
 - Association : `POST /providers/{provider_id}/provisioners/{provisioner_id}`
 - Jobs manuels : `POST /providers/{id}/run`, `POST /provisioners/{id}/run`, `POST /applications/{id}/sync`
 - Sync applications : `POST /applications/sync-due`
 - Métriques : `GET /metrics/cpu`, `GET /metrics/ram`, `GET /metrics/disk`
+
+La documentation OpenAPI est exposée sur la racine `/`. Les routes FastAPI par défaut `/docs` et `/redoc` sont désactivées.
 
 ## Observabilité
 
