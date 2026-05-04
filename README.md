@@ -35,6 +35,12 @@ Variables à adapter avant d'exposer le monitoring :
 - `GRAFANA_ADMIN_USER`
 - `GRAFANA_ADMIN_PASSWORD`
 
+Créer ensuite un `docker-compose.yml` local à partir de l'exemple :
+
+```bash
+cp docker-compose.example.yml docker-compose.yml
+```
+
 ```bash
 docker compose up --build
 ```
@@ -47,9 +53,9 @@ Interfaces disponibles :
 
 Prometheus reste interne au réseau Docker Compose par défaut et n'est pas publié sur l'hôte.
 
-Le `Dockerfile` réel n'est pas versionné volontairement. Le repo fournit un `Dockerfile.example` à copier et adapter localement.
+Le `Dockerfile` réel et le `docker-compose.yml` réel ne sont pas versionnés volontairement. Le repo fournit des fichiers `*.example` à copier et adapter localement.
 
-L'image Docker et les commandes du `docker-compose.yml` utilisent `uv` pour la résolution, l'installation et l'exécution.
+L'image Docker et les commandes du compose d'exemple utilisent `uv` pour la résolution, l'installation et l'exécution.
 
 ## Structure du projet
 
