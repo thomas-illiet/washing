@@ -2,7 +2,7 @@ from celery.signals import task_postrun, task_prerun
 from fastapi.testclient import TestClient
 from prometheus_client import generate_latest
 
-from app.core.prometheus import configure_celery_prometheus
+from internal.infra.observability.prometheus import configure_celery_prometheus
 
 
 class DummyTask:

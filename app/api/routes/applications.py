@@ -3,11 +3,12 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from app.core.config import get_settings
-from app.db.models import Application
-from app.schemas.resources import ApplicationCreate, ApplicationRead, ApplicationUpdate, TaskEnqueueResponse
-from app.services.applications import dispatch_due_application_syncs
-from app.tasks.sync_application import sync_application_task
+from internal.contracts.http.resources import ApplicationCreate, ApplicationRead, ApplicationUpdate, TaskEnqueueResponse
+from internal.infra.config.settings import get_settings
+from internal.infra.db.models import Application
+from internal.infra.queue.celery import celery_app
+from internal.infra.queue.task_names import SYNC_APPLICATION_TASK
+from internal.usecases.applications import dispatch_due_application_syncs
 
 
 router = APIRouter(prefix="/applications", tags=["applications"])
@@ -46,7 +47,7 @@ def enqueue_due_application_syncs(db: Session = Depends(get_db)) -> dict[str, li
     settings = get_settings()
     return dispatch_due_application_syncs(
         db,
-        enqueue_application=lambda application_id: sync_application_task.delay(application_id).id,
+        enqueue_application=lambda application_id: celery_app.send_task(SYNC_APPLICATION_TASK, args=[application_id]).id,
         window_days=settings.application_sync_window_days,
         tick_seconds=settings.application_sync_tick_seconds,
         configured_batch_size=settings.application_sync_batch_size,
@@ -83,5 +84,5 @@ def delete_application(application_id: int, db: Session = Depends(get_db)) -> Re
 @router.post("/{application_id}/sync", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_application_sync(application_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
     get_or_404(db, Application, application_id, "application not found")
-    task = sync_application_task.delay(application_id)
+    task = celery_app.send_task(SYNC_APPLICATION_TASK, args=[application_id])
     return TaskEnqueueResponse(task_id=task.id)

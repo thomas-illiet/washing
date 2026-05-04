@@ -2,10 +2,10 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
-from app.db.base import utcnow
-from app.db.models import Application, MachineProvider, MachineProvisioner, Platform
-from app.services.applications import dispatch_due_application_syncs
-from app.services.scheduler import dispatch_due_jobs
+from internal.infra.db.base import utcnow
+from internal.infra.db.models import Application, MachineProvider, MachineProvisioner, Platform
+from internal.usecases.applications import dispatch_due_application_syncs
+from internal.usecases.scheduler import dispatch_due_jobs
 
 
 def test_dispatch_due_jobs_enqueues_due_enabled_configs(db_session: Session) -> None:

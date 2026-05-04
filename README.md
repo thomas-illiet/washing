@@ -20,6 +20,19 @@ docker compose up --build
 
 L'API est disponible sur `http://localhost:8000`.
 
+## Structure du projet
+
+Le code est désormais séparé par runtime, dans un style proche des projets Go :
+
+- `app/` ne contient que les applications exécutables.
+- `app/api` : point d'entrée FastAPI, dépendances HTTP et routes.
+- `app/worker` : runtime Celery worker et tâches d'exécution.
+- `app/beat` : runtime Celery Beat et tâches de dispatch planifiées.
+- `internal/usecases` : logique métier mutualisée entre API, beat et workers.
+- `internal/domain` : emplacement réservé aux règles métier pures quand elles doivent être isolées.
+- `internal/infra` : config, base de données, broker Celery, connecteurs, observabilité.
+- `internal/contracts/http` : schémas d'entrée et de sortie HTTP.
+
 Endpoints utiles :
 
 - `GET /health`

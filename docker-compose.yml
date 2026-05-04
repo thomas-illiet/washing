@@ -2,7 +2,7 @@ services:
   api:
     build: .
     env_file: .env.example
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "alembic upgrade head && uvicorn app.api.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - .:/app
     ports:
@@ -16,7 +16,7 @@ services:
   worker:
     build: .
     env_file: .env.example
-    command: celery -A app.celery_app.celery_app worker --loglevel=INFO --pool=solo
+    command: celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
     volumes:
       - .:/app
     ports:
@@ -30,7 +30,7 @@ services:
   beat:
     build: .
     env_file: .env.example
-    command: celery -A app.celery_app.celery_app beat --loglevel=INFO
+    command: celery -A app.beat.celery.celery_app beat --loglevel=INFO
     volumes:
       - .:/app
     depends_on:

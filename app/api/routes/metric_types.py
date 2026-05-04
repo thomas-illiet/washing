@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from app.db.models import MetricType
-from app.schemas.resources import MetricTypeCreate, MetricTypeRead, MetricTypeUpdate
+from internal.contracts.http.resources import MetricTypeCreate, MetricTypeRead, MetricTypeUpdate
+from internal.infra.db.models import MetricType
 
 
 router = APIRouter(prefix="/metric-types", tags=["metric-types"])

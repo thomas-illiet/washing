@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from app.db.models import MachineProvider, MachineProvisioner
-from app.schemas.resources import ProviderCreate, ProviderRead, ProviderUpdate, ProvisionerRead, TaskEnqueueResponse
-from app.tasks.run_provider import run_provider_task
+from internal.contracts.http.resources import ProviderCreate, ProviderRead, ProviderUpdate, ProvisionerRead, TaskEnqueueResponse
+from internal.infra.db.models import MachineProvider, MachineProvisioner
+from internal.infra.queue.celery import celery_app
+from internal.infra.queue.task_names import RUN_PROVIDER_TASK
 
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -125,5 +126,5 @@ def detach_provider_provisioner(
 @router.post("/{provider_id}/run", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_provider_run(provider_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
     get_or_404(db, MachineProvider, provider_id, "provider not found")
-    task = run_provider_task.delay(provider_id)
+    task = celery_app.send_task(RUN_PROVIDER_TASK, args=[provider_id])
     return TaskEnqueueResponse(task_id=task.id)

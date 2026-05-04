@@ -5,8 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
-from app.db.models import MachineCPUMetric, MachineDiskMetric, MachineProvider, MachineProviderProvisioner, MachineRAMMetric
-from app.schemas.resources import MetricRead
+from internal.contracts.http.resources import MetricRead
+from internal.infra.db.models import (
+    MachineCPUMetric,
+    MachineDiskMetric,
+    MachineProvider,
+    MachineProviderProvisioner,
+    MachineRAMMetric,
+)
 
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])

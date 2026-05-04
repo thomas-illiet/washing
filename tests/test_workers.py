@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 
-from app.db.models import (
+from internal.infra.db.models import (
     Application,
     Machine,
     MachineCPUMetric,
@@ -10,9 +10,9 @@ from app.db.models import (
     MachineProvisioner,
     Platform,
 )
-from app.services.applications import run_application_sync
-from app.services.inventory import run_provisioner_inventory
-from app.services.metrics import run_provider_collection
+from internal.usecases.applications import run_application_sync
+from internal.usecases.inventory import run_provisioner_inventory
+from internal.usecases.metrics import run_provider_collection
 
 
 def test_inventory_creates_machine_and_records_flavor_change(db_session: Session) -> None:

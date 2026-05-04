@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from app.db.models import Machine, MachineFlavorHistory
-from app.schemas.resources import MachineCreate, MachineFlavorHistoryRead, MachineRead, MachineUpdate
+from internal.contracts.http.resources import MachineCreate, MachineFlavorHistoryRead, MachineRead, MachineUpdate
+from internal.infra.db.models import Machine, MachineFlavorHistory
 
 
 router = APIRouter(prefix="/machines", tags=["machines"])

@@ -1,3 +1,3 @@
-from app.db.session import get_db
+from internal.infra.db.session import get_db
 
 __all__ = ["get_db"]

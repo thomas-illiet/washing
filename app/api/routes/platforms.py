@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from app.db.models import Platform
-from app.schemas.resources import PlatformCreate, PlatformRead, PlatformUpdate
+from internal.contracts.http.resources import PlatformCreate, PlatformRead, PlatformUpdate
+from internal.infra.db.models import Platform
 
 
 router = APIRouter(prefix="/platforms", tags=["platforms"])

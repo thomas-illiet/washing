@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.api.deps import get_db
-from app.db.base import Base
-from app.db.models import MetricType
-from app.main import app
+from app.api.main import app
+from internal.infra.db.base import Base
+from internal.infra.db.models import MetricType
 
 
 @pytest.fixture()

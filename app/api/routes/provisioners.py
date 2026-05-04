@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from app.db.models import MachineProvisioner
-from app.schemas.resources import ProvisionerCreate, ProvisionerRead, ProvisionerUpdate, TaskEnqueueResponse
-from app.tasks.run_provisioner import run_provisioner_task
+from internal.contracts.http.resources import ProvisionerCreate, ProvisionerRead, ProvisionerUpdate, TaskEnqueueResponse
+from internal.infra.db.models import MachineProvisioner
+from internal.infra.queue.celery import celery_app
+from internal.infra.queue.task_names import RUN_PROVISIONER_TASK
 
 
 router = APIRouter(prefix="/provisioners", tags=["provisioners"])
@@ -65,5 +66,5 @@ def delete_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> Re
 @router.post("/{provisioner_id}/run", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_provisioner_run(provisioner_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
     get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
-    task = run_provisioner_task.delay(provisioner_id)
+    task = celery_app.send_task(RUN_PROVISIONER_TASK, args=[provisioner_id])
     return TaskEnqueueResponse(task_id=task.id)
