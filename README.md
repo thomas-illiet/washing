@@ -22,6 +22,12 @@ Créer d'abord un `Dockerfile` local à partir du template :
 cp Dockerfile.example Dockerfile
 ```
 
+Créer ensuite le fichier Compose local à partir du template :
+
+```bash
+cp docker-compose.example.yml docker-compose.yml
+```
+
 Créer ensuite le fichier d'environnement :
 
 ```bash
@@ -47,9 +53,11 @@ Interfaces disponibles :
 
 Prometheus reste interne au réseau Docker Compose par défaut et n'est pas publié sur l'hôte.
 
-Le `Dockerfile` réel n'est pas versionné volontairement. Le repo fournit un `Dockerfile.example` à copier et adapter localement.
+Le `Dockerfile` réel et le `docker-compose.yml` réel ne sont pas versionnés volontairement. Le repo fournit `Dockerfile.example` et `docker-compose.example.yml` à copier et adapter localement.
 
-L'image Docker et les commandes du `docker-compose.yml` utilisent `uv` pour la résolution, l'installation et l'exécution.
+Le `docker-compose.yml` local est ignoré par Git pour permettre les overrides utilisateur. Le template versionné reste `docker-compose.example.yml`.
+
+L'image Docker et les commandes du fichier Compose d'exemple utilisent `uv` pour la résolution, l'installation et l'exécution.
 
 ## Structure du projet
 
