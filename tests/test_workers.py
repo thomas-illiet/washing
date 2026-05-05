@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from internal.infra.db.models import (
@@ -82,7 +83,6 @@ def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
         metric_type_id=1,
         name="cpu",
         type="mock_metric",
-        cron="* * * * *",
         config={"value": 75, "percentile": 99},
         provisioners=[provisioner],
     )
@@ -120,7 +120,6 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
         metric_type_id=3,
         name="disk",
         type="mock_metric",
-        cron="* * * * *",
         config={"value": 64, "usage_type": "used"},
         provisioners=[provisioner],
     )
@@ -135,6 +134,78 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
     assert sample.machine_id == machine.id
     assert sample.value == 64
     assert sample.usage_type == "used"
+
+
+def test_placeholder_provisioner_run_is_no_op(db_session: Session) -> None:
+    platform = Platform(name="Placeholder Inventory")
+    provisioner = MachineProvisioner(
+        platform=platform,
+        name="capsule inventory",
+        type="capsule",
+        cron="* * * * *",
+        config={"token": "capsule-secret"},
+    )
+    db_session.add(provisioner)
+    db_session.commit()
+
+    result = run_provisioner_inventory(db_session, provisioner.id)
+    assert result == {"created": 0, "updated": 0, "flavor_changes": 0}
+
+
+def test_placeholder_provider_run_is_no_op(db_session: Session) -> None:
+    platform = Platform(name="Placeholder Metrics")
+    provider = MachineProvider(
+        platform=platform,
+        metric_type_id=1,
+        name="prometheus cpu",
+        type="prometheus",
+        config={"url": "https://prometheus.example", "query": "avg(up)"},
+    )
+    db_session.add(provider)
+    db_session.commit()
+
+    result = run_provider_collection(db_session, provider.id)
+    assert result == {"created": 0, "updated": 0, "skipped": 0}
+
+
+def test_config_is_encrypted_at_rest(db_session: Session) -> None:
+    platform = Platform(name="Encrypted Config")
+    provisioner = MachineProvisioner(
+        platform=platform,
+        name="dynatrace inventory",
+        type="dynatrace",
+        cron="* * * * *",
+        config={"url": "https://dynatrace.example", "token": "provisioner-secret"},
+    )
+    provider = MachineProvider(
+        platform=platform,
+        metric_type_id=1,
+        name="dynatrace cpu",
+        type="dynatrace",
+        config={"url": "https://dynatrace.example", "token": "provider-secret"},
+    )
+    db_session.add_all([provisioner, provider])
+    db_session.commit()
+
+    provisioner_raw = db_session.execute(
+        text("SELECT config FROM machine_provisioners WHERE id = :id"),
+        {"id": provisioner.id},
+    ).scalar_one()
+    provider_raw = db_session.execute(
+        text("SELECT config FROM machine_providers WHERE id = :id"),
+        {"id": provider.id},
+    ).scalar_one()
+
+    assert isinstance(provisioner_raw, str)
+    assert "provisioner-secret" not in provisioner_raw
+    assert "dynatrace.example" not in provisioner_raw
+    assert isinstance(provider_raw, str)
+    assert "provider-secret" not in provider_raw
+    assert "dynatrace.example" not in provider_raw
+
+    db_session.expire_all()
+    assert db_session.get(MachineProvisioner, provisioner.id).config["token"] == "provisioner-secret"
+    assert db_session.get(MachineProvider, provider.id).config["token"] == "provider-secret"
 
 
 def test_application_sync_marks_success(db_session: Session) -> None:

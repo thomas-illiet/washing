@@ -24,6 +24,11 @@ class MockInventoryProvisioner:
         ]
 
 
+class EmptyInventoryProvisioner:
+    def discover(self, provisioner: MachineProvisioner) -> list[MachineRecord]:
+        return []
+
+
 class MockMetricCollector:
     def collect(self, provider: MachineProvider, machines: list[Machine]) -> list[MetricRecord]:
         metric_code = provider.metric_type.code.lower()
@@ -55,3 +60,8 @@ class MockMetricCollector:
                 )
             )
         return samples
+
+
+class EmptyMetricCollector:
+    def collect(self, provider: MachineProvider, machines: list[Machine]) -> list[MetricRecord]:
+        return []

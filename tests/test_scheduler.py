@@ -3,12 +3,12 @@ from datetime import timedelta
 from sqlalchemy.orm import Session
 
 from internal.infra.db.base import utcnow
-from internal.infra.db.models import Application, MachineProvider, MachineProvisioner, Platform
+from internal.infra.db.models import Application, MachineProvisioner, Platform
 from internal.usecases.applications import dispatch_due_application_syncs
 from internal.usecases.scheduler import dispatch_due_jobs
 
 
-def test_dispatch_due_jobs_enqueues_due_enabled_configs(db_session: Session) -> None:
+def test_dispatch_due_jobs_enqueues_due_enabled_provisioners(db_session: Session) -> None:
     now = utcnow()
     platform = Platform(name="Scheduler")
     provisioner = MachineProvisioner(
@@ -18,37 +18,17 @@ def test_dispatch_due_jobs_enqueues_due_enabled_configs(db_session: Session) -> 
         cron="* * * * *",
         last_scheduled_at=now - timedelta(minutes=2),
     )
-    provider = MachineProvider(
-        platform=platform,
-        metric_type_id=1,
-        name="cpu",
-        type="mock_metric",
-        cron="* * * * *",
-        last_scheduled_at=now - timedelta(minutes=2),
-    )
-    disabled_provider = MachineProvider(
-        platform=platform,
-        metric_type_id=2,
-        name="ram",
-        type="mock_metric",
-        cron="* * * * *",
-        enabled=False,
-        last_scheduled_at=now - timedelta(minutes=2),
-    )
-    db_session.add_all([provisioner, provider, disabled_provider])
+    db_session.add(provisioner)
     db_session.commit()
 
-    enqueued_providers: list[int] = []
     enqueued_provisioners: list[int] = []
     result = dispatch_due_jobs(
         db_session,
-        enqueue_provider=lambda provider_id: enqueued_providers.append(provider_id) or "task-provider",
         enqueue_provisioner=lambda provisioner_id: enqueued_provisioners.append(provisioner_id) or "task-provisioner",
         now=now,
     )
 
-    assert result == {"providers": [provider.id], "provisioners": [provisioner.id]}
-    assert enqueued_providers == [provider.id]
+    assert result == {"provisioners": [provisioner.id]}
     assert enqueued_provisioners == [provisioner.id]
 
 

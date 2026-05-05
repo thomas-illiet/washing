@@ -1,8 +1,17 @@
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from croniter import croniter
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
+
+
+Scope = Literal["cpu", "ram", "disk"]
+
+
+def _validate_non_empty(value: str | None, field_name: str) -> str | None:
+    if value is not None and not value.strip():
+        raise ValueError(f"{field_name} must not be empty")
+    return value
 
 
 class ApiModel(BaseModel):
@@ -82,26 +91,13 @@ class ApplicationRead(ApplicationCreate):
     updated_at: datetime
 
 
-class ProvisionerCreate(CronModel):
+class ProvisionerRead(CronModel):
+    id: int
     platform_id: int
     name: str
-    type: str = "mock_inventory"
-    config: dict[str, Any] = Field(default_factory=dict)
-    enabled: bool = True
-    cron: str = "*/5 * * * *"
-
-
-class ProvisionerUpdate(CronModel):
-    platform_id: int | None = None
-    name: str | None = None
-    type: str | None = None
-    config: dict[str, Any] | None = None
-    enabled: bool | None = None
-    cron: str | None = None
-
-
-class ProvisionerRead(ProvisionerCreate):
-    id: int
+    type: str
+    enabled: bool
+    cron: str
     last_scheduled_at: datetime | None = None
     last_run_at: datetime | None = None
     last_success_at: datetime | None = None
@@ -110,43 +106,132 @@ class ProvisionerRead(ProvisionerCreate):
     updated_at: datetime
 
 
-class ProviderCreate(CronModel):
+class CapsuleProvisionerCreate(CronModel):
     platform_id: int
-    metric_type_id: int
     name: str
-    type: str = "mock_metric"
-    config: dict[str, Any] = Field(default_factory=dict)
     enabled: bool = True
     cron: str = "*/5 * * * *"
-    provisioner_ids: list[int] = Field(default_factory=list)
+    token: str
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str) -> str:
+        return _validate_non_empty(value, "token") or value
 
 
-class ProviderUpdate(CronModel):
+class CapsuleProvisionerUpdate(CronModel):
     platform_id: int | None = None
-    metric_type_id: int | None = None
     name: str | None = None
-    type: str | None = None
-    config: dict[str, Any] | None = None
     enabled: bool | None = None
     cron: str | None = None
+    token: str | None = None
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str | None) -> str | None:
+        return _validate_non_empty(value, "token")
+
+
+class CapsuleProvisionerRead(ProvisionerRead):
+    has_token: bool
+
+
+class DynatraceProvisionerCreate(CapsuleProvisionerCreate):
+    url: AnyHttpUrl
+
+
+class DynatraceProvisionerUpdate(CapsuleProvisionerUpdate):
+    url: AnyHttpUrl | None = None
+
+
+class DynatraceProvisionerRead(ProvisionerRead):
+    url: str
+    has_token: bool
 
 
 class ProviderRead(ApiModel):
     id: int
     platform_id: int
-    metric_type_id: int
     name: str
     type: str
-    config: dict[str, Any]
+    scope: Scope
     enabled: bool
-    cron: str
     provisioner_ids: list[int]
-    last_scheduled_at: datetime | None = None
     last_run_at: datetime | None = None
     last_success_at: datetime | None = None
     last_error: str | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class PrometheusProviderCreate(ApiModel):
+    platform_id: int
+    name: str
+    enabled: bool = True
+    scope: Scope
+    url: AnyHttpUrl
+    query: str
+    provisioner_ids: list[int] = Field(default_factory=list)
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str) -> str:
+        return _validate_non_empty(value, "query") or value
+
+
+class PrometheusProviderUpdate(ApiModel):
+    platform_id: int | None = None
+    name: str | None = None
+    enabled: bool | None = None
+    scope: Scope | None = None
+    url: AnyHttpUrl | None = None
+    query: str | None = None
+    provisioner_ids: list[int] | None = None
+
+    @field_validator("query")
+    @classmethod
+    def validate_query(cls, value: str | None) -> str | None:
+        return _validate_non_empty(value, "query")
+
+
+class PrometheusProviderRead(ProviderRead):
+    url: str
+    query: str
+
+
+class DynatraceProviderCreate(ApiModel):
+    platform_id: int
+    name: str
+    enabled: bool = True
+    scope: Scope
+    url: AnyHttpUrl
+    token: str
+    provisioner_ids: list[int] = Field(default_factory=list)
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str) -> str:
+        return _validate_non_empty(value, "token") or value
+
+
+class DynatraceProviderUpdate(ApiModel):
+    platform_id: int | None = None
+    name: str | None = None
+    enabled: bool | None = None
+    scope: Scope | None = None
+    url: AnyHttpUrl | None = None
+    token: str | None = None
+    provisioner_ids: list[int] | None = None
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str | None) -> str | None:
+        return _validate_non_empty(value, "token")
+
+
+class DynatraceProviderRead(ProviderRead):
+    url: str
+    has_token: bool
 
 
 class MachineCreate(ApiModel):

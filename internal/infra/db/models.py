@@ -4,7 +4,7 @@ from typing import Any
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from internal.infra.db.base import Base, JSONType, JsonDict, TimestampMixin, utcnow
+from internal.infra.db.base import Base, EncryptedJSONType, JSONType, JsonDict, TimestampMixin, utcnow
 
 
 class Platform(TimestampMixin, Base):
@@ -77,7 +77,7 @@ class MachineProvisioner(TimestampMixin, Base):
     platform_id: Mapped[int] = mapped_column(ForeignKey("platforms.id", ondelete="CASCADE"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(64), nullable=False, default="mock_inventory")
-    config: Mapped[JsonDict] = mapped_column(JSONType, default=dict, nullable=False)
+    config: Mapped[JsonDict] = mapped_column(EncryptedJSONType(), default=dict, nullable=False)
     enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
     cron: Mapped[str] = mapped_column(String(64), default="*/5 * * * *", nullable=False)
     last_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -103,10 +103,8 @@ class MachineProvider(TimestampMixin, Base):
     metric_type_id: Mapped[int] = mapped_column(ForeignKey("metric_types.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(64), nullable=False, default="mock_metric")
-    config: Mapped[JsonDict] = mapped_column(JSONType, default=dict, nullable=False)
+    config: Mapped[JsonDict] = mapped_column(EncryptedJSONType(), default=dict, nullable=False)
     enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
-    cron: Mapped[str] = mapped_column(String(64), default="*/5 * * * *", nullable=False)
-    last_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error: Mapped[str | None] = mapped_column(Text)
@@ -123,6 +121,10 @@ class MachineProvider(TimestampMixin, Base):
     @property
     def provisioner_ids(self) -> list[int]:
         return [provisioner.id for provisioner in self.provisioners]
+
+    @property
+    def scope(self) -> str:
+        return self.metric_type.code.lower()
 
 
 class Machine(TimestampMixin, Base):

@@ -34,6 +34,7 @@ Variables à adapter avant d'exposer le monitoring :
 - `FLOWER_COOKIE_SECRET`
 - `GRAFANA_ADMIN_USER`
 - `GRAFANA_ADMIN_PASSWORD`
+- `INTEGRATION_CONFIG_ENCRYPTION_KEY`
 
 Créer ensuite un `docker-compose.yml` local à partir de l'exemple :
 
@@ -81,6 +82,13 @@ Endpoints utiles :
 - Jobs manuels : `POST /providers/{id}/run`, `POST /provisioners/{id}/run`, `POST /applications/{id}/sync`
 - Sync applications : `POST /applications/sync-due`
 - Métriques : `GET /metrics/cpu`, `GET /metrics/ram`, `GET /metrics/disk`
+
+Sous-routes typées pour les intégrations :
+
+- Provisioners : `POST /provisioners/capsule`, `GET/PATCH /provisioners/{id}/capsule`, `POST /provisioners/dynatrace`, `GET/PATCH /provisioners/{id}/dynatrace`
+- Providers : `POST /providers/prometheus`, `GET/PATCH /providers/{id}/prometheus`, `POST /providers/dynatrace`, `GET/PATCH /providers/{id}/dynatrace`
+
+Les réponses génériques `/providers` et `/provisioners` n'exposent jamais le champ `config`. Les secrets sont stockés chiffrés en base et les tokens ne sont jamais renvoyés par l'API.
 
 La documentation OpenAPI est exposée sur la racine `/`. Les routes FastAPI par défaut `/docs` et `/redoc` sont désactivées.
 
@@ -152,12 +160,17 @@ Variables utiles :
 
 ## Connecteurs MVP
 
-Deux connecteurs stub sont disponibles :
+Deux connecteurs stub historiques sont disponibles :
 
 - `mock_inventory` pour découvrir des machines
 - `mock_metric` pour générer des samples CPU/RAM/Disk
 
-Exemple de config provisioner :
+Les nouvelles intégrations typées exposées par l'API sont :
+
+- Provisioners : `capsule`, `dynatrace`
+- Providers : `prometheus`, `dynatrace`
+
+Exemple de config interne `mock_inventory` :
 
 ```json
 {
@@ -176,7 +189,7 @@ Exemple de config provisioner :
 }
 ```
 
-Exemple de config provider :
+Exemple de config interne `mock_metric` :
 
 ```json
 {
@@ -198,6 +211,8 @@ Pour appliquer les migrations contre Postgres :
 ```bash
 uv run alembic upgrade head
 ```
+
+La clé `INTEGRATION_CONFIG_ENCRYPTION_KEY` doit être présente au runtime API, worker, beat et lors des migrations Alembic.
 
 Lancer les runtimes manuellement :
 

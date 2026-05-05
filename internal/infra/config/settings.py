@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     prometheus_api_path: str = "/metrics"
     celery_prometheus_enabled: bool = True
     celery_prometheus_port: int = 9101
+    integration_config_encryption_key: str = "8P2uXg4rqwH0TADaBrZEcD3xKhsR4HIX66vepQP9enM="
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

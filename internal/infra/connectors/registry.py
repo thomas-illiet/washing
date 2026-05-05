@@ -1,15 +1,24 @@
 from internal.infra.connectors.base import MachineProvisionerConnector, MetricCollectorConnector
-from internal.infra.connectors.mock import MockInventoryProvisioner, MockMetricCollector
+from internal.infra.connectors.mock import (
+    EmptyInventoryProvisioner,
+    EmptyMetricCollector,
+    MockInventoryProvisioner,
+    MockMetricCollector,
+)
 
 
 METRIC_COLLECTORS: dict[str, MetricCollectorConnector] = {
     "mock": MockMetricCollector(),
     "mock_metric": MockMetricCollector(),
+    "prometheus": EmptyMetricCollector(),
+    "dynatrace": EmptyMetricCollector(),
 }
 
 MACHINE_PROVISIONERS: dict[str, MachineProvisionerConnector] = {
     "mock": MockInventoryProvisioner(),
     "mock_inventory": MockInventoryProvisioner(),
+    "capsule": EmptyInventoryProvisioner(),
+    "dynatrace": EmptyInventoryProvisioner(),
 }
 
 

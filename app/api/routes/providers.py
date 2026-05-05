@@ -1,21 +1,34 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.api.deps import get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from internal.contracts.http.resources import ProviderCreate, ProviderRead, ProviderUpdate, ProvisionerRead, TaskEnqueueResponse
-from internal.infra.db.models import MachineProvider, MachineProvisioner
+from internal.contracts.http.resources import (
+    DynatraceProviderCreate,
+    DynatraceProviderRead,
+    DynatraceProviderUpdate,
+    PrometheusProviderCreate,
+    PrometheusProviderRead,
+    PrometheusProviderUpdate,
+    ProviderRead,
+    ProvisionerRead,
+    TaskEnqueueResponse,
+)
+from internal.infra.db.models import MachineProvider, MachineProvisioner, MetricType
 from internal.infra.queue.celery import celery_app
 from internal.infra.queue.task_names import RUN_PROVIDER_TASK
 
 
+Scope = Literal["cpu", "ram", "disk"]
 router = APIRouter(prefix="/providers", tags=["providers"])
 
 
 def _load_provider(db: Session, provider_id: int) -> MachineProvider:
     provider = (
         db.query(MachineProvider)
-        .options(selectinload(MachineProvider.provisioners))
+        .options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))
         .filter(MachineProvider.id == provider_id)
         .one_or_none()
     )
@@ -24,44 +37,110 @@ def _load_provider(db: Session, provider_id: int) -> MachineProvider:
     return provider
 
 
-def _load_provisioner_for_provider(db: Session, provider: MachineProvider, provisioner_id: int) -> MachineProvisioner:
-    provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
-    if provisioner.platform_id != provider.platform_id:
-        raise HTTPException(status_code=400, detail="provider and provisioner must belong to the same platform")
-    return provisioner
+def _load_provider_of_type(db: Session, provider_id: int, connector_type: str) -> MachineProvider:
+    provider = _load_provider(db, provider_id)
+    if provider.type != connector_type:
+        raise HTTPException(status_code=404, detail="provider not found")
+    return provider
 
 
-@router.post("", response_model=ProviderRead, status_code=status.HTTP_201_CREATED)
-def create_provider(payload: ProviderCreate, db: Session = Depends(get_db)) -> MachineProvider:
-    values = payload.model_dump(exclude={"provisioner_ids"})
-    provider = MachineProvider(**values)
-    db.add(provider)
+def _resolve_metric_type_id(db: Session, scope: Scope) -> int:
+    metric_type = db.query(MetricType).filter(MetricType.code == scope).one_or_none()
+    if metric_type is None:
+        raise HTTPException(status_code=400, detail=f"metric type for scope '{scope}' not found")
+    return metric_type.id
 
-    for provisioner_id in payload.provisioner_ids:
+
+def _load_provisioners_for_provider(
+    db: Session,
+    provisioner_ids: list[int],
+    platform_id: int,
+) -> list[MachineProvisioner]:
+    provisioners: list[MachineProvisioner] = []
+    for provisioner_id in provisioner_ids:
         provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
-        if provisioner.platform_id != provider.platform_id:
+        if provisioner.platform_id != platform_id:
             raise HTTPException(status_code=400, detail="provider and provisioners must belong to the same platform")
-        provider.provisioners.append(provisioner)
+        provisioners.append(provisioner)
+    return provisioners
 
+
+def _ensure_provider_platform_matches_provisioners(provider: MachineProvider, platform_id: int) -> None:
+    for provisioner in provider.provisioners:
+        if provisioner.platform_id != platform_id:
+            raise HTTPException(status_code=400, detail="provider and provisioners must belong to the same platform")
+
+
+def _prometheus_read_model(provider: MachineProvider) -> PrometheusProviderRead:
+    return PrometheusProviderRead(
+        **ProviderRead.model_validate(provider).model_dump(),
+        url=str(provider.config.get("url", "")),
+        query=str(provider.config.get("query", "")),
+    )
+
+
+def _dynatrace_read_model(provider: MachineProvider) -> DynatraceProviderRead:
+    return DynatraceProviderRead(
+        **ProviderRead.model_validate(provider).model_dump(),
+        url=str(provider.config.get("url", "")),
+        has_token=bool(provider.config.get("token")),
+    )
+
+
+@router.post("/prometheus", response_model=PrometheusProviderRead, status_code=status.HTTP_201_CREATED)
+def create_prometheus_provider(
+    payload: PrometheusProviderCreate,
+    db: Session = Depends(get_db),
+) -> PrometheusProviderRead:
+    provider = MachineProvider(
+        platform_id=payload.platform_id,
+        metric_type_id=_resolve_metric_type_id(db, payload.scope),
+        name=payload.name,
+        type="prometheus",
+        config={"url": str(payload.url), "query": payload.query},
+        enabled=payload.enabled,
+    )
+    db.add(provider)
+    provider.provisioners = _load_provisioners_for_provider(db, payload.provisioner_ids, payload.platform_id)
     commit_or_409(db, "provider name already exists for this platform")
     db.refresh(provider)
-    return _load_provider(db, provider.id)
+    return _prometheus_read_model(_load_provider(db, provider.id))
+
+
+@router.post("/dynatrace", response_model=DynatraceProviderRead, status_code=status.HTTP_201_CREATED)
+def create_dynatrace_provider(
+    payload: DynatraceProviderCreate,
+    db: Session = Depends(get_db),
+) -> DynatraceProviderRead:
+    provider = MachineProvider(
+        platform_id=payload.platform_id,
+        metric_type_id=_resolve_metric_type_id(db, payload.scope),
+        name=payload.name,
+        type="dynatrace",
+        config={"url": str(payload.url), "token": payload.token},
+        enabled=payload.enabled,
+    )
+    db.add(provider)
+    provider.provisioners = _load_provisioners_for_provider(db, payload.provisioner_ids, payload.platform_id)
+    commit_or_409(db, "provider name already exists for this platform")
+    db.refresh(provider)
+    return _dynatrace_read_model(_load_provider(db, provider.id))
 
 
 @router.get("", response_model=list[ProviderRead])
 def list_providers(
     platform_id: int | None = None,
-    metric_type_id: int | None = None,
+    scope: Scope | None = None,
     enabled: bool | None = None,
     offset: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
 ) -> list[MachineProvider]:
-    query = db.query(MachineProvider).options(selectinload(MachineProvider.provisioners))
+    query = db.query(MachineProvider).options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))
     if platform_id is not None:
         query = query.filter(MachineProvider.platform_id == platform_id)
-    if metric_type_id is not None:
-        query = query.filter(MachineProvider.metric_type_id == metric_type_id)
+    if scope is not None:
+        query = query.join(MachineProvider.metric_type).filter(MetricType.code == scope)
     if enabled is not None:
         query = query.filter(MachineProvider.enabled.is_(enabled))
     return query.offset(offset).limit(limit).all()
@@ -72,13 +151,78 @@ def get_provider(provider_id: int, db: Session = Depends(get_db)) -> MachineProv
     return _load_provider(db, provider_id)
 
 
-@router.patch("/{provider_id}", response_model=ProviderRead)
-def update_provider(provider_id: int, payload: ProviderUpdate, db: Session = Depends(get_db)) -> MachineProvider:
-    provider = _load_provider(db, provider_id)
-    apply_patch(provider, payload.model_dump(exclude_unset=True))
+@router.get("/{provider_id}/prometheus", response_model=PrometheusProviderRead)
+def get_prometheus_provider(provider_id: int, db: Session = Depends(get_db)) -> PrometheusProviderRead:
+    return _prometheus_read_model(_load_provider_of_type(db, provider_id, "prometheus"))
+
+
+@router.get("/{provider_id}/dynatrace", response_model=DynatraceProviderRead)
+def get_dynatrace_provider(provider_id: int, db: Session = Depends(get_db)) -> DynatraceProviderRead:
+    return _dynatrace_read_model(_load_provider_of_type(db, provider_id, "dynatrace"))
+
+
+@router.patch("/{provider_id}/prometheus", response_model=PrometheusProviderRead)
+def update_prometheus_provider(
+    provider_id: int,
+    payload: PrometheusProviderUpdate,
+    db: Session = Depends(get_db),
+) -> PrometheusProviderRead:
+    provider = _load_provider_of_type(db, provider_id, "prometheus")
+    values = payload.model_dump(exclude_unset=True, exclude={"scope", "url", "query", "provisioner_ids"})
+    target_platform_id = values.get("platform_id", provider.platform_id)
+
+    if payload.scope is not None:
+        provider.metric_type_id = _resolve_metric_type_id(db, payload.scope)
+
+    if payload.provisioner_ids is not None:
+        provider.provisioners = _load_provisioners_for_provider(db, payload.provisioner_ids, target_platform_id)
+    elif "platform_id" in values:
+        _ensure_provider_platform_matches_provisioners(provider, target_platform_id)
+
+    apply_patch(provider, values)
+
+    config = dict(provider.config)
+    if payload.url is not None:
+        config["url"] = str(payload.url)
+    if payload.query is not None:
+        config["query"] = payload.query
+    provider.config = config
+
     commit_or_409(db, "provider name already exists for this platform")
     db.refresh(provider)
-    return _load_provider(db, provider.id)
+    return _prometheus_read_model(_load_provider(db, provider.id))
+
+
+@router.patch("/{provider_id}/dynatrace", response_model=DynatraceProviderRead)
+def update_dynatrace_provider(
+    provider_id: int,
+    payload: DynatraceProviderUpdate,
+    db: Session = Depends(get_db),
+) -> DynatraceProviderRead:
+    provider = _load_provider_of_type(db, provider_id, "dynatrace")
+    values = payload.model_dump(exclude_unset=True, exclude={"scope", "url", "token", "provisioner_ids"})
+    target_platform_id = values.get("platform_id", provider.platform_id)
+
+    if payload.scope is not None:
+        provider.metric_type_id = _resolve_metric_type_id(db, payload.scope)
+
+    if payload.provisioner_ids is not None:
+        provider.provisioners = _load_provisioners_for_provider(db, payload.provisioner_ids, target_platform_id)
+    elif "platform_id" in values:
+        _ensure_provider_platform_matches_provisioners(provider, target_platform_id)
+
+    apply_patch(provider, values)
+
+    config = dict(provider.config)
+    if payload.url is not None:
+        config["url"] = str(payload.url)
+    if payload.token is not None:
+        config["token"] = payload.token
+    provider.config = config
+
+    commit_or_409(db, "provider name already exists for this platform")
+    db.refresh(provider)
+    return _dynatrace_read_model(_load_provider(db, provider.id))
 
 
 @router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -102,7 +246,9 @@ def attach_provider_provisioner(
     db: Session = Depends(get_db),
 ) -> MachineProvider:
     provider = _load_provider(db, provider_id)
-    provisioner = _load_provisioner_for_provider(db, provider, provisioner_id)
+    provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+    if provisioner.platform_id != provider.platform_id:
+        raise HTTPException(status_code=400, detail="provider and provisioner must belong to the same platform")
     if provisioner not in provider.provisioners:
         provider.provisioners.append(provisioner)
     commit_or_409(db, "provider/provisioner association already exists")
@@ -116,7 +262,9 @@ def detach_provider_provisioner(
     db: Session = Depends(get_db),
 ) -> Response:
     provider = _load_provider(db, provider_id)
-    provisioner = _load_provisioner_for_provider(db, provider, provisioner_id)
+    provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+    if provisioner.platform_id != provider.platform_id:
+        raise HTTPException(status_code=400, detail="provider and provisioner must belong to the same platform")
     if provisioner in provider.provisioners:
         provider.provisioners.remove(provisioner)
     db.commit()
@@ -125,6 +273,8 @@ def detach_provider_provisioner(
 
 @router.post("/{provider_id}/run", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_provider_run(provider_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
-    get_or_404(db, MachineProvider, provider_id, "provider not found")
+    provider = _load_provider(db, provider_id)
+    if not provider.enabled:
+        raise HTTPException(status_code=409, detail="provider is disabled")
     task = celery_app.send_task(RUN_PROVIDER_TASK, args=[provider_id])
     return TaskEnqueueResponse(task_id=task.id)
