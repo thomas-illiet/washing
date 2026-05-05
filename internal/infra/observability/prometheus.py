@@ -101,18 +101,22 @@ def configure_celery_prometheus() -> None:
 
     @worker_ready.connect(weak=False)
     def _start_worker_metrics_server(**_: object) -> None:
+        """Expose worker Prometheus metrics when the Celery worker starts."""
         start_celery_metrics_server("worker")
 
     @beat_init.connect(weak=False)
     def _start_beat_metrics_server(**_: object) -> None:
+        """Expose beat Prometheus metrics when the scheduler process starts."""
         start_celery_metrics_server("beat")
 
     @worker_shutdown.connect(weak=False)
     def _mark_worker_down(**_: object) -> None:
+        """Mark the worker liveness gauge as down during shutdown."""
         CELERY_WORKER_UP.set(0)
 
     @task_prerun.connect(weak=False)
     def _record_task_start(task_id: str | None = None, task: object | None = None, **_: object) -> None:
+        """Track task start time and increment the in-progress gauge."""
         task_name = getattr(task, "name", "unknown")
         if task_id is not None:
             _TASK_START_TIMES[task_id] = perf_counter()
@@ -125,6 +129,7 @@ def configure_celery_prometheus() -> None:
         state: str | None = None,
         **_: object,
     ) -> None:
+        """Record task completion counters, duration, and in-progress state."""
         task_name = getattr(task, "name", "unknown")
         started_at = _TASK_START_TIMES.pop(task_id, None) if task_id is not None else None
         if started_at is not None:

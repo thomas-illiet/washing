@@ -58,6 +58,13 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     schemas = body["components"]["schemas"]
     paths = body["paths"]
     tags = [tag["name"] for tag in body["tags"]]
+    assert "sync_at" not in schemas["ApplicationCreate"]["properties"]
+    assert "sync_scheduled_at" not in schemas["ApplicationCreate"]["properties"]
+    assert "sync_error" not in schemas["ApplicationCreate"]["properties"]
+    assert "sync_at" not in schemas["ApplicationUpdate"]["properties"]
+    assert "sync_scheduled_at" not in schemas["ApplicationUpdate"]["properties"]
+    assert "sync_error" not in schemas["ApplicationUpdate"]["properties"]
+    assert {"sync_at", "sync_scheduled_at", "sync_error"} <= set(schemas["ApplicationRead"]["properties"])
     assert "provisioner_ids" not in schemas["PrometheusProviderUpdate"]["properties"]
     assert "provisioner_ids" not in schemas["DynatraceProviderUpdate"]["properties"]
     assert "/metric-types" not in paths
@@ -136,6 +143,97 @@ def test_platform_list_is_paginated_and_stably_sorted(client: TestClient) -> Non
     assert beyond_total.status_code == 200
     assert beyond_total.json()["total"] == 2
     assert beyond_total.json()["items"] == []
+
+
+def test_named_fields_reject_blank_strings(client: TestClient) -> None:
+    """Business identifiers should reject blank or whitespace-only strings."""
+    assert client.post("/v1/platforms", json={"name": "   "}).status_code == 422
+    assert (
+        client.post(
+            "/v1/applications",
+            json={"name": "billing", "environment": "   ", "region": "eu-west-1"},
+        ).status_code
+        == 422
+    )
+
+    platform = client.post("/v1/platforms", json={"name": "Validation Platform"}).json()
+
+    assert (
+        client.post(
+            "/v1/machines",
+            json={"platform_id": platform["id"], "hostname": "   "},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/v1/machines/provisioners/capsule",
+            json={"platform_id": platform["id"], "name": "   ", "token": "capsule-secret"},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/v1/machines/providers/prometheus",
+            json={
+                "platform_id": platform["id"],
+                "name": "prom cpu",
+                "scope": "cpu",
+                "url": "https://prometheus.example",
+                "query": "   ",
+            },
+        ).status_code
+        == 422
+    )
+
+
+def test_application_write_payloads_cannot_spoof_sync_state(client: TestClient) -> None:
+    """Scheduler-owned sync fields should not be writable from the public API."""
+    create_response = client.post(
+        "/v1/applications",
+        json={
+            "name": "billing",
+            "environment": "prod",
+            "region": "eu-west-1",
+            "sync_at": "2027-01-01T00:00:00Z",
+            "sync_error": "spoofed",
+        },
+    )
+    assert create_response.status_code == 422
+
+    application = client.post(
+        "/v1/applications",
+        json={"name": "catalog", "environment": "prod", "region": "eu-west-1"},
+    ).json()
+
+    update_response = client.patch(
+        f"/v1/applications/{application['id']}",
+        json={"sync_scheduled_at": "2027-01-01T00:00:00Z"},
+    )
+    assert update_response.status_code == 422
+
+
+def test_typed_integration_routes_require_existing_platforms(client: TestClient) -> None:
+    """Typed provider and provisioner routes should 404 on missing platforms."""
+    provisioner_response = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={"platform_id": 999, "name": "inventory", "token": "capsule-secret"},
+    )
+    assert provisioner_response.status_code == 404
+    assert provisioner_response.json()["detail"] == "platform not found"
+
+    provider_response = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": 999,
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+        },
+    )
+    assert provider_response.status_code == 404
+    assert provider_response.json()["detail"] == "platform not found"
 
 
 def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
@@ -401,6 +499,67 @@ def test_application_crud_and_machine_application_id(client: TestClient) -> None
 
     patched = client.patch(f"/v1/applications/{application['id']}", json={"region": "eu-west-2"}).json()
     assert patched["region"] == "eu-west-2"
+
+
+def test_machine_crud_rejects_missing_and_cross_platform_references(client: TestClient) -> None:
+    """Machine writes should validate referenced resources and platform coherence."""
+    platform = client.post("/v1/platforms", json={"name": "Machine Invariants"}).json()
+    other_platform = client.post("/v1/platforms", json={"name": "Other Machine Invariants"}).json()
+    application = client.post(
+        "/v1/applications",
+        json={"name": "checkout", "environment": "prod", "region": "eu-west-1"},
+    ).json()
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={"platform_id": platform["id"], "name": "inventory", "token": "capsule-secret"},
+    ).json()
+
+    missing_platform = client.post("/v1/machines", json={"platform_id": 999, "hostname": "node-01"})
+    assert missing_platform.status_code == 404
+    assert missing_platform.json()["detail"] == "platform not found"
+
+    missing_application = client.post(
+        "/v1/machines",
+        json={"platform_id": platform["id"], "application_id": 999, "hostname": "node-01"},
+    )
+    assert missing_application.status_code == 404
+    assert missing_application.json()["detail"] == "application not found"
+
+    missing_provisioner = client.post(
+        "/v1/machines",
+        json={"platform_id": platform["id"], "source_provisioner_id": 999, "hostname": "node-01"},
+    )
+    assert missing_provisioner.status_code == 404
+    assert missing_provisioner.json()["detail"] == "provisioner not found"
+
+    cross_platform = client.post(
+        "/v1/machines",
+        json={
+            "platform_id": other_platform["id"],
+            "application_id": application["id"],
+            "source_provisioner_id": provisioner["id"],
+            "hostname": "node-01",
+        },
+    )
+    assert cross_platform.status_code == 400
+    assert cross_platform.json()["detail"] == "machine and provisioner must belong to the same platform"
+
+    machine = client.post(
+        "/v1/machines",
+        json={
+            "platform_id": platform["id"],
+            "application_id": application["id"],
+            "source_provisioner_id": provisioner["id"],
+            "hostname": "node-02",
+        },
+    ).json()
+
+    patch_cross_platform = client.patch(
+        f"/v1/machines/{machine['id']}",
+        json={"platform_id": other_platform["id"]},
+    )
+    assert patch_cross_platform.status_code == 400
+    assert patch_cross_platform.json()["detail"] == "machine and provisioner must belong to the same platform"
 
 
 def test_machine_list_filters_are_paginated(client: TestClient) -> None:

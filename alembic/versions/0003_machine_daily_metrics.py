@@ -24,6 +24,67 @@ METRIC_RENAMES = (
 )
 
 
+def _is_sqlite() -> bool:
+    """Return whether the migration is running against SQLite."""
+    return op.get_context().dialect.name == "sqlite"
+
+
+def _timestamp_default():
+    """Return the backend-specific default used for timestamp columns."""
+    if _is_sqlite():
+        return sa.text("CURRENT_TIMESTAMP")
+    return sa.text("now()")
+
+
+def _json_type() -> sa.types.TypeEngine:
+    """Return a JSON type compatible with both PostgreSQL and SQLite."""
+    return sa.JSON()
+
+
+def _create_sqlite_daily_metric_table(table_name: str, metric_code: str) -> None:
+    """Create the target daily metric table directly for SQLite smoke migrations."""
+    variant_column = (
+        sa.Column("percentile", sa.Float(), nullable=False, server_default="95")
+        if metric_code in {"cpu", "ram"}
+        else sa.Column("usage_type", sa.String(length=64), nullable=False, server_default="used")
+    )
+    unique_columns = (
+        ["provider_id", "machine_id", "metric_date", "percentile"]
+        if metric_code in {"cpu", "ram"}
+        else ["provider_id", "machine_id", "metric_date", "usage_type"]
+    )
+
+    op.create_table(
+        table_name,
+        sa.Column("id", sa.Integer(), nullable=False),
+        sa.Column("provider_id", sa.Integer(), nullable=False),
+        sa.Column("machine_id", sa.Integer(), nullable=False),
+        sa.Column("value", sa.Float(), nullable=False),
+        sa.Column("unit", sa.String(length=32), nullable=True),
+        sa.Column("labels", _json_type(), nullable=False),
+        sa.Column("collected_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
+        sa.Column("metric_date", sa.Date(), nullable=False),
+        variant_column,
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["machine_id"],
+            ["machines.id"],
+            name=f"fk_{table_name}_machine_id_machines",
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["provider_id"],
+            ["machine_providers.id"],
+            name=f"fk_{table_name}_provider_id_machine_providers",
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=f"pk_{table_name}"),
+        sa.UniqueConstraint(*unique_columns, name=f"uq_machine_{metric_code}_metrics_day"),
+    )
+    _create_new_indexes(table_name)
+
+
 def _drop_old_indexes(table_name: str) -> None:
     """Drop the indexes attached to the pre-rename metric table."""
     op.drop_index(f"ix_{table_name}_provider_collected_at", table_name=table_name)
@@ -41,6 +102,12 @@ def _create_new_indexes(table_name: str) -> None:
 
 def upgrade() -> None:
     """Rename metric tables and convert them to daily storage."""
+    if _is_sqlite():
+        for old_table, new_table, metric_code in METRIC_RENAMES:
+            op.drop_table(old_table)
+            _create_sqlite_daily_metric_table(new_table, metric_code)
+        return
+
     for old_table, new_table, metric_code in METRIC_RENAMES:
         _drop_old_indexes(old_table)
         op.drop_constraint(f"fk_{old_table}_machine_id_machines", old_table, type_="foreignkey")

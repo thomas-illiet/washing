@@ -18,6 +18,23 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+def _json_type() -> sa.types.TypeEngine:
+    """Return a JSON type compatible with both PostgreSQL and SQLite."""
+    return sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql")
+
+
+def _timestamp_default():
+    """Return the backend-specific default used for timestamp columns."""
+    if op.get_context().dialect.name == "sqlite":
+        return sa.text("CURRENT_TIMESTAMP")
+    return sa.text("now()")
+
+
+def _is_sqlite() -> bool:
+    """Return whether the migration is running against SQLite."""
+    return op.get_context().dialect.name == "sqlite"
+
+
 def upgrade() -> None:
     """Add the applications table and machine relationship."""
     op.create_table(
@@ -29,9 +46,9 @@ def upgrade() -> None:
         sa.Column("sync_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("sync_scheduled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("sync_error", sa.Text(), nullable=True),
-        sa.Column("extra", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("extra", _json_type(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_applications"),
         sa.UniqueConstraint("name", "environment", "region", name="uq_applications_name_environment_region"),
     )
@@ -41,16 +58,28 @@ def upgrade() -> None:
     op.create_index("ix_applications_sync_at", "applications", ["sync_at"])
     op.create_index("ix_applications_sync_scheduled_at", "applications", ["sync_scheduled_at"])
 
-    op.add_column("machines", sa.Column("application_id", sa.Integer(), nullable=True))
-    op.create_index("ix_machines_application_id", "machines", ["application_id"])
-    op.create_foreign_key(
-        "fk_machines_application_id_applications",
-        "machines",
-        "applications",
-        ["application_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    if _is_sqlite():
+        with op.batch_alter_table("machines") as batch_op:
+            batch_op.add_column(sa.Column("application_id", sa.Integer(), nullable=True))
+            batch_op.create_index("ix_machines_application_id", ["application_id"], unique=False)
+            batch_op.create_foreign_key(
+                "fk_machines_application_id_applications",
+                "applications",
+                ["application_id"],
+                ["id"],
+                ondelete="SET NULL",
+            )
+    else:
+        op.add_column("machines", sa.Column("application_id", sa.Integer(), nullable=True))
+        op.create_index("ix_machines_application_id", "machines", ["application_id"])
+        op.create_foreign_key(
+            "fk_machines_application_id_applications",
+            "machines",
+            "applications",
+            ["application_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade() -> None:

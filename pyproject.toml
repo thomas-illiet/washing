@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "metrics-collector"
 version = "0.1.0"
 description = "FastAPI/Celery service for collecting machine inventory and metrics."
-requires-python = ">=3.14"
+requires-python = ">=3.13,<3.14"
 dependencies = [
     "alembic>=1.13,<2.0",
     "celery[redis]>=5.4,<6.0",

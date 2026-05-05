@@ -16,7 +16,7 @@ from internal.contracts.http.resources import (
     ProvisionerRead,
     TaskEnqueueResponse,
 )
-from internal.infra.db.models import MachineProvisioner
+from internal.infra.db.models import MachineProvisioner, Platform
 from internal.infra.queue.enqueue import enqueue_celery_task
 from internal.infra.queue.task_names import RUN_PROVISIONER_TASK
 
@@ -70,6 +70,7 @@ def create_capsule_provisioner(
     The token is persisted in encrypted `config` and replaced by `has_token`
     in the response body.
     """
+    get_or_404(db, Platform, payload.platform_id, "platform not found")
     provisioner = MachineProvisioner(
         platform_id=payload.platform_id,
         name=payload.name,
@@ -94,6 +95,7 @@ def create_dynatrace_provisioner(
     The generic provisioner fields stay first-class columns, while the
     Dynatrace-specific configuration is stored in encrypted `config`.
     """
+    get_or_404(db, Platform, payload.platform_id, "platform not found")
     provisioner = MachineProvisioner(
         platform_id=payload.platform_id,
         name=payload.name,
@@ -162,6 +164,7 @@ def update_capsule_provisioner(
     provisioner = _load_provisioner_of_type(db, provisioner_id, "capsule")
     values = payload.model_dump(exclude_unset=True, exclude={"token"})
     if "platform_id" in values:
+        get_or_404(db, Platform, values["platform_id"], "platform not found")
         _ensure_provisioner_platform_can_change(provisioner, values["platform_id"])
     apply_patch(provisioner, values)
 
@@ -189,6 +192,7 @@ def update_dynatrace_provisioner(
     provisioner = _load_provisioner_of_type(db, provisioner_id, "dynatrace")
     values = payload.model_dump(exclude_unset=True, exclude={"url", "token"})
     if "platform_id" in values:
+        get_or_404(db, Platform, values["platform_id"], "platform not found")
         _ensure_provisioner_platform_can_change(provisioner, values["platform_id"])
     apply_patch(provisioner, values)
 

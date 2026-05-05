@@ -25,6 +25,11 @@ METRIC_TABLES = (
 )
 
 
+def _is_sqlite() -> bool:
+    """Return whether the migration is running against SQLite."""
+    return op.get_context().dialect.name == "sqlite"
+
+
 def _timestamps() -> list[sa.Column]:
     """Return timestamp columns consistent with the existing schema."""
     return [
@@ -120,25 +125,44 @@ def upgrade() -> None:
     for table_name in METRIC_TABLES:
         op.drop_table(table_name)
 
-    op.add_column("machine_providers", sa.Column("scope", sa.String(length=16), nullable=True))
-    op.execute(
-        sa.text(
-            """
-            UPDATE machine_providers AS mp
-            SET scope = mt.code
-            FROM metric_types AS mt
-            WHERE mp.metric_type_id = mt.id
-            """
+    if _is_sqlite():
+        connection = op.get_bind()
+        with op.batch_alter_table("machine_providers") as batch_op:
+            batch_op.add_column(sa.Column("scope", sa.String(length=16), nullable=True))
+
+        for metric_type_id, scope in ((1, "cpu"), (2, "ram"), (3, "disk")):
+            connection.execute(
+                sa.text(
+                    "UPDATE machine_providers SET scope = :scope WHERE metric_type_id = :metric_type_id"
+                ),
+                {"scope": scope, "metric_type_id": metric_type_id},
+            )
+
+        with op.batch_alter_table("machine_providers") as batch_op:
+            batch_op.alter_column("scope", existing_type=sa.String(length=16), nullable=False)
+            batch_op.create_index("ix_machine_providers_scope", ["scope"], unique=False)
+            batch_op.drop_column("metric_type_id")
+    else:
+        op.add_column("machine_providers", sa.Column("scope", sa.String(length=16), nullable=True))
+        op.execute(
+            sa.text(
+                """
+                UPDATE machine_providers AS mp
+                SET scope = mt.code
+                FROM metric_types AS mt
+                WHERE mp.metric_type_id = mt.id
+                """
+            )
         )
-    )
-    op.alter_column("machine_providers", "scope", nullable=False)
-    op.create_index("ix_machine_providers_scope", "machine_providers", ["scope"])
-    op.drop_constraint(
-        "fk_machine_providers_metric_type_id_metric_types",
-        "machine_providers",
-        type_="foreignkey",
-    )
-    op.drop_column("machine_providers", "metric_type_id")
+        op.alter_column("machine_providers", "scope", nullable=False)
+        op.create_index("ix_machine_providers_scope", "machine_providers", ["scope"])
+        op.drop_constraint(
+            "fk_machine_providers_metric_type_id_metric_types",
+            "machine_providers",
+            type_="foreignkey",
+        )
+        op.drop_column("machine_providers", "metric_type_id")
+
     op.drop_table("metric_types")
 
     for table_name in METRIC_TABLES:

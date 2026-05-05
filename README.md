@@ -28,6 +28,12 @@ Créer ensuite le fichier d'environnement :
 cp .env.example .env
 ```
 
+Générer ensuite une clé Fernet dédiée à l'environnement local :
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
 Variables à adapter avant d'exposer le monitoring :
 
 - `FLOWER_BASIC_AUTH`
@@ -220,6 +226,7 @@ Exemple de config interne `mock_metric` :
 ## Développement
 
 ```bash
+uv python install 3.13
 uv sync --group dev
 uv run pytest
 ```
@@ -230,7 +237,7 @@ Pour appliquer les migrations contre Postgres :
 uv run alembic upgrade head
 ```
 
-La clé `INTEGRATION_CONFIG_ENCRYPTION_KEY` doit être présente au runtime API, worker, beat et lors des migrations Alembic.
+Le projet cible Python 3.13. La clé `INTEGRATION_CONFIG_ENCRYPTION_KEY` doit être présente au runtime API, worker, beat et lors des migrations Alembic.
 
 Lancer les runtimes manuellement :
 

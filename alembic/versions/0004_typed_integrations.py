@@ -20,6 +20,18 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+def _config_json_type() -> sa.types.TypeEngine:
+    """Return a config column type compatible with the active backend."""
+    if op.get_context().dialect.name == "sqlite":
+        return sa.JSON()
+    return postgresql.JSONB()
+
+
+def _is_sqlite() -> bool:
+    """Return whether the migration is running against SQLite."""
+    return op.get_context().dialect.name == "sqlite"
+
+
 def _provisioners_table(config_type: sa.types.TypeEngine) -> sa.Table:
     """Build a lightweight table object for provisioner config migration."""
     return sa.table(
@@ -51,8 +63,8 @@ def _migrate_config_column(table_name: str, target_column: str, rows: list[dict]
 def upgrade() -> None:
     """Encrypt provider and provisioner configs, then drop provider scheduling."""
     connection = op.get_bind()
-    provisioners = _provisioners_table(postgresql.JSONB())
-    providers = _providers_table(postgresql.JSONB())
+    provisioners = _provisioners_table(_config_json_type())
+    providers = _providers_table(_config_json_type())
     provisioner_rows = connection.execute(
         sa.select(provisioners.c.id, provisioners.c.config)
     ).mappings().all()
@@ -66,16 +78,29 @@ def upgrade() -> None:
     _migrate_config_column("machine_provisioners", "config_encrypted", provisioner_rows, encrypt_json_value)
     _migrate_config_column("machine_providers", "config_encrypted", provider_rows, encrypt_json_value)
 
-    op.alter_column("machine_provisioners", "config_encrypted", nullable=False)
-    op.alter_column("machine_providers", "config_encrypted", nullable=False)
+    if _is_sqlite():
+        with op.batch_alter_table("machine_provisioners") as batch_op:
+            batch_op.alter_column("config_encrypted", existing_type=sa.Text(), nullable=False)
+            batch_op.drop_column("config")
+            batch_op.alter_column("config_encrypted", existing_type=sa.Text(), new_column_name="config")
 
-    op.drop_column("machine_provisioners", "config")
-    op.alter_column("machine_provisioners", "config_encrypted", new_column_name="config")
+        with op.batch_alter_table("machine_providers") as batch_op:
+            batch_op.alter_column("config_encrypted", existing_type=sa.Text(), nullable=False)
+            batch_op.drop_column("config")
+            batch_op.alter_column("config_encrypted", existing_type=sa.Text(), new_column_name="config")
+            batch_op.drop_column("cron")
+            batch_op.drop_column("last_scheduled_at")
+    else:
+        op.alter_column("machine_provisioners", "config_encrypted", nullable=False)
+        op.alter_column("machine_providers", "config_encrypted", nullable=False)
 
-    op.drop_column("machine_providers", "config")
-    op.alter_column("machine_providers", "config_encrypted", new_column_name="config")
-    op.drop_column("machine_providers", "cron")
-    op.drop_column("machine_providers", "last_scheduled_at")
+        op.drop_column("machine_provisioners", "config")
+        op.alter_column("machine_provisioners", "config_encrypted", new_column_name="config")
+
+        op.drop_column("machine_providers", "config")
+        op.alter_column("machine_providers", "config_encrypted", new_column_name="config")
+        op.drop_column("machine_providers", "cron")
+        op.drop_column("machine_providers", "last_scheduled_at")
 
 
 def downgrade() -> None:
@@ -90,8 +115,8 @@ def downgrade() -> None:
         sa.select(providers.c.id, providers.c.config)
     ).mappings().all()
 
-    op.add_column("machine_provisioners", sa.Column("config_json", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
-    op.add_column("machine_providers", sa.Column("config_json", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
+    op.add_column("machine_provisioners", sa.Column("config_json", _config_json_type(), nullable=True))
+    op.add_column("machine_providers", sa.Column("config_json", _config_json_type(), nullable=True))
     op.add_column("machine_providers", sa.Column("cron", sa.String(length=64), server_default="*/5 * * * *", nullable=False))
     op.add_column("machine_providers", sa.Column("last_scheduled_at", sa.DateTime(timezone=True), nullable=True))
 

@@ -18,11 +18,23 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+def _json_type() -> sa.types.TypeEngine:
+    """Return a JSON type compatible with both PostgreSQL and SQLite."""
+    return sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql")
+
+
+def _timestamp_default():
+    """Return the backend-specific default used for timestamp columns."""
+    if op.get_context().dialect.name == "sqlite":
+        return sa.text("CURRENT_TIMESTAMP")
+    return sa.text("now()")
+
+
 def _timestamps() -> list[sa.Column]:
     """Return the shared timestamp columns used by the initial schema."""
     return [
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
     ]
 
 
@@ -34,8 +46,8 @@ def _metric_columns(table_name: str) -> list[sa.Column]:
         sa.Column("machine_id", sa.Integer(), nullable=True),
         sa.Column("value", sa.Float(), nullable=False),
         sa.Column("unit", sa.String(length=32), nullable=True),
-        sa.Column("labels", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("collected_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("labels", _json_type(), nullable=False),
+        sa.Column("collected_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
         *_timestamps(),
         sa.ForeignKeyConstraint(["machine_id"], ["machines.id"], name=f"fk_{table_name}_machine_id_machines", ondelete="SET NULL"),
         sa.ForeignKeyConstraint(
@@ -55,7 +67,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("extra", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("extra", _json_type(), nullable=False),
         *_timestamps(),
         sa.PrimaryKeyConstraint("id", name="pk_platforms"),
         sa.UniqueConstraint("name", name="uq_platforms_name"),
@@ -97,7 +109,7 @@ def upgrade() -> None:
         sa.Column("platform_id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("type", sa.String(length=64), nullable=False),
-        sa.Column("config", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("config", _json_type(), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column("cron", sa.String(length=64), nullable=False),
         sa.Column("last_scheduled_at", sa.DateTime(timezone=True), nullable=True),
@@ -117,7 +129,7 @@ def upgrade() -> None:
         sa.Column("metric_type_id", sa.Integer(), nullable=False),
         sa.Column("name", sa.String(length=255), nullable=False),
         sa.Column("type", sa.String(length=64), nullable=False),
-        sa.Column("config", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("config", _json_type(), nullable=False),
         sa.Column("enabled", sa.Boolean(), nullable=False),
         sa.Column("cron", sa.String(length=64), nullable=False),
         sa.Column("last_scheduled_at", sa.DateTime(timezone=True), nullable=True),
@@ -135,7 +147,7 @@ def upgrade() -> None:
         "machine_provider_provisioners",
         sa.Column("provider_id", sa.Integer(), nullable=False),
         sa.Column("provisioner_id", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
         sa.ForeignKeyConstraint(["provider_id"], ["machine_providers.id"], name="fk_mpp_provider", ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["provisioner_id"], ["machine_provisioners.id"], name="fk_mpp_provisioner", ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("provider_id", "provisioner_id", name="pk_machine_provider_provisioners"),
@@ -154,7 +166,7 @@ def upgrade() -> None:
         sa.Column("cpu", sa.Float(), nullable=True),
         sa.Column("ram_gb", sa.Float(), nullable=True),
         sa.Column("disk_gb", sa.Float(), nullable=True),
-        sa.Column("extra", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("extra", _json_type(), nullable=False),
         *_timestamps(),
         sa.ForeignKeyConstraint(["platform_id"], ["platforms.id"], name="fk_machines_platform_id_platforms", ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["source_provisioner_id"], ["machine_provisioners.id"], name="fk_machines_source_prov", ondelete="SET NULL"),
@@ -178,7 +190,7 @@ def upgrade() -> None:
         sa.Column("new_cpu", sa.Float(), nullable=True),
         sa.Column("new_ram_gb", sa.Float(), nullable=True),
         sa.Column("new_disk_gb", sa.Float(), nullable=True),
-        sa.Column("changed_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("changed_at", sa.DateTime(timezone=True), server_default=_timestamp_default(), nullable=False),
         sa.ForeignKeyConstraint(["machine_id"], ["machines.id"], name="fk_machine_flavor_history_machine_id_machines", ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["source_provisioner_id"], ["machine_provisioners.id"], name="fk_mfh_source_prov", ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id", name="pk_machine_flavor_history"),

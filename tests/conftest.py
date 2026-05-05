@@ -1,10 +1,16 @@
 """Shared pytest fixtures for API and database tests."""
 
+import os
+
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from tests.constants import TEST_ENCRYPTION_KEY
+
+os.environ.setdefault("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
 
 from app.api.deps import get_db
 from app.api.main import app
@@ -19,6 +25,14 @@ def db_session() -> Session:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    @event.listens_for(engine, "connect")
+    def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+        """Keep SQLite tests aligned with PostgreSQL foreign key behavior."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=engine)
 
@@ -36,6 +50,7 @@ def db_session() -> Session:
 def client(db_session: Session) -> TestClient:
     """Provide a TestClient wired to the in-memory database fixture."""
     def override_get_db():
+        """Reuse the fixture-backed database session inside FastAPI dependencies."""
         try:
             yield db_session
         finally:

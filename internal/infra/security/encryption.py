@@ -34,5 +34,5 @@ def decrypt_json_value(value: Any) -> dict[str, Any]:
         decrypted = _get_fernet().decrypt(value.encode("utf-8")).decode("utf-8")
         return json.loads(decrypted)
     except InvalidToken:
-        # Allow transitional plaintext JSON while migrating persisted rows.
+        # Keep compatibility with legacy plaintext rows; all current writes remain encrypted.
         return json.loads(value)

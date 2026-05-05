@@ -1,27 +1,21 @@
 """HTTP request and response schemas."""
 
 from datetime import date, datetime
-from typing import Any, Generic, Literal, TypeVar
+from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from croniter import croniter
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 
 Scope = Literal["cpu", "ram", "disk"]
 TaskExecutionStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE", "RETRY", "REVOKED"]
 ResourceT = TypeVar("ResourceT")
-
-
-def _validate_non_empty(value: str | None, field_name: str) -> str | None:
-    """Ensure a required string field is not blank."""
-    if value is not None and not value.strip():
-        raise ValueError(f"{field_name} must not be empty")
-    return value
+NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class ApiModel(BaseModel):
     """Base Pydantic model configured for ORM serialization."""
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, extra="forbid")
 
 
 class CronModel(ApiModel):
@@ -37,14 +31,14 @@ class CronModel(ApiModel):
 
 class PlatformCreate(ApiModel):
     """Payload used to create a platform."""
-    name: str
+    name: NonEmptyStr
     description: str | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
 class PlatformUpdate(ApiModel):
     """Patch payload for a platform."""
-    name: str | None = None
+    name: NonEmptyStr | None = None
     description: str | None = None
     extra: dict[str, Any] | None = None
 
@@ -58,29 +52,26 @@ class PlatformRead(PlatformCreate):
 
 class ApplicationCreate(ApiModel):
     """Payload used to create an application."""
-    name: str
-    environment: str
-    region: str
-    sync_at: datetime | None = None
-    sync_scheduled_at: datetime | None = None
-    sync_error: str | None = None
+    name: NonEmptyStr
+    environment: NonEmptyStr
+    region: NonEmptyStr
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
 class ApplicationUpdate(ApiModel):
     """Patch payload for an application."""
-    name: str | None = None
-    environment: str | None = None
-    region: str | None = None
-    sync_at: datetime | None = None
-    sync_scheduled_at: datetime | None = None
-    sync_error: str | None = None
+    name: NonEmptyStr | None = None
+    environment: NonEmptyStr | None = None
+    region: NonEmptyStr | None = None
     extra: dict[str, Any] | None = None
 
 
 class ApplicationRead(ApplicationCreate):
     """Public representation of an application."""
     id: int
+    sync_at: datetime | None = None
+    sync_scheduled_at: datetime | None = None
+    sync_error: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -104,31 +95,19 @@ class ProvisionerRead(CronModel):
 class CapsuleProvisionerCreate(CronModel):
     """Create payload for a Capsule provisioner."""
     platform_id: int
-    name: str
+    name: NonEmptyStr
     enabled: bool = True
     cron: str = "*/5 * * * *"
-    token: str
-
-    @field_validator("token")
-    @classmethod
-    def validate_token(cls, value: str) -> str:
-        """Reject blank provisioner tokens."""
-        return _validate_non_empty(value, "token") or value
+    token: NonEmptyStr
 
 
 class CapsuleProvisionerUpdate(CronModel):
     """Patch payload for a Capsule provisioner."""
     platform_id: int | None = None
-    name: str | None = None
+    name: NonEmptyStr | None = None
     enabled: bool | None = None
     cron: str | None = None
-    token: str | None = None
-
-    @field_validator("token")
-    @classmethod
-    def validate_token(cls, value: str | None) -> str | None:
-        """Reject blank provisioner tokens when provided."""
-        return _validate_non_empty(value, "token")
+    token: NonEmptyStr | None = None
 
 
 class CapsuleProvisionerRead(ProvisionerRead):
@@ -171,34 +150,22 @@ class ProviderRead(ApiModel):
 class PrometheusProviderCreate(ApiModel):
     """Create payload for a Prometheus provider."""
     platform_id: int
-    name: str
+    name: NonEmptyStr
     enabled: bool = True
     scope: Scope
     url: AnyHttpUrl
-    query: str
+    query: NonEmptyStr
     provisioner_ids: list[int] = Field(default_factory=list)
-
-    @field_validator("query")
-    @classmethod
-    def validate_query(cls, value: str) -> str:
-        """Reject blank Prometheus queries."""
-        return _validate_non_empty(value, "query") or value
 
 
 class PrometheusProviderUpdate(ApiModel):
     """Patch payload for a Prometheus provider."""
     platform_id: int | None = None
-    name: str | None = None
+    name: NonEmptyStr | None = None
     enabled: bool | None = None
     scope: Scope | None = None
     url: AnyHttpUrl | None = None
-    query: str | None = None
-
-    @field_validator("query")
-    @classmethod
-    def validate_query(cls, value: str | None) -> str | None:
-        """Reject blank Prometheus queries when provided."""
-        return _validate_non_empty(value, "query")
+    query: NonEmptyStr | None = None
 
 
 class PrometheusProviderRead(ProviderRead):
@@ -210,34 +177,22 @@ class PrometheusProviderRead(ProviderRead):
 class DynatraceProviderCreate(ApiModel):
     """Create payload for a Dynatrace provider."""
     platform_id: int
-    name: str
+    name: NonEmptyStr
     enabled: bool = True
     scope: Scope
     url: AnyHttpUrl
-    token: str
+    token: NonEmptyStr
     provisioner_ids: list[int] = Field(default_factory=list)
-
-    @field_validator("token")
-    @classmethod
-    def validate_token(cls, value: str) -> str:
-        """Reject blank provider tokens."""
-        return _validate_non_empty(value, "token") or value
 
 
 class DynatraceProviderUpdate(ApiModel):
     """Patch payload for a Dynatrace provider."""
     platform_id: int | None = None
-    name: str | None = None
+    name: NonEmptyStr | None = None
     enabled: bool | None = None
     scope: Scope | None = None
     url: AnyHttpUrl | None = None
-    token: str | None = None
-
-    @field_validator("token")
-    @classmethod
-    def validate_token(cls, value: str | None) -> str | None:
-        """Reject blank provider tokens when provided."""
-        return _validate_non_empty(value, "token")
+    token: NonEmptyStr | None = None
 
 
 class DynatraceProviderRead(ProviderRead):
@@ -252,9 +207,9 @@ class MachineCreate(ApiModel):
     application_id: int | None = None
     source_provisioner_id: int | None = None
     external_id: str | None = None
-    hostname: str
-    region: str | None = None
-    environment: str | None = None
+    hostname: NonEmptyStr
+    region: NonEmptyStr | None = None
+    environment: NonEmptyStr | None = None
     cpu: float | None = None
     ram_gb: float | None = None
     disk_gb: float | None = None
@@ -267,9 +222,9 @@ class MachineUpdate(ApiModel):
     application_id: int | None = None
     source_provisioner_id: int | None = None
     external_id: str | None = None
-    hostname: str | None = None
-    region: str | None = None
-    environment: str | None = None
+    hostname: NonEmptyStr | None = None
+    region: NonEmptyStr | None = None
+    environment: NonEmptyStr | None = None
     cpu: float | None = None
     ram_gb: float | None = None
     disk_gb: float | None = None

@@ -22,6 +22,7 @@ from internal.infra.db.models import (
     MachineProvider,
     MachineProviderProvisioner,
     MachineProvisioner,
+    Platform,
     find_provider_type_conflict,
 )
 
@@ -100,6 +101,7 @@ def create_prometheus_provider(
     db: Session = Depends(get_db),
 ) -> PrometheusProviderRead:
     """Create a typed Prometheus provider."""
+    get_or_404(db, Platform, payload.platform_id, "platform not found")
     provisioners = _load_provisioners_for_provider(
         db,
         payload.provisioner_ids,
@@ -127,6 +129,7 @@ def create_dynatrace_provider(
     db: Session = Depends(get_db),
 ) -> DynatraceProviderRead:
     """Create a typed Dynatrace provider."""
+    get_or_404(db, Platform, payload.platform_id, "platform not found")
     provisioners = _load_provisioners_for_provider(
         db,
         payload.provisioner_ids,
@@ -208,6 +211,7 @@ def update_prometheus_provider(
         provider.scope = payload.scope
 
     if "platform_id" in values:
+        get_or_404(db, Platform, target_platform_id, "platform not found")
         _ensure_provider_platform_matches_provisioners(provider, target_platform_id)
 
     apply_patch(provider, values)
@@ -243,6 +247,7 @@ def update_dynatrace_provider(
         provider.scope = payload.scope
 
     if "platform_id" in values:
+        get_or_404(db, Platform, target_platform_id, "platform not found")
         _ensure_provider_platform_matches_provisioners(provider, target_platform_id)
 
     apply_patch(provider, values)

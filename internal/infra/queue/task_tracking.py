@@ -49,6 +49,7 @@ def configure_celery_task_tracking() -> None:
         body: object | None = None,
         **_: object,
     ) -> None:
+        """Persist a pending execution row when Celery publishes a tracked task."""
         task_id = _published_task_id(headers, body)
         task_name = sender or _published_task_name(headers, body)
         if task_id is None or task_name is None:
@@ -72,6 +73,7 @@ def configure_celery_task_tracking() -> None:
         args: Sequence[object] | None = None,
         **_: object,
     ) -> None:
+        """Mark a tracked task execution as started just before task runtime."""
         task_name = getattr(task, "name", None)
         if task_id is None or task_name is None:
             return
@@ -81,6 +83,7 @@ def configure_celery_task_tracking() -> None:
         resource_type, resource_id = _resolve_resource_context(task_name, headers=request_headers, args=args)
 
         def mutate(execution: CeleryTaskExecution) -> None:
+            """Apply the runtime-start state transition to one execution row."""
             execution.status = "STARTED"
             execution.resource_type = execution.resource_type or resource_type
             execution.resource_id = execution.resource_id if execution.resource_id is not None else resource_id
@@ -108,6 +111,7 @@ def configure_celery_task_tracking() -> None:
         retval: object | None = None,
         **_: object,
     ) -> None:
+        """Persist the terminal or post-run state emitted by Celery."""
         task_name = getattr(task, "name", None)
         if task_id is None or task_name is None or state is None:
             return
@@ -118,6 +122,7 @@ def configure_celery_task_tracking() -> None:
         resource_type, resource_id = _resolve_resource_context(task_name, headers=request_headers, args=args)
 
         def mutate(execution: CeleryTaskExecution) -> None:
+            """Apply the post-run task state, duration, and result payload."""
             execution.status = state
             execution.resource_type = execution.resource_type or resource_type
             execution.resource_id = execution.resource_id if execution.resource_id is not None else resource_id
@@ -148,6 +153,7 @@ def configure_celery_task_tracking() -> None:
         args: Sequence[object] | None = None,
         **_: object,
     ) -> None:
+        """Capture task failures and persist the rendered error message."""
         task_name = getattr(sender, "name", None)
         if task_id is None or task_name is None:
             return
@@ -156,6 +162,7 @@ def configure_celery_task_tracking() -> None:
         resource_type, resource_id = _resolve_resource_context(task_name, headers=request_headers, args=args)
 
         def mutate(execution: CeleryTaskExecution) -> None:
+            """Apply the failure state transition to one execution row."""
             execution.status = "FAILURE"
             execution.resource_type = execution.resource_type or resource_type
             execution.resource_id = execution.resource_id if execution.resource_id is not None else resource_id
@@ -177,6 +184,7 @@ def configure_celery_task_tracking() -> None:
         sender: object | None = None,
         **_: object,
     ) -> None:
+        """Persist retry state changes emitted by Celery tasks."""
         task_id = getattr(request, "id", None)
         task_name = getattr(sender, "name", None)
         if task_id is None or task_name is None:
@@ -187,6 +195,7 @@ def configure_celery_task_tracking() -> None:
         resource_type, resource_id = _resolve_resource_context(task_name, headers=request_headers, args=args)
 
         def mutate(execution: CeleryTaskExecution) -> None:
+            """Apply the retry state transition to one execution row."""
             execution.status = "RETRY"
             execution.resource_type = execution.resource_type or resource_type
             execution.resource_id = execution.resource_id if execution.resource_id is not None else resource_id

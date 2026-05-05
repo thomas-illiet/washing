@@ -18,6 +18,7 @@ class FakeTask:
     """Minimal hashable task object for Celery signal tests."""
 
     def __init__(self, name: str, headers: dict[str, object] | None = None, args: list[object] | None = None) -> None:
+        """Populate the task name and request payload expected by signal handlers."""
         self.name = name
         self.request = SimpleNamespace(
             headers=headers or {},
@@ -263,6 +264,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
         kwargs: dict[str, object] | None = None,
         headers: dict[str, object] | None = None,
     ) -> SimpleNamespace:
+        """Simulate Celery task publication while preserving tracking side effects."""
         task_id = next(task_ids)
         publish_headers = {"id": task_id, "task": task_name, **(headers or {})}
         before_task_publish.send(sender=task_name, headers=publish_headers, body=(args or [], kwargs or {}, {}))
