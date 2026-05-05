@@ -7,11 +7,22 @@ from app.api.routes import applications, health, machines, platforms, tasks
 from internal.infra.config.settings import get_settings
 from internal.infra.observability.prometheus import prometheus_http_middleware, prometheus_response
 
+OPENAPI_TAGS = [
+    {"name": "health"},
+    {"name": "platforms"},
+    {"name": "applications"},
+    {"name": "machines"},
+    {"name": "machine-metrics"},
+    {"name": "machine-providers"},
+    {"name": "machine-provisioners"},
+    {"name": "tasks"},
+]
+
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
-    app = FastAPI(title=settings.app_name, docs_url=None, redoc_url=None)
+    app = FastAPI(title=settings.app_name, docs_url=None, redoc_url=None, openapi_tags=OPENAPI_TAGS)
     app.middleware("http")(prometheus_http_middleware)
 
     if settings.prometheus_api_enabled:

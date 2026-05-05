@@ -38,8 +38,10 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "Metrics Collector"
-    schemas = response.json()["components"]["schemas"]
-    paths = response.json()["paths"]
+    body = response.json()
+    schemas = body["components"]["schemas"]
+    paths = body["paths"]
+    tags = [tag["name"] for tag in body["tags"]]
     assert "provisioner_ids" not in schemas["PrometheusProviderUpdate"]["properties"]
     assert "provisioner_ids" not in schemas["DynatraceProviderUpdate"]["properties"]
     assert "/metric-types" not in paths
@@ -59,6 +61,19 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/machines/provisioners/{provisioner_id}" in paths
     assert "/machines/provisioners/{provisioner_id}/run" in paths
     assert "/tasks" in paths
+    assert tags.index("machines") < tags.index("machine-metrics")
+    assert tags.index("machine-metrics") < tags.index("machine-providers")
+    assert tags.index("machine-providers") < tags.index("machine-provisioners")
+    assert paths["/machines"]["get"]["tags"] == ["machines"]
+    assert paths["/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["machines"]
+    assert paths["/machines/metrics"]["get"]["tags"] == ["machine-metrics"]
+    assert paths["/machines/{machine_id}/metrics"]["get"]["tags"] == ["machine-metrics"]
+    assert paths["/machines/providers"]["get"]["tags"] == ["machine-providers"]
+    assert paths["/machines/providers/{provider_id}/prometheus"]["get"]["tags"] == ["machine-providers"]
+    assert paths["/machines/providers/{provider_id}/provisioners"]["get"]["tags"] == ["machine-providers"]
+    assert paths["/machines/provisioners"]["get"]["tags"] == ["machine-provisioners"]
+    assert paths["/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["machine-provisioners"]
+    assert paths["/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["machine-provisioners"]
     assert {"type", "offset", "limit"} <= {param["name"] for param in paths["/machines/metrics"]["get"]["parameters"]}
     assert {"type", "offset", "limit"} <= {
         param["name"] for param in paths["/machines/{machine_id}/metrics"]["get"]["parameters"]
