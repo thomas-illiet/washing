@@ -3,8 +3,9 @@
 from datetime import date, datetime
 from typing import Annotated, Any, Generic, Literal, TypeVar
 
-from croniter import croniter
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, StringConstraints, field_validator
+
+from internal.domain.cron import validate_cron_expression
 
 
 Scope = Literal["cpu", "ram", "disk"]
@@ -23,9 +24,9 @@ class CronModel(ApiModel):
     @field_validator("cron", check_fields=False)
     @classmethod
     def validate_cron(cls, value: str | None) -> str | None:
-        """Validate a cron expression accepted by croniter."""
-        if value is not None and not croniter.is_valid(value):
-            raise ValueError("cron must be a valid cron expression")
+        """Validate a cron expression through the shared domain helper."""
+        if value is not None:
+            return validate_cron_expression(value)
         return value
 
 

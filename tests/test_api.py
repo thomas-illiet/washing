@@ -5,6 +5,7 @@ from datetime import date
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from internal.domain.cron import INVALID_CRON_EXPRESSION_DETAIL
 from internal.infra.db.models import (
     Machine,
     MachineCPUMetric,
@@ -39,6 +40,13 @@ def _persist_machine(db_session: Session, **values) -> Machine:
     db_session.commit()
     db_session.refresh(machine)
     return machine
+
+
+def _assert_invalid_cron_response(body: dict) -> None:
+    """Assert the FastAPI validation payload for an invalid cron expression."""
+    detail = body["detail"][0]
+    assert detail["loc"][-1] == "cron"
+    assert detail["msg"].endswith(INVALID_CRON_EXPRESSION_DETAIL)
 
 
 def test_swagger_is_served_on_root(client: TestClient) -> None:
@@ -327,6 +335,113 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
 
     wrong_route = client.get(f"/v1/machines/provisioners/{capsule['id']}/dynatrace")
     assert wrong_route.status_code == 404
+
+
+def test_typed_provisioner_routes_accept_valid_cron_on_create_and_update(client: TestClient) -> None:
+    """Typed provisioner routes should accept valid cron expressions on writes."""
+    platform = client.post("/v1/platforms", json={"name": "Cron Validation Success"}).json()
+
+    capsule = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "capsule cron inventory",
+            "token": "capsule-secret",
+            "cron": "*/15 * * * *",
+        },
+    )
+    assert capsule.status_code == 201
+    assert capsule.json()["cron"] == "*/15 * * * *"
+
+    capsule_update = client.patch(
+        f"/v1/machines/provisioners/{capsule.json()['id']}/capsule",
+        json={"cron": "0 * * * *"},
+    )
+    assert capsule_update.status_code == 200
+    assert capsule_update.json()["cron"] == "0 * * * *"
+
+    dynatrace = client.post(
+        "/v1/machines/provisioners/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "dynatrace cron inventory",
+            "url": "https://dynatrace.example",
+            "token": "dynatrace-secret",
+            "cron": "*/10 * * * *",
+        },
+    )
+    assert dynatrace.status_code == 201
+    assert dynatrace.json()["cron"] == "*/10 * * * *"
+
+    dynatrace_update = client.patch(
+        f"/v1/machines/provisioners/{dynatrace.json()['id']}/dynatrace",
+        json={"cron": "30 * * * *"},
+    )
+    assert dynatrace_update.status_code == 200
+    assert dynatrace_update.json()["cron"] == "30 * * * *"
+
+
+def test_typed_provisioner_routes_reject_invalid_cron_on_create_and_update(client: TestClient) -> None:
+    """Typed provisioner routes should reject invalid cron expressions on writes."""
+    platform = client.post("/v1/platforms", json={"name": "Cron Validation Failure"}).json()
+
+    invalid_capsule_create = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "capsule invalid cron",
+            "token": "capsule-secret",
+            "cron": "not-a-cron",
+        },
+    )
+    assert invalid_capsule_create.status_code == 422
+    _assert_invalid_cron_response(invalid_capsule_create.json())
+
+    capsule = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "capsule update cron",
+            "token": "capsule-secret",
+            "cron": "*/5 * * * *",
+        },
+    ).json()
+    invalid_capsule_update = client.patch(
+        f"/v1/machines/provisioners/{capsule['id']}/capsule",
+        json={"cron": "not-a-cron"},
+    )
+    assert invalid_capsule_update.status_code == 422
+    _assert_invalid_cron_response(invalid_capsule_update.json())
+
+    invalid_dynatrace_create = client.post(
+        "/v1/machines/provisioners/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "dynatrace invalid cron",
+            "url": "https://dynatrace.example",
+            "token": "dynatrace-secret",
+            "cron": "not-a-cron",
+        },
+    )
+    assert invalid_dynatrace_create.status_code == 422
+    _assert_invalid_cron_response(invalid_dynatrace_create.json())
+
+    dynatrace = client.post(
+        "/v1/machines/provisioners/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "dynatrace update cron",
+            "url": "https://dynatrace.example",
+            "token": "dynatrace-secret",
+            "cron": "*/5 * * * *",
+        },
+    ).json()
+    invalid_dynatrace_update = client.patch(
+        f"/v1/machines/provisioners/{dynatrace['id']}/dynatrace",
+        json={"cron": "not-a-cron"},
+    )
+    assert invalid_dynatrace_update.status_code == 422
+    _assert_invalid_cron_response(invalid_dynatrace_update.json())
 
 
 def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_session: Session) -> None:
