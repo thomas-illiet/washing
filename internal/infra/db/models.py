@@ -3,7 +3,7 @@
 from datetime import date as date_value, datetime
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from internal.infra.db.base import Base, EncryptedJSONType, JSONType, JsonDict, TimestampMixin, utcnow
 
@@ -108,6 +108,19 @@ class MachineProvisioner(TimestampMixin, Base):
 
     __table_args__ = (UniqueConstraint("platform_id", "name", name="uq_machine_provisioners_platform_name"),)
 
+    @validates("providers")
+    def validate_provider_type_uniqueness(self, _key: str, provider: "MachineProvider") -> "MachineProvider":
+        """Reject attaching multiple providers of the same type."""
+        conflict = find_provider_type_conflict(
+            self,
+            provider.type,
+            provider_id=provider.id,
+            candidate_provider=provider,
+        )
+        if conflict is not None:
+            raise ValueError(PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL)
+        return provider
+
 
 class MachineProvider(TimestampMixin, Base):
     """Metric integration able to collect samples for machines."""
@@ -136,6 +149,23 @@ class MachineProvider(TimestampMixin, Base):
     def provisioner_ids(self) -> list[int]:
         """Expose attached provisioner ids for HTTP serialization."""
         return [provisioner.id for provisioner in self.provisioners]
+
+    @validates("provisioners")
+    def validate_provisioner_provider_type_uniqueness(
+        self,
+        _key: str,
+        provisioner: MachineProvisioner,
+    ) -> MachineProvisioner:
+        """Reject attaching this provider to a provisioner that already has its type."""
+        conflict = find_provider_type_conflict(
+            provisioner,
+            self.type,
+            provider_id=self.id,
+            candidate_provider=self,
+        )
+        if conflict is not None:
+            raise ValueError(PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL)
+        return provisioner
 
 
 class Machine(TimestampMixin, Base):
@@ -218,3 +248,23 @@ class MachineDiskMetric(MachineMetricMixin, Base):
         UniqueConstraint("provider_id", "machine_id", "date", name="uq_machine_disk_metrics_day"),
         Index("ix_machine_disk_metrics_provider_date", "provider_id", "date"),
     )
+
+
+PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL = "provisioner cannot have more than one provider of the same type"
+
+
+def find_provider_type_conflict(
+    provisioner: MachineProvisioner,
+    provider_type: str,
+    provider_id: int | None = None,
+    candidate_provider: MachineProvider | None = None,
+) -> MachineProvider | None:
+    """Return the conflicting provider already attached to a provisioner, if any."""
+    for provider in provisioner.providers:
+        if candidate_provider is not None and provider is candidate_provider:
+            continue
+        if provider_id is not None and provider.id == provider_id:
+            continue
+        if provider.type == provider_type:
+            return provider
+    return None
