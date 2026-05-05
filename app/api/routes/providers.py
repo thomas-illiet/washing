@@ -20,11 +20,8 @@ from internal.contracts.http.resources import (
     ProviderRead,
     ProvisionerRead,
     Scope,
-    TaskEnqueueResponse,
 )
 from internal.infra.db.models import MachineProvider, MachineProvisioner
-from internal.infra.queue.celery import celery_app
-from internal.infra.queue.task_names import RUN_PROVIDER_TASK
 
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -293,13 +290,3 @@ def detach_provider_provisioner(
         provider.provisioners.remove(provisioner)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post("/{provider_id}/run", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
-def enqueue_provider_run(provider_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
-    """Enqueue a manual provider run when the provider is enabled."""
-    provider = _load_provider(db, provider_id)
-    if not provider.enabled:
-        raise HTTPException(status_code=409, detail="provider is disabled")
-    task = celery_app.send_task(RUN_PROVIDER_TASK, args=[provider_id])
-    return TaskEnqueueResponse(task_id=task.id)

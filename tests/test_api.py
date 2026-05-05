@@ -9,6 +9,7 @@ from internal.infra.db.models import (
     Machine,
     MachineCPUMetric,
     MachineDiskMetric,
+    MachineFlavorHistory,
     MachineProvider,
     MachineProvisioner,
     Platform,
@@ -44,6 +45,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "provisioner_ids" not in schemas["DynatraceProviderUpdate"]["properties"]
     assert "/metric-types" not in paths
     assert "/metrics/{metric_name}" not in paths
+    assert "/providers/{provider_id}/run" not in paths
     assert "/machines/metrics" in paths
     assert "/machines/{machine_id}/metrics" in paths
     assert {"type", "offset", "limit"} <= {param["name"] for param in paths["/machines/metrics"]["get"]["parameters"]}
@@ -182,8 +184,7 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     assert provider_after_detach["provisioner_ids"] == []
 
     disabled_run = client.post(f"/providers/{dynatrace['id']}/run")
-    assert disabled_run.status_code == 409
-    assert disabled_run.json()["detail"] == "provider is disabled"
+    assert disabled_run.status_code == 404
 
 
 def test_application_crud_and_machine_application_id(client: TestClient) -> None:
@@ -235,6 +236,47 @@ def test_machine_crud_and_flavor_history_endpoint(client: TestClient) -> None:
     assert history == []
 
 
+def test_machine_flavor_history_returns_changed_state_only(client: TestClient, db_session: Session) -> None:
+    """Flavor history should expose only the changed state in CPU and MB units."""
+    platform = Platform(name="Flavor History")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        hostname="node-01",
+        cpu=2,
+        ram_gb=8,
+        disk_gb=80,
+    )
+    db_session.add_all([platform, provisioner, machine])
+    db_session.commit()
+
+    db_session.add(
+        MachineFlavorHistory(
+            machine_id=machine.id,
+            source_provisioner_id=provisioner.id,
+            cpu=4,
+            ram_mb=16384,
+            disk_mb=122880,
+        )
+    )
+    db_session.commit()
+
+    history = client.get(f"/machines/{machine.id}/flavor-history")
+    assert history.status_code == 200
+    assert history.json()[0]["machine_id"] == machine.id
+    assert history.json()[0]["source_provisioner_id"] == provisioner.id
+    assert history.json()[0]["cpu"] == 4
+    assert history.json()[0]["ram_mb"] == 16384
+    assert history.json()[0]["disk_mb"] == 122880
+    assert "previous_cpu" not in history.json()[0]
+    assert "previous_ram_gb" not in history.json()[0]
+    assert "previous_disk_gb" not in history.json()[0]
+    assert "new_cpu" not in history.json()[0]
+    assert "new_ram_gb" not in history.json()[0]
+    assert "new_disk_gb" not in history.json()[0]
+
+
 def test_machine_metric_history_endpoint_requires_type_and_paginates(client: TestClient, db_session: Session) -> None:
     """Machine metric history should require a type and expose offset pagination."""
     platform = Platform(name="Machine Metrics")
@@ -274,6 +316,8 @@ def test_machine_metric_history_endpoint_requires_type_and_paginates(client: Tes
     assert first_page.json()["items"][0]["machine_id"] == machine.id
     assert first_page.json()["items"][0]["date"] == "2026-05-02"
     assert first_page.json()["items"][0]["value"] == 20
+    assert "created_at" not in first_page.json()["items"][0]
+    assert "updated_at" not in first_page.json()["items"][0]
 
     second_page = client.get(
         f"/machines/{machine.id}/metrics",
@@ -376,6 +420,8 @@ def test_machine_metrics_global_endpoint_filters_and_paginates(client: TestClien
     assert response.json()["items"][0]["machine_id"] == machine_two.id
     assert response.json()["items"][0]["date"] == "2026-05-03"
     assert response.json()["items"][0]["value"] == 30
+    assert "created_at" not in response.json()["items"][0]
+    assert "updated_at" not in response.json()["items"][0]
 
     filtered_machine = client.get(
         "/machines/metrics",

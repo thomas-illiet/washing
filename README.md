@@ -79,7 +79,7 @@ Endpoints utiles :
 - `GET /` : documentation Swagger personnalisée
 - CRUD : `/platforms`, `/applications`, `/machines`, `/providers`, `/provisioners`
 - Association : `POST /providers/{provider_id}/provisioners/{provisioner_id}`
-- Jobs manuels : `POST /providers/{id}/run`, `POST /provisioners/{id}/run`, `POST /applications/{id}/sync`
+- Jobs manuels : `POST /provisioners/{id}/run`, `POST /applications/{id}/sync`
 - Sync applications : `POST /applications/sync-due`
 - Métriques : `GET /machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /machines/metrics?type=cpu|ram|disk`
 

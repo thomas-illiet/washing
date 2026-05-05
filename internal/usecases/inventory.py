@@ -8,6 +8,13 @@ from internal.infra.db.base import utcnow
 from internal.infra.db.models import Application, Machine, MachineFlavorHistory, MachineProvisioner
 
 
+def _gb_to_mb(value: float | None) -> float | None:
+    """Convert GB-style machine capacity values to MB for flavor history."""
+    if value is None:
+        return None
+    return value * 1024
+
+
 def _find_machine(db: Session, provisioner: MachineProvisioner, record: MachineRecord) -> Machine | None:
     """Find the machine matched by external id first, then by hostname."""
     if record.external_id:
@@ -113,12 +120,9 @@ def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int
                     MachineFlavorHistory(
                         machine=machine,
                         source_provisioner_id=provisioner.id,
-                        previous_cpu=machine.cpu,
-                        previous_ram_gb=machine.ram_gb,
-                        previous_disk_gb=machine.disk_gb,
-                        new_cpu=record.cpu,
-                        new_ram_gb=record.ram_gb,
-                        new_disk_gb=record.disk_gb,
+                        cpu=record.cpu,
+                        ram_mb=_gb_to_mb(record.ram_gb),
+                        disk_mb=_gb_to_mb(record.disk_gb),
                         changed_at=now,
                     )
                 )

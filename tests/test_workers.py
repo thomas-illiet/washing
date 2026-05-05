@@ -67,6 +67,10 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
     assert machine.application_id is not None
     assert db_session.query(Application).filter(Application.name == "checkout").count() == 1
     assert db_session.query(MachineFlavorHistory).count() == 1
+    history = db_session.query(MachineFlavorHistory).one()
+    assert history.cpu == 4
+    assert history.ram_mb == 16 * 1024
+    assert history.disk_mb == 120 * 1024
 
 
 def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:

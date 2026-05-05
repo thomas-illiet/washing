@@ -287,12 +287,9 @@ class MachineFlavorHistoryRead(ApiModel):
     id: int
     machine_id: int
     source_provisioner_id: int | None = None
-    previous_cpu: float | None = None
-    previous_ram_gb: float | None = None
-    previous_disk_gb: float | None = None
-    new_cpu: float | None = None
-    new_ram_gb: float | None = None
-    new_disk_gb: float | None = None
+    cpu: float | None = None
+    ram_mb: float | None = None
+    disk_mb: float | None = None
     changed_at: datetime
 
 
@@ -303,8 +300,6 @@ class MachineMetricRead(ApiModel):
     machine_id: int
     date: date
     value: int
-    created_at: datetime
-    updated_at: datetime
 
 
 class PaginatedResponse(ApiModel, Generic[ResourceT]):
