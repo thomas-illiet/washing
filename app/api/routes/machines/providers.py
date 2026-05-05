@@ -27,7 +27,7 @@ from internal.infra.db.models import (
 )
 
 
-router = APIRouter(prefix="/machines/providers", tags=["machine-providers"])
+router = APIRouter(prefix="/machines/providers", tags=["Machine Providers"])
 
 
 def _load_provider(db: Session, provider_id: int) -> MachineProvider:

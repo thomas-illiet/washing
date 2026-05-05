@@ -18,7 +18,7 @@ from internal.infra.db.models import (
 )
 
 
-router = APIRouter(prefix="/machines", tags=["machine-metrics"])
+router = APIRouter(prefix="/machines", tags=["Machine Metrics"])
 
 METRIC_MODELS = {
     "cpu": MachineCPUMetric,

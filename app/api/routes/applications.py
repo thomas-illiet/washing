@@ -18,7 +18,7 @@ from internal.infra.queue.task_names import SYNC_APPLICATION_TASK
 from internal.usecases.applications import dispatch_due_application_syncs
 
 
-router = APIRouter(prefix="/applications", tags=["applications"])
+router = APIRouter(prefix="/applications", tags=["Applications"])
 
 
 @router.post("", response_model=ApplicationRead, status_code=status.HTTP_201_CREATED)

@@ -21,7 +21,7 @@ from internal.infra.queue.enqueue import enqueue_celery_task
 from internal.infra.queue.task_names import RUN_PROVISIONER_TASK
 
 
-router = APIRouter(prefix="/machines/provisioners", tags=["machine-provisioners"])
+router = APIRouter(prefix="/machines/provisioners", tags=["Machine Provisioners"])
 
 
 def _load_provisioner_of_type(db: Session, provisioner_id: int, connector_type: str) -> MachineProvisioner:

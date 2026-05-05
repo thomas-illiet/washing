@@ -9,7 +9,7 @@ from internal.contracts.http.resources import PaginatedResponse, PlatformCreate,
 from internal.infra.db.models import Platform
 
 
-router = APIRouter(prefix="/platforms", tags=["platforms"])
+router = APIRouter(prefix="/platforms", tags=["Platforms"])
 
 
 @router.post("", response_model=PlatformRead, status_code=status.HTTP_201_CREATED)

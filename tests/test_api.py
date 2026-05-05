@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from internal.domain.cron import INVALID_CRON_EXPRESSION_DETAIL
+from internal.infra.config.settings import get_settings
 from internal.infra.db.models import (
     Machine,
     MachineCPUMetric,
@@ -15,6 +16,21 @@ from internal.infra.db.models import (
     MachineProvisioner,
     Platform,
 )
+
+EXPECTED_OPENAPI_DESCRIPTION = (
+    "Inventory and machine metrics API for platforms, applications, providers, and provisioners.\n\n"
+    "Use this documentation to browse collection endpoints, operational actions, and async worker tasks."
+)
+
+EXPECTED_OPENAPI_TAG_DESCRIPTIONS = {
+    "Platforms": "Cycle programs and settings.",
+    "Applications": "Loads to track in the drum.",
+    "Machines": "Main drum and inventory.",
+    "Machine Metrics": "CPU, RAM, and disk spin cycle.",
+    "Machine Providers": "Water inlets and metric sources.",
+    "Machine Provisioners": "Detergent drawers and inventory connectors.",
+    "Tasks": "Asynchronous porthole queue.",
+}
 
 
 def _response_schema_name(operation: dict) -> str:
@@ -57,6 +73,17 @@ def test_swagger_is_served_on_root(client: TestClient) -> None:
     assert response.headers["content-type"].startswith("text/html")
     assert "SwaggerUIBundle" in response.text
     assert "/v1/openapi.json" in response.text
+    assert "/static/swagger-washing-machine.css" in response.text
+    assert '"defaultModelsExpandDepth": -1' in response.text
+
+
+def test_swagger_theme_css_is_served(client: TestClient) -> None:
+    """The custom Swagger theme stylesheet should be served as a static asset."""
+    response = client.get("/static/swagger-washing-machine.css")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/css")
+    assert "--wm-bg: #f6fbfd;" in response.text
 
 
 def test_default_docs_endpoints_are_disabled(client: TestClient) -> None:
@@ -70,10 +97,12 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     response = client.get("/v1/openapi.json")
 
     assert response.status_code == 200
-    assert response.json()["info"]["title"] == "Metrics Collector"
+    assert response.json()["info"]["title"] == get_settings().app_name
+    assert response.json()["info"]["description"] == EXPECTED_OPENAPI_DESCRIPTION
     body = response.json()
     schemas = body["components"]["schemas"]
     paths = body["paths"]
+    tag_descriptions = {tag["name"]: tag.get("description") for tag in body["tags"]}
     tags = [tag["name"] for tag in body["tags"]]
     assert "sync_at" not in schemas["ApplicationCreate"]["properties"]
     assert "sync_scheduled_at" not in schemas["ApplicationCreate"]["properties"]
@@ -114,26 +143,28 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/provisioners/{provisioner_id}/disable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/run" in paths
     assert "/v1/worker/tasks" in paths
-    assert "health" not in tags
-    assert tags.index("machines") < tags.index("machine-metrics")
-    assert tags.index("machine-metrics") < tags.index("machine-providers")
-    assert tags.index("machine-providers") < tags.index("machine-provisioners")
-    assert paths["/v1/machines"]["get"]["tags"] == ["machines"]
+    assert "Health" not in tags
+    assert tags == list(EXPECTED_OPENAPI_TAG_DESCRIPTIONS)
+    assert tag_descriptions == EXPECTED_OPENAPI_TAG_DESCRIPTIONS
+    assert tags.index("Machines") < tags.index("Machine Metrics")
+    assert tags.index("Machine Metrics") < tags.index("Machine Providers")
+    assert tags.index("Machine Providers") < tags.index("Machine Provisioners")
+    assert paths["/v1/machines"]["get"]["tags"] == ["Machines"]
     assert "post" not in paths["/v1/machines"]
-    assert paths["/v1/machines/{machine_id}"]["get"]["tags"] == ["machines"]
-    assert paths["/v1/machines/{machine_id}"]["delete"]["tags"] == ["machines"]
+    assert paths["/v1/machines/{machine_id}"]["get"]["tags"] == ["Machines"]
+    assert paths["/v1/machines/{machine_id}"]["delete"]["tags"] == ["Machines"]
     assert "patch" not in paths["/v1/machines/{machine_id}"]
-    assert paths["/v1/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["machines"]
-    assert paths["/v1/machines/metrics"]["get"]["tags"] == ["machine-metrics"]
-    assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["machine-metrics"]
-    assert paths["/v1/machines/providers"]["get"]["tags"] == ["machine-providers"]
-    assert paths["/v1/machines/providers/{provider_id}/enable"]["post"]["tags"] == ["machine-providers"]
-    assert paths["/v1/machines/providers/{provider_id}/prometheus"]["get"]["tags"] == ["machine-providers"]
-    assert paths["/v1/machines/providers/{provider_id}/provisioners"]["get"]["tags"] == ["machine-providers"]
-    assert paths["/v1/machines/provisioners"]["get"]["tags"] == ["machine-provisioners"]
-    assert paths["/v1/machines/provisioners/{provisioner_id}/enable"]["post"]["tags"] == ["machine-provisioners"]
-    assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["machine-provisioners"]
-    assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["machine-provisioners"]
+    assert paths["/v1/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["Machines"]
+    assert paths["/v1/machines/metrics"]["get"]["tags"] == ["Machine Metrics"]
+    assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["Machine Metrics"]
+    assert paths["/v1/machines/providers"]["get"]["tags"] == ["Machine Providers"]
+    assert paths["/v1/machines/providers/{provider_id}/enable"]["post"]["tags"] == ["Machine Providers"]
+    assert paths["/v1/machines/providers/{provider_id}/prometheus"]["get"]["tags"] == ["Machine Providers"]
+    assert paths["/v1/machines/providers/{provider_id}/provisioners"]["get"]["tags"] == ["Machine Providers"]
+    assert paths["/v1/machines/provisioners"]["get"]["tags"] == ["Machine Provisioners"]
+    assert paths["/v1/machines/provisioners/{provisioner_id}/enable"]["post"]["tags"] == ["Machine Provisioners"]
+    assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["Machine Provisioners"]
+    assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["Machine Provisioners"]
     assert "patch" not in paths["/v1/applications/{application_id}"]
     for path in [
         "/v1/platforms",

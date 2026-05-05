@@ -13,7 +13,7 @@ from internal.contracts.http.resources import (
 from internal.infra.db.models import Machine, MachineFlavorHistory
 
 
-router = APIRouter(prefix="/machines", tags=["machines"])
+router = APIRouter(prefix="/machines", tags=["Machines"])
 
 
 @router.get("", response_model=PaginatedResponse[MachineRead])
