@@ -84,7 +84,7 @@ Endpoints utiles :
 - `GET /health`
 - `GET /` : documentation Swagger
 - OpenAPI JSON : `GET /v1/openapi.json`
-- CRUD : `/v1/platforms`, `/v1/applications`, `/v1/machines`, `/v1/machines/providers`, `/v1/machines/provisioners`
+- Gestion : `/v1/platforms`, `/v1/applications`, `GET /v1/machines`, `GET/DELETE /v1/machines/{id}`, `/v1/machines/providers`, `/v1/machines/provisioners`
 - Association : `POST /v1/machines/providers/{provider_id}/provisioners/{provisioner_id}`
 - Activation : `POST /v1/machines/providers/{id}/enable|disable`, `POST /v1/machines/provisioners/{id}/enable|disable`
 - Jobs manuels : `POST /v1/machines/provisioners/{id}/run`, `POST /v1/applications/{id}/sync`
@@ -115,6 +115,7 @@ Sous-routes typées pour les intégrations :
 Les réponses génériques `/v1/machines/providers` et `/v1/machines/provisioners` n'exposent jamais le champ `config`. Les secrets sont stockés chiffrés en base et les tokens ne sont jamais renvoyés par l'API.
 Un provisioner ne peut être lié qu'à un seul provider par `type`.
 Les providers et provisioners sont créés désactivés par défaut et doivent être activés via leurs endpoints dédiés.
+Les machines sont découvertes et synchronisées via les provisioners ; l'API publique n'expose pas de `POST` ni de `PATCH` sur `/v1/machines`.
 
 La documentation Swagger est exposée sur la racine `/` et charge le schéma OpenAPI depuis `/v1/openapi.json`. Les routes FastAPI par défaut `/docs` et `/redoc` sont désactivées.
 

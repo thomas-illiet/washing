@@ -32,6 +32,15 @@ def _assert_paginated_list_route(body: dict, path: str) -> None:
     assert {"items", "offset", "limit", "total"} <= set(schema["properties"])
 
 
+def _persist_machine(db_session: Session, **values) -> Machine:
+    """Create a machine row directly in the test database."""
+    machine = Machine(**values)
+    db_session.add(machine)
+    db_session.commit()
+    db_session.refresh(machine)
+    return machine
+
+
 def test_swagger_is_served_on_root(client: TestClient) -> None:
     """Swagger UI should be served from the root path."""
     response = client.get("/")
@@ -86,6 +95,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/health" not in paths
     assert "/v1/machines/metrics" in paths
     assert "/v1/machines/{machine_id}/metrics" in paths
+    assert "/v1/machines/{machine_id}" in paths
     assert "/v1/machines/providers" in paths
     assert "/v1/machines/providers/{provider_id}" in paths
     assert "/v1/machines/providers/{provider_id}/enable" in paths
@@ -102,6 +112,10 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert tags.index("machine-metrics") < tags.index("machine-providers")
     assert tags.index("machine-providers") < tags.index("machine-provisioners")
     assert paths["/v1/machines"]["get"]["tags"] == ["machines"]
+    assert "post" not in paths["/v1/machines"]
+    assert paths["/v1/machines/{machine_id}"]["get"]["tags"] == ["machines"]
+    assert paths["/v1/machines/{machine_id}"]["delete"]["tags"] == ["machines"]
+    assert "patch" not in paths["/v1/machines/{machine_id}"]
     assert paths["/v1/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["machines"]
     assert paths["/v1/machines/metrics"]["get"]["tags"] == ["machine-metrics"]
     assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["machine-metrics"]
@@ -172,13 +186,6 @@ def test_named_fields_reject_blank_strings(client: TestClient) -> None:
 
     platform = client.post("/v1/platforms", json={"name": "Validation Platform"}).json()
 
-    assert (
-        client.post(
-            "/v1/machines",
-            json={"platform_id": platform["id"], "hostname": "   "},
-        ).status_code
-        == 422
-    )
     assert (
         client.post(
             "/v1/machines/provisioners/capsule",
@@ -636,7 +643,7 @@ def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: Tes
     assert detached_provider["provisioner_ids"] == []
 
 
-def test_application_crud_and_machine_application_id(client: TestClient) -> None:
+def test_application_crud_and_machine_application_id(client: TestClient, db_session: Session) -> None:
     """Applications should stay manageable through CRUD endpoints."""
     application = client.post(
         "/v1/applications",
@@ -644,16 +651,15 @@ def test_application_crud_and_machine_application_id(client: TestClient) -> None
     ).json()
     platform = client.post("/v1/platforms", json={"name": "Application platform"}).json()
 
-    machine = client.post(
-        "/v1/machines",
-        json={
-            "platform_id": platform["id"],
-            "application_id": application["id"],
-            "hostname": "billing-01",
-        },
-    ).json()
-
-    assert machine["application_id"] == application["id"]
+    machine = _persist_machine(
+        db_session,
+        platform_id=platform["id"],
+        application_id=application["id"],
+        hostname="billing-01",
+    )
+    fetched_machine = client.get(f"/v1/machines/{machine.id}")
+    assert fetched_machine.status_code == 200
+    assert fetched_machine.json()["application_id"] == application["id"]
 
     listed = client.get("/v1/applications", params={"environment": "prod", "region": "eu-west-1"}).json()
     assert listed["total"] == 1
@@ -663,68 +669,19 @@ def test_application_crud_and_machine_application_id(client: TestClient) -> None
     assert patched["region"] == "eu-west-2"
 
 
-def test_machine_crud_rejects_missing_and_cross_platform_references(client: TestClient) -> None:
-    """Machine writes should validate referenced resources and platform coherence."""
+def test_machine_write_endpoints_are_disabled(client: TestClient, db_session: Session) -> None:
+    """Machine creation and update should not be publicly exposed."""
     platform = client.post("/v1/platforms", json={"name": "Machine Invariants"}).json()
-    other_platform = client.post("/v1/platforms", json={"name": "Other Machine Invariants"}).json()
-    application = client.post(
-        "/v1/applications",
-        json={"name": "checkout", "environment": "prod", "region": "eu-west-1"},
-    ).json()
-    provisioner = client.post(
-        "/v1/machines/provisioners/capsule",
-        json={"platform_id": platform["id"], "name": "inventory", "token": "capsule-secret"},
-    ).json()
+    machine = _persist_machine(db_session, platform_id=platform["id"], hostname="node-02")
 
-    missing_platform = client.post("/v1/machines", json={"platform_id": 999, "hostname": "node-01"})
-    assert missing_platform.status_code == 404
-    assert missing_platform.json()["detail"] == "platform not found"
+    create_machine = client.post("/v1/machines", json={"platform_id": platform["id"], "hostname": "node-01"})
+    assert create_machine.status_code == 405
 
-    missing_application = client.post(
-        "/v1/machines",
-        json={"platform_id": platform["id"], "application_id": 999, "hostname": "node-01"},
-    )
-    assert missing_application.status_code == 404
-    assert missing_application.json()["detail"] == "application not found"
-
-    missing_provisioner = client.post(
-        "/v1/machines",
-        json={"platform_id": platform["id"], "source_provisioner_id": 999, "hostname": "node-01"},
-    )
-    assert missing_provisioner.status_code == 404
-    assert missing_provisioner.json()["detail"] == "provisioner not found"
-
-    cross_platform = client.post(
-        "/v1/machines",
-        json={
-            "platform_id": other_platform["id"],
-            "application_id": application["id"],
-            "source_provisioner_id": provisioner["id"],
-            "hostname": "node-01",
-        },
-    )
-    assert cross_platform.status_code == 400
-    assert cross_platform.json()["detail"] == "machine and provisioner must belong to the same platform"
-
-    machine = client.post(
-        "/v1/machines",
-        json={
-            "platform_id": platform["id"],
-            "application_id": application["id"],
-            "source_provisioner_id": provisioner["id"],
-            "hostname": "node-02",
-        },
-    ).json()
-
-    patch_cross_platform = client.patch(
-        f"/v1/machines/{machine['id']}",
-        json={"platform_id": other_platform["id"]},
-    )
-    assert patch_cross_platform.status_code == 400
-    assert patch_cross_platform.json()["detail"] == "machine and provisioner must belong to the same platform"
+    update_machine = client.patch(f"/v1/machines/{machine.id}", json={"environment": "prod"})
+    assert update_machine.status_code == 405
 
 
-def test_machine_list_filters_are_paginated(client: TestClient) -> None:
+def test_machine_list_filters_are_paginated(client: TestClient, db_session: Session) -> None:
     """Machine list filters should keep working with the shared paginated envelope."""
     application = client.post(
         "/v1/applications",
@@ -752,38 +709,34 @@ def test_machine_list_filters_are_paginated(client: TestClient) -> None:
         },
     ).json()
 
-    client.post(
-        "/v1/machines",
-        json={
-            "platform_id": platform["id"],
-            "application_id": application["id"],
-            "source_provisioner_id": provisioner["id"],
-            "hostname": "checkout-02",
-            "environment": "prod",
-            "region": "eu-west-1",
-        },
+    db_session.add_all(
+        [
+            Machine(
+                platform_id=platform["id"],
+                application_id=application["id"],
+                source_provisioner_id=provisioner["id"],
+                hostname="checkout-02",
+                environment="prod",
+                region="eu-west-1",
+            ),
+            Machine(
+                platform_id=platform["id"],
+                application_id=application["id"],
+                source_provisioner_id=provisioner["id"],
+                hostname="checkout-01",
+                environment="prod",
+                region="eu-west-1",
+            ),
+            Machine(
+                platform_id=other_platform["id"],
+                source_provisioner_id=other_provisioner["id"],
+                hostname="checkout-99",
+                environment="dev",
+                region="us-east-1",
+            ),
+        ]
     )
-    client.post(
-        "/v1/machines",
-        json={
-            "platform_id": platform["id"],
-            "application_id": application["id"],
-            "source_provisioner_id": provisioner["id"],
-            "hostname": "checkout-01",
-            "environment": "prod",
-            "region": "eu-west-1",
-        },
-    )
-    client.post(
-        "/v1/machines",
-        json={
-            "platform_id": other_platform["id"],
-            "source_provisioner_id": other_provisioner["id"],
-            "hostname": "checkout-99",
-            "environment": "dev",
-            "region": "us-east-1",
-        },
-    )
+    db_session.commit()
 
     first_page = client.get(
         "/v1/machines",
@@ -886,27 +839,30 @@ def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
     assert [item["name"] for item in disabled_page.json()["items"]] == ["disabled inventory"]
 
 
-def test_machine_crud_and_flavor_history_endpoint(client: TestClient) -> None:
-    """Machines should expose CRUD and flavor history routes."""
+def test_machine_read_delete_and_flavor_history_endpoint(client: TestClient, db_session: Session) -> None:
+    """Machines should expose read, delete, and flavor history routes."""
     platform = client.post("/v1/platforms", json={"name": "Proxmox"}).json()
-    machine = client.post(
-        "/v1/machines",
-        json={
-            "platform_id": platform["id"],
-            "hostname": "node-01",
-            "region": "eu",
-            "environment": "dev",
-            "cpu": 2,
-            "ram_gb": 8,
-            "disk_gb": 80,
-        },
-    ).json()
+    machine = _persist_machine(
+        db_session,
+        platform_id=platform["id"],
+        hostname="node-01",
+        region="eu",
+        environment="dev",
+        cpu=2,
+        ram_gb=8,
+        disk_gb=80,
+    )
 
-    patched = client.patch(f"/v1/machines/{machine['id']}", json={"environment": "prod"}).json()
-    assert patched["environment"] == "prod"
+    fetched = client.get(f"/v1/machines/{machine.id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["environment"] == "dev"
 
-    history = client.get(f"/v1/machines/{machine['id']}/flavor-history").json()
+    history = client.get(f"/v1/machines/{machine.id}/flavor-history").json()
     assert history == {"items": [], "offset": 0, "limit": 100, "total": 0}
+
+    deleted = client.delete(f"/v1/machines/{machine.id}")
+    assert deleted.status_code == 204
+    assert client.get(f"/v1/machines/{machine.id}").status_code == 404
 
     missing_history = client.get("/v1/machines/9999/flavor-history")
     assert missing_history.status_code == 404
