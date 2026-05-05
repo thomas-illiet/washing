@@ -84,7 +84,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/provisioners" in paths
     assert "/v1/machines/provisioners/{provisioner_id}" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/run" in paths
-    assert "/v1/schedules" in paths
+    assert "/v1/worker/tasks" in paths
     assert "health" not in tags
     assert tags.index("machines") < tags.index("machine-metrics")
     assert tags.index("machine-metrics") < tags.index("machine-providers")
@@ -109,7 +109,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "/v1/machines/providers",
         "/v1/machines/providers/{provider_id}/provisioners",
         "/v1/machines/provisioners",
-        "/v1/schedules",
+        "/v1/worker/tasks",
     ]:
         _assert_paginated_list_route(body, path)
     assert {"type", "offset", "limit"} <= {param["name"] for param in paths["/v1/machines/metrics"]["get"]["parameters"]}
