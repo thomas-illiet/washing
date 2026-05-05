@@ -65,8 +65,16 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "sync_scheduled_at" not in schemas["ApplicationUpdate"]["properties"]
     assert "sync_error" not in schemas["ApplicationUpdate"]["properties"]
     assert {"sync_at", "sync_scheduled_at", "sync_error"} <= set(schemas["ApplicationRead"]["properties"])
+    assert "enabled" not in schemas["CapsuleProvisionerCreate"]["properties"]
+    assert "enabled" not in schemas["CapsuleProvisionerUpdate"]["properties"]
+    assert "enabled" not in schemas["DynatraceProvisionerCreate"]["properties"]
+    assert "enabled" not in schemas["DynatraceProvisionerUpdate"]["properties"]
+    assert "enabled" not in schemas["PrometheusProviderCreate"]["properties"]
     assert "provisioner_ids" not in schemas["PrometheusProviderUpdate"]["properties"]
+    assert "enabled" not in schemas["PrometheusProviderUpdate"]["properties"]
+    assert "enabled" not in schemas["DynatraceProviderCreate"]["properties"]
     assert "provisioner_ids" not in schemas["DynatraceProviderUpdate"]["properties"]
+    assert "enabled" not in schemas["DynatraceProviderUpdate"]["properties"]
     assert "/metric-types" not in paths
     assert "/metrics/{metric_name}" not in paths
     assert "/providers" not in paths
@@ -80,9 +88,13 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/{machine_id}/metrics" in paths
     assert "/v1/machines/providers" in paths
     assert "/v1/machines/providers/{provider_id}" in paths
+    assert "/v1/machines/providers/{provider_id}/enable" in paths
+    assert "/v1/machines/providers/{provider_id}/disable" in paths
     assert "/v1/machines/providers/{provider_id}/provisioners" in paths
     assert "/v1/machines/provisioners" in paths
     assert "/v1/machines/provisioners/{provisioner_id}" in paths
+    assert "/v1/machines/provisioners/{provisioner_id}/enable" in paths
+    assert "/v1/machines/provisioners/{provisioner_id}/disable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/run" in paths
     assert "/v1/worker/tasks" in paths
     assert "health" not in tags
@@ -94,9 +106,11 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/metrics"]["get"]["tags"] == ["machine-metrics"]
     assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["machine-metrics"]
     assert paths["/v1/machines/providers"]["get"]["tags"] == ["machine-providers"]
+    assert paths["/v1/machines/providers/{provider_id}/enable"]["post"]["tags"] == ["machine-providers"]
     assert paths["/v1/machines/providers/{provider_id}/prometheus"]["get"]["tags"] == ["machine-providers"]
     assert paths["/v1/machines/providers/{provider_id}/provisioners"]["get"]["tags"] == ["machine-providers"]
     assert paths["/v1/machines/provisioners"]["get"]["tags"] == ["machine-provisioners"]
+    assert paths["/v1/machines/provisioners/{provisioner_id}/enable"]["post"]["tags"] == ["machine-provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["machine-provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["machine-provisioners"]
     for path in [
@@ -250,6 +264,7 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
         },
     ).json()
     assert capsule["type"] == "capsule"
+    assert capsule["enabled"] is False
     assert capsule["has_token"] is True
     assert "token" not in capsule
     assert "config" not in capsule
@@ -276,6 +291,7 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
         },
     ).json()
     assert dynatrace["type"] == "dynatrace"
+    assert dynatrace["enabled"] is False
     assert dynatrace["url"] == "https://dynatrace.example/"
     assert dynatrace["has_token"] is True
     assert "token" not in dynatrace
@@ -310,6 +326,7 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
         },
     ).json()
     assert prometheus["type"] == "prometheus"
+    assert prometheus["enabled"] is False
     assert prometheus["scope"] == "cpu"
     assert prometheus["provisioner_ids"] == [provisioner["id"]]
     assert "config" not in prometheus
@@ -346,10 +363,10 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
             "url": "https://dynatrace.example",
             "token": "provider-secret",
             "provisioner_ids": [provisioner["id"]],
-            "enabled": False,
         },
     ).json()
     assert dynatrace["type"] == "dynatrace"
+    assert dynatrace["enabled"] is False
     assert dynatrace["scope"] == "disk"
     assert dynatrace["has_token"] is True
     assert "token" not in dynatrace
@@ -369,6 +386,151 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
 
     disabled_run = client.post(f"/v1/machines/providers/{dynatrace['id']}/run")
     assert disabled_run.status_code == 404
+
+
+def test_typed_integration_write_payloads_reject_enabled_field(client: TestClient) -> None:
+    """Typed create and update payloads should reject public writes to enabled."""
+    platform = client.post("/v1/platforms", json={"name": "Enable Validation"}).json()
+
+    provisioner_create = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "capsule inventory",
+            "token": "capsule-secret",
+            "enabled": True,
+        },
+    )
+    assert provisioner_create.status_code == 422
+
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "capsule inventory",
+            "token": "capsule-secret",
+        },
+    ).json()
+
+    provisioner_update = client.patch(
+        f"/v1/machines/provisioners/{provisioner['id']}/capsule",
+        json={"enabled": True},
+    )
+    assert provisioner_update.status_code == 422
+
+    provider_create = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+            "enabled": True,
+        },
+    )
+    assert provider_create.status_code == 422
+
+    provider = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+        },
+    ).json()
+
+    provider_update = client.patch(
+        f"/v1/machines/providers/{provider['id']}/prometheus",
+        json={"enabled": True},
+    )
+    assert provider_update.status_code == 422
+
+
+def test_provider_enable_disable_routes_are_idempotent(client: TestClient) -> None:
+    """Provider enable/disable action endpoints should be idempotent and filterable."""
+    platform = client.post("/v1/platforms", json={"name": "Provider Toggle Platform"}).json()
+    provider = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+        },
+    ).json()
+
+    assert provider["enabled"] is False
+
+    enabled = client.post(f"/v1/machines/providers/{provider['id']}/enable")
+    assert enabled.status_code == 200
+    assert enabled.json()["enabled"] is True
+
+    enabled_again = client.post(f"/v1/machines/providers/{provider['id']}/enable")
+    assert enabled_again.status_code == 200
+    assert enabled_again.json()["enabled"] is True
+
+    enabled_list = client.get(
+        "/v1/machines/providers",
+        params={"platform_id": platform["id"], "enabled": True},
+    ).json()
+    assert enabled_list["total"] == 1
+    assert [item["name"] for item in enabled_list["items"]] == ["prom cpu"]
+
+    disabled = client.post(f"/v1/machines/providers/{provider['id']}/disable")
+    assert disabled.status_code == 200
+    assert disabled.json()["enabled"] is False
+
+    disabled_again = client.post(f"/v1/machines/providers/{provider['id']}/disable")
+    assert disabled_again.status_code == 200
+    assert disabled_again.json()["enabled"] is False
+
+    disabled_list = client.get(
+        "/v1/machines/providers",
+        params={"platform_id": platform["id"], "enabled": False},
+    ).json()
+    assert disabled_list["total"] == 1
+    assert [item["name"] for item in disabled_list["items"]] == ["prom cpu"]
+
+    assert client.post("/v1/machines/providers/9999/enable").status_code == 404
+    assert client.post("/v1/machines/providers/9999/disable").status_code == 404
+
+
+def test_provisioner_enable_disable_routes_are_idempotent(client: TestClient) -> None:
+    """Provisioner enable/disable action endpoints should be idempotent."""
+    platform = client.post("/v1/platforms", json={"name": "Provisioner Toggle Platform"}).json()
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "inventory",
+            "token": "capsule-secret",
+        },
+    ).json()
+
+    assert provisioner["enabled"] is False
+
+    enabled = client.post(f"/v1/machines/provisioners/{provisioner['id']}/enable")
+    assert enabled.status_code == 200
+    assert enabled.json()["enabled"] is True
+
+    enabled_again = client.post(f"/v1/machines/provisioners/{provisioner['id']}/enable")
+    assert enabled_again.status_code == 200
+    assert enabled_again.json()["enabled"] is True
+
+    disabled = client.post(f"/v1/machines/provisioners/{provisioner['id']}/disable")
+    assert disabled.status_code == 200
+    assert disabled.json()["enabled"] is False
+
+    disabled_again = client.post(f"/v1/machines/provisioners/{provisioner['id']}/disable")
+    assert disabled_again.status_code == 200
+    assert disabled_again.json()["enabled"] is False
+
+    assert client.post("/v1/machines/provisioners/9999/enable").status_code == 404
+    assert client.post("/v1/machines/provisioners/9999/disable").status_code == 404
 
 
 def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: TestClient) -> None:
@@ -660,7 +822,7 @@ def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
     platform = client.post("/v1/platforms", json={"name": "Provisioner Filter Platform"}).json()
     other_platform = client.post("/v1/platforms", json={"name": "Other Provisioner Platform"}).json()
 
-    client.post(
+    alpha = client.post(
         "/v1/machines/provisioners/capsule",
         json={
             "platform_id": platform["id"],
@@ -668,8 +830,8 @@ def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
             "token": "capsule-secret",
             "cron": "* * * * *",
         },
-    )
-    client.post(
+    ).json()
+    zeta = client.post(
         "/v1/machines/provisioners/dynatrace",
         json={
             "platform_id": platform["id"],
@@ -678,7 +840,7 @@ def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
             "token": "dynatrace-secret",
             "cron": "* * * * *",
         },
-    )
+    ).json()
     client.post(
         "/v1/machines/provisioners/capsule",
         json={
@@ -686,7 +848,6 @@ def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
             "name": "disabled inventory",
             "token": "capsule-secret",
             "cron": "* * * * *",
-            "enabled": False,
         },
     )
     client.post(
@@ -698,6 +859,8 @@ def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
             "cron": "* * * * *",
         },
     )
+    client.post(f"/v1/machines/provisioners/{alpha['id']}/enable")
+    client.post(f"/v1/machines/provisioners/{zeta['id']}/enable")
 
     first_page = client.get(
         "/v1/machines/provisioners",
@@ -713,6 +876,14 @@ def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
     )
     assert second_page.status_code == 200
     assert [item["name"] for item in second_page.json()["items"]] == ["zeta inventory"]
+
+    disabled_page = client.get(
+        "/v1/machines/provisioners",
+        params={"platform_id": platform["id"], "enabled": False, "offset": 0, "limit": 10},
+    )
+    assert disabled_page.status_code == 200
+    assert disabled_page.json()["total"] == 1
+    assert [item["name"] for item in disabled_page.json()["items"]] == ["disabled inventory"]
 
 
 def test_machine_crud_and_flavor_history_endpoint(client: TestClient) -> None:

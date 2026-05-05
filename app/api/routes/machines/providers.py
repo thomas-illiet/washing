@@ -114,7 +114,6 @@ def create_prometheus_provider(
         type="prometheus",
         scope=payload.scope,
         config={"url": str(payload.url), "query": payload.query},
-        enabled=payload.enabled,
         provisioners=provisioners,
     )
     db.add(provider)
@@ -142,7 +141,6 @@ def create_dynatrace_provider(
         type="dynatrace",
         scope=payload.scope,
         config={"url": str(payload.url), "token": payload.token},
-        enabled=payload.enabled,
         provisioners=provisioners,
     )
     db.add(provider)
@@ -190,6 +188,24 @@ def get_prometheus_provider(provider_id: int, db: Session = Depends(get_db)) -> 
 def get_dynatrace_provider(provider_id: int, db: Session = Depends(get_db)) -> DynatraceProviderRead:
     """Return the Dynatrace-specific configuration view for one provider."""
     return _dynatrace_provider_read_model(_load_provider_of_type(db, provider_id, "dynatrace"))
+
+
+@router.post("/{provider_id}/enable", response_model=ProviderRead)
+def enable_provider(provider_id: int, db: Session = Depends(get_db)) -> MachineProvider:
+    """Enable one provider through an idempotent action endpoint."""
+    provider = _load_provider(db, provider_id)
+    provider.enabled = True
+    db.commit()
+    return _load_provider(db, provider_id)
+
+
+@router.post("/{provider_id}/disable", response_model=ProviderRead)
+def disable_provider(provider_id: int, db: Session = Depends(get_db)) -> MachineProvider:
+    """Disable one provider through an idempotent action endpoint."""
+    provider = _load_provider(db, provider_id)
+    provider.enabled = False
+    db.commit()
+    return _load_provider(db, provider_id)
 
 
 @router.patch("/{provider_id}/prometheus", response_model=PrometheusProviderRead)

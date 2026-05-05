@@ -96,7 +96,6 @@ class CapsuleProvisionerCreate(CronModel):
     """Create payload for a Capsule provisioner."""
     platform_id: int
     name: NonEmptyStr
-    enabled: bool = True
     cron: str = "*/5 * * * *"
     token: NonEmptyStr
 
@@ -105,7 +104,6 @@ class CapsuleProvisionerUpdate(CronModel):
     """Patch payload for a Capsule provisioner."""
     platform_id: int | None = None
     name: NonEmptyStr | None = None
-    enabled: bool | None = None
     cron: str | None = None
     token: NonEmptyStr | None = None
 
@@ -151,7 +149,6 @@ class PrometheusProviderCreate(ApiModel):
     """Create payload for a Prometheus provider."""
     platform_id: int
     name: NonEmptyStr
-    enabled: bool = True
     scope: Scope
     url: AnyHttpUrl
     query: NonEmptyStr
@@ -162,7 +159,6 @@ class PrometheusProviderUpdate(ApiModel):
     """Patch payload for a Prometheus provider."""
     platform_id: int | None = None
     name: NonEmptyStr | None = None
-    enabled: bool | None = None
     scope: Scope | None = None
     url: AnyHttpUrl | None = None
     query: NonEmptyStr | None = None
@@ -178,7 +174,6 @@ class DynatraceProviderCreate(ApiModel):
     """Create payload for a Dynatrace provider."""
     platform_id: int
     name: NonEmptyStr
-    enabled: bool = True
     scope: Scope
     url: AnyHttpUrl
     token: NonEmptyStr
@@ -189,7 +184,6 @@ class DynatraceProviderUpdate(ApiModel):
     """Patch payload for a Dynatrace provider."""
     platform_id: int | None = None
     name: NonEmptyStr | None = None
-    enabled: bool | None = None
     scope: Scope | None = None
     url: AnyHttpUrl | None = None
     token: NonEmptyStr | None = None

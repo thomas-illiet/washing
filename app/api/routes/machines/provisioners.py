@@ -76,7 +76,6 @@ def create_capsule_provisioner(
         name=payload.name,
         type="capsule",
         config={"token": payload.token},
-        enabled=payload.enabled,
         cron=payload.cron,
     )
     db.add(provisioner)
@@ -101,7 +100,6 @@ def create_dynatrace_provisioner(
         name=payload.name,
         type="dynatrace",
         config={"url": str(payload.url), "token": payload.token},
-        enabled=payload.enabled,
         cron=payload.cron,
     )
     db.add(provisioner)
@@ -148,6 +146,26 @@ def get_capsule_provisioner(provisioner_id: int, db: Session = Depends(get_db)) 
 def get_dynatrace_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> DynatraceProvisionerRead:
     """Return the Dynatrace-specific view for a provisioner."""
     return _dynatrace_provisioner_read_model(_load_provisioner_of_type(db, provisioner_id, "dynatrace"))
+
+
+@router.post("/{provisioner_id}/enable", response_model=ProvisionerRead)
+def enable_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> MachineProvisioner:
+    """Enable one provisioner through an idempotent action endpoint."""
+    provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+    provisioner.enabled = True
+    db.commit()
+    db.refresh(provisioner)
+    return provisioner
+
+
+@router.post("/{provisioner_id}/disable", response_model=ProvisionerRead)
+def disable_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> MachineProvisioner:
+    """Disable one provisioner through an idempotent action endpoint."""
+    provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+    provisioner.enabled = False
+    db.commit()
+    db.refresh(provisioner)
+    return provisioner
 
 
 @router.patch("/{provisioner_id}/capsule", response_model=CapsuleProvisionerRead)

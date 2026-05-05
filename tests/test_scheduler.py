@@ -18,6 +18,7 @@ def test_dispatch_due_jobs_enqueues_due_enabled_provisioners(db_session: Session
         platform=platform,
         name="inventory",
         type="mock_inventory",
+        enabled=True,
         cron="* * * * *",
         last_scheduled_at=now - timedelta(minutes=2),
     )
@@ -33,6 +34,31 @@ def test_dispatch_due_jobs_enqueues_due_enabled_provisioners(db_session: Session
 
     assert result == {"provisioners": [provisioner.id]}
     assert enqueued_provisioners == [provisioner.id]
+
+
+def test_dispatch_due_jobs_skips_disabled_provisioners_by_default(db_session: Session) -> None:
+    """New provisioners should stay unscheduled until explicitly enabled."""
+    now = utcnow()
+    platform = Platform(name="Disabled Scheduler")
+    provisioner = MachineProvisioner(
+        platform=platform,
+        name="inventory",
+        type="mock_inventory",
+        cron="* * * * *",
+        last_scheduled_at=now - timedelta(minutes=2),
+    )
+    db_session.add(provisioner)
+    db_session.commit()
+
+    enqueued_provisioners: list[int] = []
+    result = dispatch_due_jobs(
+        db_session,
+        enqueue_provisioner=lambda provisioner_id: enqueued_provisioners.append(provisioner_id) or "task-provisioner",
+        now=now,
+    )
+
+    assert result == {"provisioners": []}
+    assert enqueued_provisioners == []
 
 
 def test_application_sync_dispatch_spreads_due_rows(db_session: Session) -> None:
