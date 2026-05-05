@@ -6,15 +6,14 @@ from sqlalchemy.orm import Session
 from internal.infra.db.models import MachineProvider
 
 
-def test_swagger_is_served_on_root_with_custom_theme(client: TestClient) -> None:
-    """Swagger UI should be served from the root path with local theming."""
+def test_swagger_is_served_on_root(client: TestClient) -> None:
+    """Swagger UI should be served from the root path."""
     response = client.get("/")
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert "SwaggerUIBundle" in response.text
     assert "/openapi.json" in response.text
-    assert "/static/swagger-washing.css" in response.text
 
 
 def test_default_docs_endpoints_are_disabled(client: TestClient) -> None:

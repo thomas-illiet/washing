@@ -76,7 +76,7 @@ Le code est désormais séparé par runtime, dans un style proche des projets Go
 Endpoints utiles :
 
 - `GET /health`
-- `GET /` : documentation Swagger personnalisée
+- `GET /` : documentation Swagger
 - CRUD : `/platforms`, `/applications`, `/machines`, `/providers`, `/provisioners`, `/metric-types`
 - Association : `POST /providers/{provider_id}/provisioners/{provisioner_id}`
 - Jobs manuels : `POST /providers/{id}/run`, `POST /provisioners/{id}/run`, `POST /applications/{id}/sync`
