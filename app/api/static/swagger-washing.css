@@ -1,0 +1,7 @@
+body {
+    background: linear-gradient(180deg, #f5f7fb 0%, #eef2f7 100%);
+}
+
+.swagger-ui .topbar {
+    background: #17324d;
+}

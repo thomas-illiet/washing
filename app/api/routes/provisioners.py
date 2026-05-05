@@ -20,7 +20,7 @@ from internal.contracts.http.resources import (
     TaskEnqueueResponse,
 )
 from internal.infra.db.models import MachineProvisioner
-from internal.infra.queue.celery import celery_app
+from internal.infra.queue.enqueue import enqueue_celery_task
 from internal.infra.queue.task_names import RUN_PROVISIONER_TASK
 
 
@@ -215,5 +215,5 @@ def delete_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> Re
 def enqueue_provisioner_run(provisioner_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
     """Enqueue a manual provisioner run through Celery."""
     get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
-    task = celery_app.send_task(RUN_PROVISIONER_TASK, args=[provisioner_id])
+    task = enqueue_celery_task(RUN_PROVISIONER_TASK, args=[provisioner_id])
     return TaskEnqueueResponse(task_id=task.id)

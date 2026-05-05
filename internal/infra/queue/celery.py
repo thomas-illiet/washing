@@ -4,6 +4,7 @@ from celery import Celery
 
 from internal.infra.config.settings import get_settings
 from internal.infra.observability.prometheus import configure_celery_prometheus
+from internal.infra.queue.task_tracking import configure_celery_task_tracking
 
 
 settings = get_settings()
@@ -21,3 +22,4 @@ celery_app.conf.update(
 )
 
 configure_celery_prometheus()
+configure_celery_task_tracking()

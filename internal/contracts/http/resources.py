@@ -8,6 +8,7 @@ from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 
 
 Scope = Literal["cpu", "ram", "disk"]
+TaskExecutionStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE", "RETRY", "REVOKED"]
 ResourceT = TypeVar("ResourceT")
 
 
@@ -313,3 +314,18 @@ class PaginatedResponse(ApiModel, Generic[ResourceT]):
 class TaskEnqueueResponse(ApiModel):
     """Response returned when a Celery task has been enqueued."""
     task_id: str
+
+
+class TaskExecutionRead(ApiModel):
+    """Public representation of one tracked Celery task execution."""
+    task_id: str
+    task_name: str
+    status: TaskExecutionStatus
+    resource_type: str | None = None
+    resource_id: int | None = None
+    queued_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duration_seconds: float | None = None
+    result: dict[str, Any] | None = None
+    error: str | None = None

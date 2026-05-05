@@ -44,6 +44,27 @@ class Application(TimestampMixin, Base):
     machines: Mapped[list["Machine"]] = relationship(back_populates="application")
 
 
+class CeleryTaskExecution(Base):
+    """Audit row describing one tracked Celery task execution."""
+    __tablename__ = "celery_task_executions"
+    __table_args__ = (
+        Index("ix_celery_task_executions_resource", "resource_type", "resource_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    task_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    resource_type: Mapped[str | None] = mapped_column(String(64), index=True)
+    resource_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_seconds: Mapped[float | None] = mapped_column(Float)
+    result: Mapped[JsonDict | None] = mapped_column(JSONType)
+    error: Mapped[str | None] = mapped_column(Text)
+
+
 class MachineProviderProvisioner(Base):
     """Association table linking providers to provisioners."""
     __tablename__ = "machine_provider_provisioners"

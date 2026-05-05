@@ -8,7 +8,7 @@ from app.api.routes.common import apply_patch, commit_or_409, get_or_404
 from internal.contracts.http.resources import ApplicationCreate, ApplicationRead, ApplicationUpdate, TaskEnqueueResponse
 from internal.infra.config.settings import get_settings
 from internal.infra.db.models import Application
-from internal.infra.queue.celery import celery_app
+from internal.infra.queue.enqueue import enqueue_celery_task
 from internal.infra.queue.task_names import SYNC_APPLICATION_TASK
 from internal.usecases.applications import dispatch_due_application_syncs
 
@@ -52,7 +52,7 @@ def enqueue_due_application_syncs(db: Session = Depends(get_db)) -> dict[str, li
     settings = get_settings()
     return dispatch_due_application_syncs(
         db,
-        enqueue_application=lambda application_id: celery_app.send_task(SYNC_APPLICATION_TASK, args=[application_id]).id,
+        enqueue_application=lambda application_id: enqueue_celery_task(SYNC_APPLICATION_TASK, args=[application_id]).id,
         window_days=settings.application_sync_window_days,
         tick_seconds=settings.application_sync_tick_seconds,
         configured_batch_size=settings.application_sync_batch_size,
@@ -93,5 +93,5 @@ def delete_application(application_id: int, db: Session = Depends(get_db)) -> Re
 def enqueue_application_sync(application_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
     """Enqueue a manual sync for one application."""
     get_or_404(db, Application, application_id, "application not found")
-    task = celery_app.send_task(SYNC_APPLICATION_TASK, args=[application_id])
+    task = enqueue_celery_task(SYNC_APPLICATION_TASK, args=[application_id])
     return TaskEnqueueResponse(task_id=task.id)
