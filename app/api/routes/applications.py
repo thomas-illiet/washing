@@ -3,9 +3,15 @@
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
-from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from internal.contracts.http.resources import ApplicationCreate, ApplicationRead, ApplicationUpdate, TaskEnqueueResponse
+from app.api.deps import PaginationParams, get_db
+from app.api.routes.common import apply_patch, commit_or_409, get_or_404, paginate_query
+from internal.contracts.http.resources import (
+    ApplicationCreate,
+    ApplicationRead,
+    ApplicationUpdate,
+    PaginatedResponse,
+    TaskEnqueueResponse,
+)
 from internal.infra.config.settings import get_settings
 from internal.infra.db.models import Application
 from internal.infra.queue.enqueue import enqueue_celery_task
@@ -26,15 +32,14 @@ def create_application(payload: ApplicationCreate, db: Session = Depends(get_db)
     return application
 
 
-@router.get("", response_model=list[ApplicationRead])
+@router.get("", response_model=PaginatedResponse[ApplicationRead])
 def list_applications(
     name: str | None = None,
     environment: str | None = None,
     region: str | None = None,
-    offset: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(PaginationParams),
     db: Session = Depends(get_db),
-) -> list[Application]:
+) -> PaginatedResponse[ApplicationRead]:
     """List applications with optional identity filters."""
     query = db.query(Application)
     if name is not None:
@@ -43,7 +48,15 @@ def list_applications(
         query = query.filter(Application.environment == environment)
     if region is not None:
         query = query.filter(Application.region == region)
-    return query.order_by(Application.name, Application.environment, Application.region).offset(offset).limit(limit).all()
+    return paginate_query(
+        query,
+        ApplicationRead,
+        pagination,
+        Application.name.asc(),
+        Application.environment.asc(),
+        Application.region.asc(),
+        Application.id.asc(),
+    )
 
 
 @router.post("/sync-due")

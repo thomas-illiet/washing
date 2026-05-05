@@ -16,6 +16,22 @@ from internal.infra.db.models import (
 )
 
 
+def _response_schema_name(operation: dict) -> str:
+    """Resolve the OpenAPI schema name used by a response model."""
+    schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    return schema["$ref"].rpartition("/")[2]
+
+
+def _assert_paginated_list_route(body: dict, path: str) -> None:
+    """Assert that a list route exposes the shared pagination contract."""
+    operation = body["paths"][path]["get"]
+    assert {"offset", "limit"} <= {param["name"] for param in operation["parameters"]}
+    schema_name = _response_schema_name(operation)
+    assert schema_name.startswith("PaginatedResponse_")
+    schema = body["components"]["schemas"][schema_name]
+    assert {"items", "offset", "limit", "total"} <= set(schema["properties"])
+
+
 def test_swagger_is_served_on_root(client: TestClient) -> None:
     """Swagger UI should be served from the root path."""
     response = client.get("/")
@@ -23,7 +39,7 @@ def test_swagger_is_served_on_root(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/html")
     assert "SwaggerUIBundle" in response.text
-    assert "/openapi.json" in response.text
+    assert "/v1/openapi.json" in response.text
 
 
 def test_default_docs_endpoints_are_disabled(client: TestClient) -> None:
@@ -34,7 +50,7 @@ def test_default_docs_endpoints_are_disabled(client: TestClient) -> None:
 
 def test_openapi_json_remains_available(client: TestClient) -> None:
     """The OpenAPI document should remain available for tooling."""
-    response = client.get("/openapi.json")
+    response = client.get("/v1/openapi.json")
 
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "Metrics Collector"
@@ -53,41 +69,81 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/provisioners/{provisioner_id}" not in paths
     assert "/providers/{provider_id}/run" not in paths
     assert "/health" not in paths
-    assert "/machines/metrics" in paths
-    assert "/machines/{machine_id}/metrics" in paths
-    assert "/machines/providers" in paths
-    assert "/machines/providers/{provider_id}" in paths
-    assert "/machines/providers/{provider_id}/provisioners" in paths
-    assert "/machines/provisioners" in paths
-    assert "/machines/provisioners/{provisioner_id}" in paths
-    assert "/machines/provisioners/{provisioner_id}/run" in paths
-    assert "/schedules" in paths
+    assert "/v1/machines/metrics" in paths
+    assert "/v1/machines/{machine_id}/metrics" in paths
+    assert "/v1/machines/providers" in paths
+    assert "/v1/machines/providers/{provider_id}" in paths
+    assert "/v1/machines/providers/{provider_id}/provisioners" in paths
+    assert "/v1/machines/provisioners" in paths
+    assert "/v1/machines/provisioners/{provisioner_id}" in paths
+    assert "/v1/machines/provisioners/{provisioner_id}/run" in paths
+    assert "/v1/schedules" in paths
     assert "health" not in tags
     assert tags.index("machines") < tags.index("machine-metrics")
     assert tags.index("machine-metrics") < tags.index("machine-providers")
     assert tags.index("machine-providers") < tags.index("machine-provisioners")
-    assert paths["/machines"]["get"]["tags"] == ["machines"]
-    assert paths["/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["machines"]
-    assert paths["/machines/metrics"]["get"]["tags"] == ["machine-metrics"]
-    assert paths["/machines/{machine_id}/metrics"]["get"]["tags"] == ["machine-metrics"]
-    assert paths["/machines/providers"]["get"]["tags"] == ["machine-providers"]
-    assert paths["/machines/providers/{provider_id}/prometheus"]["get"]["tags"] == ["machine-providers"]
-    assert paths["/machines/providers/{provider_id}/provisioners"]["get"]["tags"] == ["machine-providers"]
-    assert paths["/machines/provisioners"]["get"]["tags"] == ["machine-provisioners"]
-    assert paths["/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["machine-provisioners"]
-    assert paths["/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["machine-provisioners"]
-    assert {"type", "offset", "limit"} <= {param["name"] for param in paths["/machines/metrics"]["get"]["parameters"]}
+    assert paths["/v1/machines"]["get"]["tags"] == ["machines"]
+    assert paths["/v1/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["machines"]
+    assert paths["/v1/machines/metrics"]["get"]["tags"] == ["machine-metrics"]
+    assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["machine-metrics"]
+    assert paths["/v1/machines/providers"]["get"]["tags"] == ["machine-providers"]
+    assert paths["/v1/machines/providers/{provider_id}/prometheus"]["get"]["tags"] == ["machine-providers"]
+    assert paths["/v1/machines/providers/{provider_id}/provisioners"]["get"]["tags"] == ["machine-providers"]
+    assert paths["/v1/machines/provisioners"]["get"]["tags"] == ["machine-provisioners"]
+    assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["machine-provisioners"]
+    assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["machine-provisioners"]
+    for path in [
+        "/v1/platforms",
+        "/v1/applications",
+        "/v1/machines",
+        "/v1/machines/{machine_id}/flavor-history",
+        "/v1/machines/metrics",
+        "/v1/machines/{machine_id}/metrics",
+        "/v1/machines/providers",
+        "/v1/machines/providers/{provider_id}/provisioners",
+        "/v1/machines/provisioners",
+        "/v1/schedules",
+    ]:
+        _assert_paginated_list_route(body, path)
+    assert {"type", "offset", "limit"} <= {param["name"] for param in paths["/v1/machines/metrics"]["get"]["parameters"]}
     assert {"type", "offset", "limit"} <= {
-        param["name"] for param in paths["/machines/{machine_id}/metrics"]["get"]["parameters"]
+        param["name"] for param in paths["/v1/machines/{machine_id}/metrics"]["get"]["parameters"]
     }
+
+
+def test_platform_list_is_paginated_and_stably_sorted(client: TestClient) -> None:
+    """Platforms should return the shared paginated envelope with a stable sort."""
+    empty = client.get("/v1/platforms")
+    assert empty.status_code == 200
+    assert empty.json() == {"items": [], "offset": 0, "limit": 100, "total": 0}
+
+    client.post("/v1/platforms", json={"name": "VMWare"})
+    client.post("/v1/platforms", json={"name": "AWS"})
+
+    first_page = client.get("/v1/platforms", params={"offset": 0, "limit": 1})
+    assert first_page.status_code == 200
+    assert first_page.json()["offset"] == 0
+    assert first_page.json()["limit"] == 1
+    assert first_page.json()["total"] == 2
+    assert [item["name"] for item in first_page.json()["items"]] == ["AWS"]
+
+    second_page = client.get("/v1/platforms", params={"offset": 1, "limit": 1})
+    assert second_page.status_code == 200
+    assert second_page.json()["total"] == 2
+    assert [item["name"] for item in second_page.json()["items"]] == ["VMWare"]
+
+    beyond_total = client.get("/v1/platforms", params={"offset": 5, "limit": 1})
+    assert beyond_total.status_code == 200
+    assert beyond_total.json()["total"] == 2
+    assert beyond_total.json()["items"] == []
 
 
 def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
     """Typed provisioner routes should never expose raw config or tokens."""
-    platform = client.post("/platforms", json={"name": "VMWare"}).json()
+    platform = client.post("/v1/platforms", json={"name": "VMWare"}).json()
 
     capsule = client.post(
-        "/machines/provisioners/capsule",
+        "/v1/machines/provisioners/capsule",
         json={
             "platform_id": platform["id"],
             "name": "capsule inventory",
@@ -100,19 +156,19 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
     assert "token" not in capsule
     assert "config" not in capsule
 
-    generic = client.get(f"/machines/provisioners/{capsule['id']}").json()
+    generic = client.get(f"/v1/machines/provisioners/{capsule['id']}").json()
     assert generic["type"] == "capsule"
     assert "config" not in generic
 
     patched_capsule = client.patch(
-        f"/machines/provisioners/{capsule['id']}/capsule",
+        f"/v1/machines/provisioners/{capsule['id']}/capsule",
         json={"name": "capsule inventory v2"},
     ).json()
     assert patched_capsule["name"] == "capsule inventory v2"
     assert patched_capsule["has_token"] is True
 
     dynatrace = client.post(
-        "/machines/provisioners/dynatrace",
+        "/v1/machines/provisioners/dynatrace",
         json={
             "platform_id": platform["id"],
             "name": "dynatrace inventory",
@@ -126,15 +182,15 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
     assert dynatrace["has_token"] is True
     assert "token" not in dynatrace
 
-    wrong_route = client.get(f"/machines/provisioners/{capsule['id']}/dynatrace")
+    wrong_route = client.get(f"/v1/machines/provisioners/{capsule['id']}/dynatrace")
     assert wrong_route.status_code == 404
 
 
 def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_session: Session) -> None:
     """Typed provider routes should hide config and resolve public scopes."""
-    platform = client.post("/platforms", json={"name": "Monitoring"}).json()
+    platform = client.post("/v1/platforms", json={"name": "Monitoring"}).json()
     provisioner = client.post(
-        "/machines/provisioners/dynatrace",
+        "/v1/machines/provisioners/dynatrace",
         json={
             "platform_id": platform["id"],
             "name": "inventory",
@@ -145,7 +201,7 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     ).json()
 
     prometheus = client.post(
-        "/machines/providers/prometheus",
+        "/v1/machines/providers/prometheus",
         json={
             "platform_id": platform["id"],
             "name": "prom cpu",
@@ -162,18 +218,18 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     assert "metric_type_id" not in prometheus
     assert "cron" not in prometheus
 
-    generic = client.get(f"/machines/providers/{prometheus['id']}").json()
+    generic = client.get(f"/v1/machines/providers/{prometheus['id']}").json()
     assert generic["scope"] == "cpu"
     assert "config" not in generic
     assert "metric_type_id" not in generic
     assert "cron" not in generic
 
-    specific = client.get(f"/machines/providers/{prometheus['id']}/prometheus").json()
+    specific = client.get(f"/v1/machines/providers/{prometheus['id']}/prometheus").json()
     assert specific["url"] == "https://prometheus.example/"
     assert specific["query"] == "avg(up)"
 
     patched = client.patch(
-        f"/machines/providers/{prometheus['id']}/prometheus",
+        f"/v1/machines/providers/{prometheus['id']}/prometheus",
         json={"scope": "ram", "query": "avg(node_memory_MemAvailable_bytes)"},
     ).json()
     assert patched["scope"] == "ram"
@@ -184,7 +240,7 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     assert provider_row.scope == "ram"
 
     dynatrace = client.post(
-        "/machines/providers/dynatrace",
+        "/v1/machines/providers/dynatrace",
         json={
             "platform_id": platform["id"],
             "name": "dynatrace disk",
@@ -200,27 +256,28 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     assert dynatrace["has_token"] is True
     assert "token" not in dynatrace
 
-    associated = client.get(f"/machines/providers/{dynatrace['id']}/provisioners").json()
-    assert associated[0]["id"] == provisioner["id"]
+    associated = client.get(f"/v1/machines/providers/{dynatrace['id']}/provisioners").json()
+    assert associated["total"] == 1
+    assert associated["items"][0]["id"] == provisioner["id"]
 
-    wrong_route = client.get(f"/machines/providers/{prometheus['id']}/dynatrace")
+    wrong_route = client.get(f"/v1/machines/providers/{prometheus['id']}/dynatrace")
     assert wrong_route.status_code == 404
 
-    detach = client.delete(f"/machines/providers/{dynatrace['id']}/provisioners/{provisioner['id']}")
+    detach = client.delete(f"/v1/machines/providers/{dynatrace['id']}/provisioners/{provisioner['id']}")
     assert detach.status_code == 204
 
-    provider_after_detach = client.get(f"/machines/providers/{dynatrace['id']}").json()
+    provider_after_detach = client.get(f"/v1/machines/providers/{dynatrace['id']}").json()
     assert provider_after_detach["provisioner_ids"] == []
 
-    disabled_run = client.post(f"/machines/providers/{dynatrace['id']}/run")
+    disabled_run = client.post(f"/v1/machines/providers/{dynatrace['id']}/run")
     assert disabled_run.status_code == 404
 
 
 def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: TestClient) -> None:
     """A provisioner should not accept two attached providers of the same type."""
-    platform = client.post("/platforms", json={"name": "Constraint Platform"}).json()
+    platform = client.post("/v1/platforms", json={"name": "Constraint Platform"}).json()
     provisioner = client.post(
-        "/machines/provisioners/capsule",
+        "/v1/machines/provisioners/capsule",
         json={
             "platform_id": platform["id"],
             "name": "inventory",
@@ -230,7 +287,7 @@ def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: T
     ).json()
 
     first_provider = client.post(
-        "/machines/providers/prometheus",
+        "/v1/machines/providers/prometheus",
         json={
             "platform_id": platform["id"],
             "name": "prom cpu",
@@ -243,7 +300,7 @@ def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: T
     assert first_provider.status_code == 201
 
     duplicate_type = client.post(
-        "/machines/providers/prometheus",
+        "/v1/machines/providers/prometheus",
         json={
             "platform_id": platform["id"],
             "name": "prom ram",
@@ -256,11 +313,12 @@ def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: T
     assert duplicate_type.status_code == 409
     assert duplicate_type.json()["detail"] == "provisioner cannot have more than one provider of the same type"
 
-    providers = client.get("/machines/providers", params={"platform_id": platform["id"]}).json()
-    assert [provider["name"] for provider in providers] == ["prom cpu"]
+    providers = client.get("/v1/machines/providers", params={"platform_id": platform["id"]}).json()
+    assert providers["total"] == 1
+    assert [provider["name"] for provider in providers["items"]] == ["prom cpu"]
 
     other_type = client.post(
-        "/machines/providers/dynatrace",
+        "/v1/machines/providers/dynatrace",
         json={
             "platform_id": platform["id"],
             "name": "dynatrace cpu",
@@ -275,9 +333,9 @@ def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: T
 
 def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: TestClient) -> None:
     """Attaching a second provider of the same type should fail with a conflict."""
-    platform = client.post("/platforms", json={"name": "Attach Constraint Platform"}).json()
+    platform = client.post("/v1/platforms", json={"name": "Attach Constraint Platform"}).json()
     provisioner = client.post(
-        "/machines/provisioners/capsule",
+        "/v1/machines/provisioners/capsule",
         json={
             "platform_id": platform["id"],
             "name": "inventory",
@@ -287,7 +345,7 @@ def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: Tes
     ).json()
 
     first_provider = client.post(
-        "/machines/providers/prometheus",
+        "/v1/machines/providers/prometheus",
         json={
             "platform_id": platform["id"],
             "name": "prom one",
@@ -297,7 +355,7 @@ def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: Tes
         },
     ).json()
     second_provider = client.post(
-        "/machines/providers/prometheus",
+        "/v1/machines/providers/prometheus",
         json={
             "platform_id": platform["id"],
             "name": "prom two",
@@ -307,27 +365,27 @@ def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: Tes
         },
     ).json()
 
-    first_attach = client.post(f"/machines/providers/{first_provider['id']}/provisioners/{provisioner['id']}")
+    first_attach = client.post(f"/v1/machines/providers/{first_provider['id']}/provisioners/{provisioner['id']}")
     assert first_attach.status_code == 200
 
-    second_attach = client.post(f"/machines/providers/{second_provider['id']}/provisioners/{provisioner['id']}")
+    second_attach = client.post(f"/v1/machines/providers/{second_provider['id']}/provisioners/{provisioner['id']}")
     assert second_attach.status_code == 409
     assert second_attach.json()["detail"] == "provisioner cannot have more than one provider of the same type"
 
-    detached_provider = client.get(f"/machines/providers/{second_provider['id']}").json()
+    detached_provider = client.get(f"/v1/machines/providers/{second_provider['id']}").json()
     assert detached_provider["provisioner_ids"] == []
 
 
 def test_application_crud_and_machine_application_id(client: TestClient) -> None:
     """Applications should stay manageable through CRUD endpoints."""
     application = client.post(
-        "/applications",
+        "/v1/applications",
         json={"name": "billing", "environment": "prod", "region": "eu-west-1"},
     ).json()
-    platform = client.post("/platforms", json={"name": "Application platform"}).json()
+    platform = client.post("/v1/platforms", json={"name": "Application platform"}).json()
 
     machine = client.post(
-        "/machines",
+        "/v1/machines",
         json={
             "platform_id": platform["id"],
             "application_id": application["id"],
@@ -337,18 +395,172 @@ def test_application_crud_and_machine_application_id(client: TestClient) -> None
 
     assert machine["application_id"] == application["id"]
 
-    listed = client.get("/applications", params={"environment": "prod", "region": "eu-west-1"}).json()
-    assert listed[0]["name"] == "billing"
+    listed = client.get("/v1/applications", params={"environment": "prod", "region": "eu-west-1"}).json()
+    assert listed["total"] == 1
+    assert listed["items"][0]["name"] == "billing"
 
-    patched = client.patch(f"/applications/{application['id']}", json={"region": "eu-west-2"}).json()
+    patched = client.patch(f"/v1/applications/{application['id']}", json={"region": "eu-west-2"}).json()
     assert patched["region"] == "eu-west-2"
+
+
+def test_machine_list_filters_are_paginated(client: TestClient) -> None:
+    """Machine list filters should keep working with the shared paginated envelope."""
+    application = client.post(
+        "/v1/applications",
+        json={"name": "checkout", "environment": "prod", "region": "eu-west-1"},
+    ).json()
+    platform = client.post("/v1/platforms", json={"name": "Machine Filter Platform"}).json()
+    other_platform = client.post("/v1/platforms", json={"name": "Other Machine Platform"}).json()
+
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "machine filter inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+        },
+    ).json()
+    other_provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": other_platform["id"],
+            "name": "other machine inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+        },
+    ).json()
+
+    client.post(
+        "/v1/machines",
+        json={
+            "platform_id": platform["id"],
+            "application_id": application["id"],
+            "source_provisioner_id": provisioner["id"],
+            "hostname": "checkout-02",
+            "environment": "prod",
+            "region": "eu-west-1",
+        },
+    )
+    client.post(
+        "/v1/machines",
+        json={
+            "platform_id": platform["id"],
+            "application_id": application["id"],
+            "source_provisioner_id": provisioner["id"],
+            "hostname": "checkout-01",
+            "environment": "prod",
+            "region": "eu-west-1",
+        },
+    )
+    client.post(
+        "/v1/machines",
+        json={
+            "platform_id": other_platform["id"],
+            "source_provisioner_id": other_provisioner["id"],
+            "hostname": "checkout-99",
+            "environment": "dev",
+            "region": "us-east-1",
+        },
+    )
+
+    first_page = client.get(
+        "/v1/machines",
+        params={
+            "platform_id": platform["id"],
+            "application_id": application["id"],
+            "source_provisioner_id": provisioner["id"],
+            "environment": "prod",
+            "region": "eu-west-1",
+            "offset": 0,
+            "limit": 1,
+        },
+    )
+    assert first_page.status_code == 200
+    assert first_page.json()["total"] == 2
+    assert [item["hostname"] for item in first_page.json()["items"]] == ["checkout-01"]
+
+    second_page = client.get(
+        "/v1/machines",
+        params={
+            "platform_id": platform["id"],
+            "application_id": application["id"],
+            "source_provisioner_id": provisioner["id"],
+            "environment": "prod",
+            "region": "eu-west-1",
+            "offset": 1,
+            "limit": 1,
+        },
+    )
+    assert second_page.status_code == 200
+    assert [item["hostname"] for item in second_page.json()["items"]] == ["checkout-02"]
+
+
+def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
+    """Provisioner list filters should keep working with the shared paginated envelope."""
+    platform = client.post("/v1/platforms", json={"name": "Provisioner Filter Platform"}).json()
+    other_platform = client.post("/v1/platforms", json={"name": "Other Provisioner Platform"}).json()
+
+    client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "alpha inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+        },
+    )
+    client.post(
+        "/v1/machines/provisioners/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "zeta inventory",
+            "url": "https://dynatrace.example",
+            "token": "dynatrace-secret",
+            "cron": "* * * * *",
+        },
+    )
+    client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "disabled inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+            "enabled": False,
+        },
+    )
+    client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": other_platform["id"],
+            "name": "other inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+        },
+    )
+
+    first_page = client.get(
+        "/v1/machines/provisioners",
+        params={"platform_id": platform["id"], "enabled": True, "offset": 0, "limit": 1},
+    )
+    assert first_page.status_code == 200
+    assert first_page.json()["total"] == 2
+    assert [item["name"] for item in first_page.json()["items"]] == ["alpha inventory"]
+
+    second_page = client.get(
+        "/v1/machines/provisioners",
+        params={"platform_id": platform["id"], "enabled": True, "offset": 1, "limit": 1},
+    )
+    assert second_page.status_code == 200
+    assert [item["name"] for item in second_page.json()["items"]] == ["zeta inventory"]
 
 
 def test_machine_crud_and_flavor_history_endpoint(client: TestClient) -> None:
     """Machines should expose CRUD and flavor history routes."""
-    platform = client.post("/platforms", json={"name": "Proxmox"}).json()
+    platform = client.post("/v1/platforms", json={"name": "Proxmox"}).json()
     machine = client.post(
-        "/machines",
+        "/v1/machines",
         json={
             "platform_id": platform["id"],
             "hostname": "node-01",
@@ -360,11 +572,15 @@ def test_machine_crud_and_flavor_history_endpoint(client: TestClient) -> None:
         },
     ).json()
 
-    patched = client.patch(f"/machines/{machine['id']}", json={"environment": "prod"}).json()
+    patched = client.patch(f"/v1/machines/{machine['id']}", json={"environment": "prod"}).json()
     assert patched["environment"] == "prod"
 
-    history = client.get(f"/machines/{machine['id']}/flavor-history").json()
-    assert history == []
+    history = client.get(f"/v1/machines/{machine['id']}/flavor-history").json()
+    assert history == {"items": [], "offset": 0, "limit": 100, "total": 0}
+
+    missing_history = client.get("/v1/machines/9999/flavor-history")
+    assert missing_history.status_code == 404
+    assert missing_history.json()["detail"] == "machine not found"
 
 
 def test_machine_flavor_history_returns_changed_state_only(client: TestClient, db_session: Session) -> None:
@@ -393,19 +609,76 @@ def test_machine_flavor_history_returns_changed_state_only(client: TestClient, d
     )
     db_session.commit()
 
-    history = client.get(f"/machines/{machine.id}/flavor-history")
+    history = client.get(f"/v1/machines/{machine.id}/flavor-history")
     assert history.status_code == 200
-    assert history.json()[0]["machine_id"] == machine.id
-    assert history.json()[0]["source_provisioner_id"] == provisioner.id
-    assert history.json()[0]["cpu"] == 4
-    assert history.json()[0]["ram_mb"] == 16384
-    assert history.json()[0]["disk_mb"] == 122880
-    assert "previous_cpu" not in history.json()[0]
-    assert "previous_ram_gb" not in history.json()[0]
-    assert "previous_disk_gb" not in history.json()[0]
-    assert "new_cpu" not in history.json()[0]
-    assert "new_ram_gb" not in history.json()[0]
-    assert "new_disk_gb" not in history.json()[0]
+    assert history.json()["total"] == 1
+    assert history.json()["items"][0]["machine_id"] == machine.id
+    assert history.json()["items"][0]["source_provisioner_id"] == provisioner.id
+    assert history.json()["items"][0]["cpu"] == 4
+    assert history.json()["items"][0]["ram_mb"] == 16384
+    assert history.json()["items"][0]["disk_mb"] == 122880
+    assert "previous_cpu" not in history.json()["items"][0]
+    assert "previous_ram_gb" not in history.json()["items"][0]
+    assert "previous_disk_gb" not in history.json()["items"][0]
+    assert "new_cpu" not in history.json()["items"][0]
+    assert "new_ram_gb" not in history.json()["items"][0]
+    assert "new_disk_gb" not in history.json()["items"][0]
+
+
+def test_provider_provisioner_list_is_paginated_and_missing_provider_returns_404(client: TestClient) -> None:
+    """Provider provisioner lists should paginate and still 404 on missing parents."""
+    platform = client.post("/v1/platforms", json={"name": "Provider Provisioner Platform"}).json()
+    alpha = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "alpha inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+        },
+    ).json()
+    beta = client.post(
+        "/v1/machines/provisioners/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "beta inventory",
+            "url": "https://dynatrace.example",
+            "token": "dynatrace-secret",
+            "cron": "* * * * *",
+        },
+    ).json()
+    provider = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "cpu provider",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+        },
+    ).json()
+
+    assert client.post(f"/v1/machines/providers/{provider['id']}/provisioners/{alpha['id']}").status_code == 200
+    assert client.post(f"/v1/machines/providers/{provider['id']}/provisioners/{beta['id']}").status_code == 200
+
+    first_page = client.get(
+        f"/v1/machines/providers/{provider['id']}/provisioners",
+        params={"offset": 0, "limit": 1},
+    )
+    assert first_page.status_code == 200
+    assert first_page.json()["total"] == 2
+    assert [item["name"] for item in first_page.json()["items"]] == ["alpha inventory"]
+
+    second_page = client.get(
+        f"/v1/machines/providers/{provider['id']}/provisioners",
+        params={"offset": 1, "limit": 1},
+    )
+    assert second_page.status_code == 200
+    assert [item["name"] for item in second_page.json()["items"]] == ["beta inventory"]
+
+    missing_provider = client.get("/v1/machines/providers/9999/provisioners")
+    assert missing_provider.status_code == 404
+    assert missing_provider.json()["detail"] == "provider not found"
 
 
 def test_machine_metric_history_endpoint_requires_type_and_paginates(client: TestClient, db_session: Session) -> None:
@@ -432,11 +705,11 @@ def test_machine_metric_history_endpoint_requires_type_and_paginates(client: Tes
     )
     db_session.commit()
 
-    missing_type = client.get(f"/machines/{machine.id}/metrics")
+    missing_type = client.get(f"/v1/machines/{machine.id}/metrics")
     assert missing_type.status_code == 422
 
     first_page = client.get(
-        f"/machines/{machine.id}/metrics",
+        f"/v1/machines/{machine.id}/metrics",
         params={"type": "cpu", "offset": 0, "limit": 1},
     )
     assert first_page.status_code == 200
@@ -451,7 +724,7 @@ def test_machine_metric_history_endpoint_requires_type_and_paginates(client: Tes
     assert "updated_at" not in first_page.json()["items"][0]
 
     second_page = client.get(
-        f"/machines/{machine.id}/metrics",
+        f"/v1/machines/{machine.id}/metrics",
         params={"type": "cpu", "offset": 1, "limit": 1},
     )
     assert second_page.status_code == 200
@@ -459,7 +732,7 @@ def test_machine_metric_history_endpoint_requires_type_and_paginates(client: Tes
     assert second_page.json()["items"][0]["date"] == "2026-05-01"
     assert second_page.json()["items"][0]["value"] == 10
 
-    missing_machine = client.get("/machines/9999/metrics", params={"type": "cpu"})
+    missing_machine = client.get("/v1/machines/9999/metrics", params={"type": "cpu"})
     assert missing_machine.status_code == 404
     assert missing_machine.json()["detail"] == "machine not found"
 
@@ -525,14 +798,14 @@ def test_machine_metrics_global_endpoint_filters_and_paginates(client: TestClien
     )
     db_session.commit()
 
-    missing_type = client.get("/machines/metrics")
+    missing_type = client.get("/v1/machines/metrics")
     assert missing_type.status_code == 422
 
-    invalid_type = client.get("/machines/metrics", params={"type": "gpu"})
+    invalid_type = client.get("/v1/machines/metrics", params={"type": "gpu"})
     assert invalid_type.status_code == 422
 
     response = client.get(
-        "/machines/metrics",
+        "/v1/machines/metrics",
         params={
             "type": "cpu",
             "platform_id": platform.id,
@@ -555,7 +828,7 @@ def test_machine_metrics_global_endpoint_filters_and_paginates(client: TestClien
     assert "updated_at" not in response.json()["items"][0]
 
     filtered_machine = client.get(
-        "/machines/metrics",
+        "/v1/machines/metrics",
         params={
             "type": "cpu",
             "machine_id": machine_one.id,

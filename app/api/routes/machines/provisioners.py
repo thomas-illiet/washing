@@ -3,8 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
-from app.api.routes.common import apply_patch, commit_or_409, get_or_404
+from app.api.deps import PaginationParams, get_db
+from app.api.routes.common import apply_patch, commit_or_409, get_or_404, paginate_query
 from internal.contracts.http.resources import (
     CapsuleProvisionerCreate,
     CapsuleProvisionerRead,
@@ -12,6 +12,7 @@ from internal.contracts.http.resources import (
     DynatraceProvisionerCreate,
     DynatraceProvisionerRead,
     DynatraceProvisionerUpdate,
+    PaginatedResponse,
     ProvisionerRead,
     TaskEnqueueResponse,
 )
@@ -107,21 +108,26 @@ def create_dynatrace_provisioner(
     return _dynatrace_provisioner_read_model(provisioner)
 
 
-@router.get("", response_model=list[ProvisionerRead])
+@router.get("", response_model=PaginatedResponse[ProvisionerRead])
 def list_provisioners(
     platform_id: int | None = None,
     enabled: bool | None = None,
-    offset: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(PaginationParams),
     db: Session = Depends(get_db),
-) -> list[MachineProvisioner]:
+) -> PaginatedResponse[ProvisionerRead]:
     """List provisioners through the generic metadata view."""
     query = db.query(MachineProvisioner)
     if platform_id is not None:
         query = query.filter(MachineProvisioner.platform_id == platform_id)
     if enabled is not None:
         query = query.filter(MachineProvisioner.enabled.is_(enabled))
-    return query.offset(offset).limit(limit).all()
+    return paginate_query(
+        query,
+        ProvisionerRead,
+        pagination,
+        MachineProvisioner.name.asc(),
+        MachineProvisioner.id.asc(),
+    )
 
 
 @router.get("/{provisioner_id}", response_model=ProvisionerRead)

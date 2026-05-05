@@ -5,8 +5,8 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
-from app.api.routes.common import get_or_404
+from app.api.deps import PaginationParams, get_db
+from app.api.routes.common import get_or_404, paginate_query
 from internal.contracts.http.resources import MachineMetricRead, PaginatedResponse, Scope
 from internal.infra.db.models import (
     Machine,
@@ -58,18 +58,6 @@ def _metric_query(
     return model, query
 
 
-def _paginate_metric_query(model, query, offset: int, limit: int) -> PaginatedResponse[MachineMetricRead]:
-    """Return a paginated metric response with offset metadata."""
-    total = query.order_by(None).count()
-    items = query.order_by(model.date.desc(), model.id.desc()).offset(offset).limit(limit).all()
-    return PaginatedResponse[MachineMetricRead](
-        items=[MachineMetricRead.model_validate(item) for item in items],
-        offset=offset,
-        limit=limit,
-        total=total,
-    )
-
-
 @router.get("/metrics", response_model=PaginatedResponse[MachineMetricRead])
 def list_machine_metrics(
     metric_type: Scope = Query(alias="type"),
@@ -79,13 +67,12 @@ def list_machine_metrics(
     machine_id: int | None = None,
     start: date | None = None,
     end: date | None = None,
-    offset: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(PaginationParams),
     db: Session = Depends(get_db),
 ) -> PaginatedResponse[MachineMetricRead]:
     """List paginated metrics for one metric type across machines."""
     model, query = _metric_query(metric_type, db, platform_id, provider_id, provisioner_id, machine_id, start, end)
-    return _paginate_metric_query(model, query, offset, limit)
+    return paginate_query(query, MachineMetricRead, pagination, model.date.desc(), model.id.desc())
 
 
 @router.get("/{machine_id:int}/metrics", response_model=PaginatedResponse[MachineMetricRead])
@@ -95,11 +82,10 @@ def list_machine_metric_history(
     provider_id: int | None = None,
     start: date | None = None,
     end: date | None = None,
-    offset: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(PaginationParams),
     db: Session = Depends(get_db),
 ) -> PaginatedResponse[MachineMetricRead]:
     """List paginated metrics for one machine and metric type."""
     get_or_404(db, Machine, machine_id, "machine not found")
     model, query = _metric_query(metric_type, db, provider_id=provider_id, machine_id=machine_id, start=start, end=end)
-    return _paginate_metric_query(model, query, offset, limit)
+    return paginate_query(query, MachineMetricRead, pagination, model.date.desc(), model.id.desc())

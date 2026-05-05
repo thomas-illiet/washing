@@ -3,9 +3,9 @@
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
-from app.api.routes.common import apply_patch, commit_or_409, get_or_404
-from internal.contracts.http.resources import PlatformCreate, PlatformRead, PlatformUpdate
+from app.api.deps import PaginationParams, get_db
+from app.api.routes.common import apply_patch, commit_or_409, get_or_404, paginate_query
+from internal.contracts.http.resources import PaginatedResponse, PlatformCreate, PlatformRead, PlatformUpdate
 from internal.infra.db.models import Platform
 
 
@@ -22,10 +22,14 @@ def create_platform(payload: PlatformCreate, db: Session = Depends(get_db)) -> P
     return platform
 
 
-@router.get("", response_model=list[PlatformRead])
-def list_platforms(offset: int = 0, limit: int = 100, db: Session = Depends(get_db)) -> list[Platform]:
-    """List platforms with basic pagination."""
-    return db.query(Platform).offset(offset).limit(limit).all()
+@router.get("", response_model=PaginatedResponse[PlatformRead])
+def list_platforms(
+    pagination: PaginationParams = Depends(PaginationParams),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[PlatformRead]:
+    """List platforms with stable offset pagination."""
+    query = db.query(Platform)
+    return paginate_query(query, PlatformRead, pagination, Platform.name.asc(), Platform.id.asc())
 
 
 @router.get("/{platform_id}", response_model=PlatformRead)

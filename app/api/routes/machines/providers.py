@@ -3,11 +3,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session, selectinload
 
-from app.api.deps import get_db
-from app.api.routes.common import apply_patch, commit_or_409, get_or_404
+from app.api.deps import PaginationParams, get_db
+from app.api.routes.common import apply_patch, commit_or_409, get_or_404, paginate_query
 from internal.contracts.http.resources import (
     DynatraceProviderCreate,
     DynatraceProviderRead,
+    PaginatedResponse,
     DynatraceProviderUpdate,
     PrometheusProviderCreate,
     PrometheusProviderRead,
@@ -19,6 +20,7 @@ from internal.contracts.http.resources import (
 from internal.infra.db.models import (
     PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL,
     MachineProvider,
+    MachineProviderProvisioner,
     MachineProvisioner,
     find_provider_type_conflict,
 )
@@ -146,15 +148,14 @@ def create_dynatrace_provider(
     return _dynatrace_provider_read_model(_load_provider(db, provider.id))
 
 
-@router.get("", response_model=list[ProviderRead])
+@router.get("", response_model=PaginatedResponse[ProviderRead])
 def list_providers(
     platform_id: int | None = None,
     scope: Scope | None = None,
     enabled: bool | None = None,
-    offset: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(PaginationParams),
     db: Session = Depends(get_db),
-) -> list[MachineProvider]:
+) -> PaginatedResponse[ProviderRead]:
     """List providers through the generic view.
 
     This endpoint intentionally exposes shared metadata only and keeps
@@ -167,7 +168,7 @@ def list_providers(
         query = query.filter(MachineProvider.scope == scope)
     if enabled is not None:
         query = query.filter(MachineProvider.enabled.is_(enabled))
-    return query.offset(offset).limit(limit).all()
+    return paginate_query(query, ProviderRead, pagination, MachineProvider.name.asc(), MachineProvider.id.asc())
 
 
 @router.get("/{provider_id}", response_model=ProviderRead)
@@ -267,11 +268,29 @@ def delete_provider(provider_id: int, db: Session = Depends(get_db)) -> Response
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/{provider_id}/provisioners", response_model=list[ProvisionerRead])
-def list_provider_provisioners(provider_id: int, db: Session = Depends(get_db)) -> list[MachineProvisioner]:
+@router.get("/{provider_id}/provisioners", response_model=PaginatedResponse[ProvisionerRead])
+def list_provider_provisioners(
+    provider_id: int,
+    pagination: PaginationParams = Depends(PaginationParams),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[ProvisionerRead]:
     """List the provisioners currently attached to a provider."""
-    provider = _load_provider(db, provider_id)
-    return provider.provisioners
+    get_or_404(db, MachineProvider, provider_id, "provider not found")
+    query = (
+        db.query(MachineProvisioner)
+        .join(
+            MachineProviderProvisioner,
+            MachineProviderProvisioner.provisioner_id == MachineProvisioner.id,
+        )
+        .filter(MachineProviderProvisioner.provider_id == provider_id)
+    )
+    return paginate_query(
+        query,
+        ProvisionerRead,
+        pagination,
+        MachineProvisioner.name.asc(),
+        MachineProvisioner.id.asc(),
+    )
 
 
 @router.post("/{provider_id}/provisioners/{provisioner_id}", response_model=ProviderRead)

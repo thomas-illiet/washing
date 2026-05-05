@@ -3,7 +3,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import PaginationParams, get_db
+from app.api.routes.common import paginate_query
 from internal.contracts.http.resources import PaginatedResponse, TaskExecutionRead, TaskExecutionStatus
 from internal.infra.db.models import CeleryTaskExecution
 
@@ -17,8 +18,7 @@ def list_task_executions(
     status: TaskExecutionStatus | None = None,
     resource_type: str | None = None,
     resource_id: int | None = None,
-    offset: int = 0,
-    limit: int = 100,
+    pagination: PaginationParams = Depends(PaginationParams),
     db: Session = Depends(get_db),
 ) -> PaginatedResponse[TaskExecutionRead]:
     """List tracked Celery task executions with pagination and filters."""
@@ -32,16 +32,10 @@ def list_task_executions(
     if resource_id is not None:
         query = query.filter(CeleryTaskExecution.resource_id == resource_id)
 
-    total = query.order_by(None).count()
-    items = (
-        query.order_by(CeleryTaskExecution.queued_at.desc(), CeleryTaskExecution.id.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
-    return PaginatedResponse[TaskExecutionRead](
-        items=[TaskExecutionRead.model_validate(item) for item in items],
-        offset=offset,
-        limit=limit,
-        total=total,
+    return paginate_query(
+        query,
+        TaskExecutionRead,
+        pagination,
+        CeleryTaskExecution.queued_at.desc(),
+        CeleryTaskExecution.id.desc(),
     )

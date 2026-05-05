@@ -206,7 +206,7 @@ def test_schedules_endpoint_filters_orders_and_paginates(client: TestClient, db_
     db_session.commit()
 
     response = client.get(
-        "/schedules",
+        "/v1/schedules",
         params={
             "task_name": RUN_PROVISIONER_TASK,
             "resource_type": "provisioner",
@@ -223,7 +223,7 @@ def test_schedules_endpoint_filters_orders_and_paginates(client: TestClient, db_
     assert response.json()["items"][0]["status"] == "FAILURE"
 
     filtered = client.get(
-        "/schedules",
+        "/v1/schedules",
         params={
             "task_name": RUN_PROVISIONER_TASK,
             "status": "SUCCESS",
@@ -270,8 +270,8 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
 
     monkeypatch.setattr("internal.infra.queue.enqueue.celery_app.send_task", fake_send_task)
 
-    application_response = client.post(f"/applications/{application.id}/sync")
-    provisioner_response = client.post(f"/machines/provisioners/{provisioner.id}/run")
+    application_response = client.post(f"/v1/applications/{application.id}/sync")
+    provisioner_response = client.post(f"/v1/machines/provisioners/{provisioner.id}/run")
 
     assert application_response.status_code == 202
     assert application_response.json() == {"task_id": "manual-application-sync"}

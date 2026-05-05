@@ -77,21 +77,38 @@ Endpoints utiles :
 
 - `GET /health`
 - `GET /` : documentation Swagger
-- CRUD : `/platforms`, `/applications`, `/machines`, `/machines/providers`, `/machines/provisioners`
-- Association : `POST /machines/providers/{provider_id}/provisioners/{provisioner_id}`
-- Jobs manuels : `POST /machines/provisioners/{id}/run`, `POST /applications/{id}/sync`
-- Sync applications : `POST /applications/sync-due`
-- Métriques : `GET /machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /machines/metrics?type=cpu|ram|disk`
+- OpenAPI JSON : `GET /v1/openapi.json`
+- CRUD : `/v1/platforms`, `/v1/applications`, `/v1/machines`, `/v1/machines/providers`, `/v1/machines/provisioners`
+- Association : `POST /v1/machines/providers/{provider_id}/provisioners/{provisioner_id}`
+- Jobs manuels : `POST /v1/machines/provisioners/{id}/run`, `POST /v1/applications/{id}/sync`
+- Sync applications : `POST /v1/applications/sync-due`
+- Métriques métier : `GET /v1/machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /v1/machines/metrics?type=cpu|ram|disk`
+- Prometheus : `GET /metrics`
+
+Toutes les routes métier HTTP sont versionnées sous `/v1`. Les endpoints opérationnels `/health` et `/metrics` restent sans préfixe.
+
+Tous les endpoints `GET` qui renvoient une liste utilisent la même enveloppe paginée :
+
+```json
+{
+  "items": [],
+  "offset": 0,
+  "limit": 100,
+  "total": 0
+}
+```
+
+Les collections et sous-listes supportent `offset` et `limit` avec `offset >= 0` et `limit >= 1`.
 
 Sous-routes typées pour les intégrations :
 
-- Provisioners : `POST /machines/provisioners/capsule`, `GET/PATCH /machines/provisioners/{id}/capsule`, `POST /machines/provisioners/dynatrace`, `GET/PATCH /machines/provisioners/{id}/dynatrace`
-- Providers : `POST /machines/providers/prometheus`, `GET/PATCH /machines/providers/{id}/prometheus`, `POST /machines/providers/dynatrace`, `GET/PATCH /machines/providers/{id}/dynatrace`
+- Provisioners : `POST /v1/machines/provisioners/capsule`, `GET/PATCH /v1/machines/provisioners/{id}/capsule`, `POST /v1/machines/provisioners/dynatrace`, `GET/PATCH /v1/machines/provisioners/{id}/dynatrace`
+- Providers : `POST /v1/machines/providers/prometheus`, `GET/PATCH /v1/machines/providers/{id}/prometheus`, `POST /v1/machines/providers/dynatrace`, `GET/PATCH /v1/machines/providers/{id}/dynatrace`
 
-Les réponses génériques `/machines/providers` et `/machines/provisioners` n'exposent jamais le champ `config`. Les secrets sont stockés chiffrés en base et les tokens ne sont jamais renvoyés par l'API.
+Les réponses génériques `/v1/machines/providers` et `/v1/machines/provisioners` n'exposent jamais le champ `config`. Les secrets sont stockés chiffrés en base et les tokens ne sont jamais renvoyés par l'API.
 Un provisioner ne peut être lié qu'à un seul provider par `type`.
 
-La documentation OpenAPI est exposée sur la racine `/`. Les routes FastAPI par défaut `/docs` et `/redoc` sont désactivées.
+La documentation Swagger est exposée sur la racine `/` et charge le schéma OpenAPI depuis `/v1/openapi.json`. Les routes FastAPI par défaut `/docs` et `/redoc` sont désactivées.
 
 ## Observabilité
 
@@ -128,7 +145,7 @@ Métriques principales :
 - `celery_worker_up`
 - `celery_beat_up`
 
-Le endpoint Prometheus `/metrics` ne remplace pas les endpoints métier `/machines/{machine_id}/metrics` et `/machines/metrics`.
+Le endpoint Prometheus `/metrics` ne remplace pas les endpoints métier `/v1/machines/{machine_id}/metrics` et `/v1/machines/metrics`.
 
 Accès par défaut :
 
@@ -146,7 +163,7 @@ Les métriques sont stockées à la journée, avec une seule ligne par machine, 
 
 Chaque table porte le même format métier : `machine_id`, `provider_id`, `date`, `value`.
 
-Les endpoints `GET /machines/{machine_id}/metrics` et `GET /machines/metrics` exigent `type=cpu|ram|disk`, supportent `start` et `end` au format `YYYY-MM-DD`, ainsi que `offset` et `limit`. Les collectes font un upsert journalier : relancer une collecte le même jour met à jour la ligne existante.
+Les endpoints `GET /v1/machines/{machine_id}/metrics` et `GET /v1/machines/metrics` exigent `type=cpu|ram|disk`, supportent `start` et `end` au format `YYYY-MM-DD`, ainsi que `offset` et `limit`, et renvoient l'enveloppe `{items, offset, limit, total}`. Les collectes font un upsert journalier : relancer une collecte le même jour met à jour la ligne existante.
 
 ## Applications
 
