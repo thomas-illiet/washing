@@ -8,7 +8,7 @@ from internal.contracts.http.resources import PaginatedResponse, TaskExecutionRe
 from internal.infra.db.models import CeleryTaskExecution
 
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/schedules", tags=["tasks"])
 
 
 @router.get("", response_model=PaginatedResponse[TaskExecutionRead])

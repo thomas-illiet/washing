@@ -167,7 +167,7 @@ def test_task_tracking_signals_record_retry(db_session: Session, tracking_sessio
     assert execution.error == "try again later"
 
 
-def test_tasks_endpoint_filters_orders_and_paginates(client: TestClient, db_session: Session) -> None:
+def test_schedules_endpoint_filters_orders_and_paginates(client: TestClient, db_session: Session) -> None:
     """The task history endpoint should support documented filters and pagination."""
     db_session.add_all(
         [
@@ -206,7 +206,7 @@ def test_tasks_endpoint_filters_orders_and_paginates(client: TestClient, db_sess
     db_session.commit()
 
     response = client.get(
-        "/tasks",
+        "/schedules",
         params={
             "task_name": RUN_PROVISIONER_TASK,
             "resource_type": "provisioner",
@@ -223,7 +223,7 @@ def test_tasks_endpoint_filters_orders_and_paginates(client: TestClient, db_sess
     assert response.json()["items"][0]["status"] == "FAILURE"
 
     filtered = client.get(
-        "/tasks",
+        "/schedules",
         params={
             "task_name": RUN_PROVISIONER_TASK,
             "status": "SUCCESS",

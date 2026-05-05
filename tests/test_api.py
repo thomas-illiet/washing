@@ -60,7 +60,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/machines/provisioners" in paths
     assert "/machines/provisioners/{provisioner_id}" in paths
     assert "/machines/provisioners/{provisioner_id}/run" in paths
-    assert "/tasks" in paths
+    assert "/schedules" in paths
     assert tags.index("machines") < tags.index("machine-metrics")
     assert tags.index("machine-metrics") < tags.index("machine-providers")
     assert tags.index("machine-providers") < tags.index("machine-provisioners")
