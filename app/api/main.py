@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse
 
-from app.api.routes import applications, health, machines, metric_types, metrics, platforms, providers, provisioners
+from app.api.routes import applications, health, machines, platforms, providers, provisioners
 from internal.infra.config.settings import get_settings
 from internal.infra.observability.prometheus import prometheus_http_middleware, prometheus_response
 
@@ -22,10 +22,8 @@ def create_app() -> FastAPI:
     app.include_router(platforms.router)
     app.include_router(applications.router)
     app.include_router(machines.router)
-    app.include_router(metric_types.router)
     app.include_router(provisioners.router)
     app.include_router(providers.router)
-    app.include_router(metrics.router)
 
     @app.get("/", include_in_schema=False)
     def root() -> HTMLResponse:

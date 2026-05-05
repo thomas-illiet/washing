@@ -5,10 +5,8 @@ configuration is managed through typed sub-routes so secrets remain hidden
 from the public API surface.
 """
 
-from typing import Literal
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404
@@ -21,14 +19,14 @@ from internal.contracts.http.resources import (
     PrometheusProviderUpdate,
     ProviderRead,
     ProvisionerRead,
+    Scope,
     TaskEnqueueResponse,
 )
-from internal.infra.db.models import MachineProvider, MachineProvisioner, MetricType
+from internal.infra.db.models import MachineProvider, MachineProvisioner
 from internal.infra.queue.celery import celery_app
 from internal.infra.queue.task_names import RUN_PROVIDER_TASK
 
 
-Scope = Literal["cpu", "ram", "disk"]
 router = APIRouter(prefix="/providers", tags=["providers"])
 
 
@@ -36,7 +34,7 @@ def _load_provider(db: Session, provider_id: int) -> MachineProvider:
     """Load a provider with the relations needed by the API responses."""
     provider = (
         db.query(MachineProvider)
-        .options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))
+        .options(selectinload(MachineProvider.provisioners))
         .filter(MachineProvider.id == provider_id)
         .one_or_none()
     )
@@ -51,14 +49,6 @@ def _load_provider_of_type(db: Session, provider_id: int, connector_type: str) -
     if provider.type != connector_type:
         raise HTTPException(status_code=404, detail="provider not found")
     return provider
-
-
-def _resolve_metric_type_id(db: Session, scope: Scope) -> int:
-    """Map the public provider scope to the persisted metric type row."""
-    metric_type = db.query(MetricType).filter(MetricType.code == scope).one_or_none()
-    if metric_type is None:
-        raise HTTPException(status_code=400, detail=f"metric type for scope '{scope}' not found")
-    return metric_type.id
 
 
 def _load_provisioners_for_provider(
@@ -106,16 +96,12 @@ def create_prometheus_provider(
     payload: PrometheusProviderCreate,
     db: Session = Depends(get_db),
 ) -> PrometheusProviderRead:
-    """Create a typed Prometheus provider.
-
-    The public `scope` is resolved to an internal `metric_type_id`, while
-    provider-specific fields are persisted inside encrypted `config`.
-    """
+    """Create a typed Prometheus provider."""
     provider = MachineProvider(
         platform_id=payload.platform_id,
-        metric_type_id=_resolve_metric_type_id(db, payload.scope),
         name=payload.name,
         type="prometheus",
+        scope=payload.scope,
         config={"url": str(payload.url), "query": payload.query},
         enabled=payload.enabled,
     )
@@ -131,16 +117,12 @@ def create_dynatrace_provider(
     payload: DynatraceProviderCreate,
     db: Session = Depends(get_db),
 ) -> DynatraceProviderRead:
-    """Create a typed Dynatrace provider.
-
-    The returned payload never exposes the stored token and only reports
-    whether a token is present through `has_token`.
-    """
+    """Create a typed Dynatrace provider."""
     provider = MachineProvider(
         platform_id=payload.platform_id,
-        metric_type_id=_resolve_metric_type_id(db, payload.scope),
         name=payload.name,
         type="dynatrace",
+        scope=payload.scope,
         config={"url": str(payload.url), "token": payload.token},
         enabled=payload.enabled,
     )
@@ -165,11 +147,11 @@ def list_providers(
     This endpoint intentionally exposes shared metadata only and keeps
     provider-specific configuration behind typed sub-routes.
     """
-    query = db.query(MachineProvider).options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))
+    query = db.query(MachineProvider).options(selectinload(MachineProvider.provisioners))
     if platform_id is not None:
         query = query.filter(MachineProvider.platform_id == platform_id)
     if scope is not None:
-        query = query.join(MachineProvider.metric_type).filter(MetricType.code == scope)
+        query = query.filter(MachineProvider.scope == scope)
     if enabled is not None:
         query = query.filter(MachineProvider.enabled.is_(enabled))
     return query.offset(offset).limit(limit).all()
@@ -209,7 +191,7 @@ def update_prometheus_provider(
     target_platform_id = values.get("platform_id", provider.platform_id)
 
     if payload.scope is not None:
-        provider.metric_type_id = _resolve_metric_type_id(db, payload.scope)
+        provider.scope = payload.scope
 
     if "platform_id" in values:
         _ensure_provider_platform_matches_provisioners(provider, target_platform_id)
@@ -244,7 +226,7 @@ def update_dynatrace_provider(
     target_platform_id = values.get("platform_id", provider.platform_id)
 
     if payload.scope is not None:
-        provider.metric_type_id = _resolve_metric_type_id(db, payload.scope)
+        provider.scope = payload.scope
 
     if "platform_id" in values:
         _ensure_provider_platform_matches_provisioners(provider, target_platform_id)

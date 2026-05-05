@@ -1,7 +1,7 @@
 """Connector protocols and shared payload shapes."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date as date_value
 from typing import Protocol
 
 from internal.infra.db.models import Machine, MachineProvider, MachineProvisioner
@@ -26,14 +26,10 @@ class MachineRecord:
 class MetricRecord:
     """Normalized metric sample returned by provider connectors."""
     value: float
-    unit: str | None = None
-    percentile: float | None = None
-    usage_type: str | None = None
+    date: date_value | None = None
     machine_id: int | None = None
     machine_external_id: str | None = None
     hostname: str | None = None
-    labels: dict = field(default_factory=dict)
-    collected_at: datetime | None = None
 
 
 class MachineProvisionerConnector(Protocol):
