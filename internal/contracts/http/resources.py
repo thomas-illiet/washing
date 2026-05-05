@@ -192,7 +192,6 @@ class PrometheusProviderUpdate(ApiModel):
     scope: Scope | None = None
     url: AnyHttpUrl | None = None
     query: str | None = None
-    provisioner_ids: list[int] | None = None
 
     @field_validator("query")
     @classmethod
@@ -232,7 +231,6 @@ class DynatraceProviderUpdate(ApiModel):
     scope: Scope | None = None
     url: AnyHttpUrl | None = None
     token: str | None = None
-    provisioner_ids: list[int] | None = None
 
     @field_validator("token")
     @classmethod
