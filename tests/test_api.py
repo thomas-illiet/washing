@@ -44,9 +44,21 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "provisioner_ids" not in schemas["DynatraceProviderUpdate"]["properties"]
     assert "/metric-types" not in paths
     assert "/metrics/{metric_name}" not in paths
+    assert "/providers" not in paths
+    assert "/providers/{provider_id}" not in paths
+    assert "/providers/{provider_id}/provisioners" not in paths
+    assert "/provisioners" not in paths
+    assert "/provisioners/{provisioner_id}" not in paths
     assert "/providers/{provider_id}/run" not in paths
     assert "/machines/metrics" in paths
     assert "/machines/{machine_id}/metrics" in paths
+    assert "/machines/providers" in paths
+    assert "/machines/providers/{provider_id}" in paths
+    assert "/machines/providers/{provider_id}/provisioners" in paths
+    assert "/machines/provisioners" in paths
+    assert "/machines/provisioners/{provisioner_id}" in paths
+    assert "/machines/provisioners/{provisioner_id}/run" in paths
+    assert "/tasks" in paths
     assert {"type", "offset", "limit"} <= {param["name"] for param in paths["/machines/metrics"]["get"]["parameters"]}
     assert {"type", "offset", "limit"} <= {
         param["name"] for param in paths["/machines/{machine_id}/metrics"]["get"]["parameters"]
@@ -58,7 +70,7 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
     platform = client.post("/platforms", json={"name": "VMWare"}).json()
 
     capsule = client.post(
-        "/provisioners/capsule",
+        "/machines/provisioners/capsule",
         json={
             "platform_id": platform["id"],
             "name": "capsule inventory",
@@ -71,19 +83,19 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
     assert "token" not in capsule
     assert "config" not in capsule
 
-    generic = client.get(f"/provisioners/{capsule['id']}").json()
+    generic = client.get(f"/machines/provisioners/{capsule['id']}").json()
     assert generic["type"] == "capsule"
     assert "config" not in generic
 
     patched_capsule = client.patch(
-        f"/provisioners/{capsule['id']}/capsule",
+        f"/machines/provisioners/{capsule['id']}/capsule",
         json={"name": "capsule inventory v2"},
     ).json()
     assert patched_capsule["name"] == "capsule inventory v2"
     assert patched_capsule["has_token"] is True
 
     dynatrace = client.post(
-        "/provisioners/dynatrace",
+        "/machines/provisioners/dynatrace",
         json={
             "platform_id": platform["id"],
             "name": "dynatrace inventory",
@@ -97,14 +109,15 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
     assert dynatrace["has_token"] is True
     assert "token" not in dynatrace
 
-    wrong_route = client.get(f"/provisioners/{capsule['id']}/dynatrace")
+    wrong_route = client.get(f"/machines/provisioners/{capsule['id']}/dynatrace")
     assert wrong_route.status_code == 404
+
 
 def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_session: Session) -> None:
     """Typed provider routes should hide config and resolve public scopes."""
     platform = client.post("/platforms", json={"name": "Monitoring"}).json()
     provisioner = client.post(
-        "/provisioners/dynatrace",
+        "/machines/provisioners/dynatrace",
         json={
             "platform_id": platform["id"],
             "name": "inventory",
@@ -115,7 +128,7 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     ).json()
 
     prometheus = client.post(
-        "/providers/prometheus",
+        "/machines/providers/prometheus",
         json={
             "platform_id": platform["id"],
             "name": "prom cpu",
@@ -132,18 +145,18 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     assert "metric_type_id" not in prometheus
     assert "cron" not in prometheus
 
-    generic = client.get(f"/providers/{prometheus['id']}").json()
+    generic = client.get(f"/machines/providers/{prometheus['id']}").json()
     assert generic["scope"] == "cpu"
     assert "config" not in generic
     assert "metric_type_id" not in generic
     assert "cron" not in generic
 
-    specific = client.get(f"/providers/{prometheus['id']}/prometheus").json()
+    specific = client.get(f"/machines/providers/{prometheus['id']}/prometheus").json()
     assert specific["url"] == "https://prometheus.example/"
     assert specific["query"] == "avg(up)"
 
     patched = client.patch(
-        f"/providers/{prometheus['id']}/prometheus",
+        f"/machines/providers/{prometheus['id']}/prometheus",
         json={"scope": "ram", "query": "avg(node_memory_MemAvailable_bytes)"},
     ).json()
     assert patched["scope"] == "ram"
@@ -154,7 +167,7 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     assert provider_row.scope == "ram"
 
     dynatrace = client.post(
-        "/providers/dynatrace",
+        "/machines/providers/dynatrace",
         json={
             "platform_id": platform["id"],
             "name": "dynatrace disk",
@@ -170,20 +183,122 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     assert dynatrace["has_token"] is True
     assert "token" not in dynatrace
 
-    associated = client.get(f"/providers/{dynatrace['id']}/provisioners").json()
+    associated = client.get(f"/machines/providers/{dynatrace['id']}/provisioners").json()
     assert associated[0]["id"] == provisioner["id"]
 
-    wrong_route = client.get(f"/providers/{prometheus['id']}/dynatrace")
+    wrong_route = client.get(f"/machines/providers/{prometheus['id']}/dynatrace")
     assert wrong_route.status_code == 404
 
-    detach = client.delete(f"/providers/{dynatrace['id']}/provisioners/{provisioner['id']}")
+    detach = client.delete(f"/machines/providers/{dynatrace['id']}/provisioners/{provisioner['id']}")
     assert detach.status_code == 204
 
-    provider_after_detach = client.get(f"/providers/{dynatrace['id']}").json()
+    provider_after_detach = client.get(f"/machines/providers/{dynatrace['id']}").json()
     assert provider_after_detach["provisioner_ids"] == []
 
-    disabled_run = client.post(f"/providers/{dynatrace['id']}/run")
+    disabled_run = client.post(f"/machines/providers/{dynatrace['id']}/run")
     assert disabled_run.status_code == 404
+
+
+def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: TestClient) -> None:
+    """A provisioner should not accept two attached providers of the same type."""
+    platform = client.post("/platforms", json={"name": "Constraint Platform"}).json()
+    provisioner = client.post(
+        "/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+        },
+    ).json()
+
+    first_provider = client.post(
+        "/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    )
+    assert first_provider.status_code == 201
+
+    duplicate_type = client.post(
+        "/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom ram",
+            "scope": "ram",
+            "url": "https://prometheus.example",
+            "query": "avg(node_memory_MemAvailable_bytes)",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    )
+    assert duplicate_type.status_code == 409
+    assert duplicate_type.json()["detail"] == "provisioner cannot have more than one provider of the same type"
+
+    providers = client.get("/machines/providers", params={"platform_id": platform["id"]}).json()
+    assert [provider["name"] for provider in providers] == ["prom cpu"]
+
+    other_type = client.post(
+        "/machines/providers/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "dynatrace cpu",
+            "scope": "cpu",
+            "url": "https://dynatrace.example",
+            "token": "provider-secret",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    )
+    assert other_type.status_code == 201
+
+
+def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: TestClient) -> None:
+    """Attaching a second provider of the same type should fail with a conflict."""
+    platform = client.post("/platforms", json={"name": "Attach Constraint Platform"}).json()
+    provisioner = client.post(
+        "/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+        },
+    ).json()
+
+    first_provider = client.post(
+        "/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom one",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+        },
+    ).json()
+    second_provider = client.post(
+        "/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom two",
+            "scope": "ram",
+            "url": "https://prometheus.example",
+            "query": "avg(node_memory_MemAvailable_bytes)",
+        },
+    ).json()
+
+    first_attach = client.post(f"/machines/providers/{first_provider['id']}/provisioners/{provisioner['id']}")
+    assert first_attach.status_code == 200
+
+    second_attach = client.post(f"/machines/providers/{second_provider['id']}/provisioners/{provisioner['id']}")
+    assert second_attach.status_code == 409
+    assert second_attach.json()["detail"] == "provisioner cannot have more than one provider of the same type"
+
+    detached_provider = client.get(f"/machines/providers/{second_provider['id']}").json()
+    assert detached_provider["provisioner_ids"] == []
 
 
 def test_application_crud_and_machine_application_id(client: TestClient) -> None:

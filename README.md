@@ -77,18 +77,19 @@ Endpoints utiles :
 
 - `GET /health`
 - `GET /` : documentation Swagger
-- CRUD : `/platforms`, `/applications`, `/machines`, `/providers`, `/provisioners`
-- Association : `POST /providers/{provider_id}/provisioners/{provisioner_id}`
-- Jobs manuels : `POST /provisioners/{id}/run`, `POST /applications/{id}/sync`
+- CRUD : `/platforms`, `/applications`, `/machines`, `/machines/providers`, `/machines/provisioners`
+- Association : `POST /machines/providers/{provider_id}/provisioners/{provisioner_id}`
+- Jobs manuels : `POST /machines/provisioners/{id}/run`, `POST /applications/{id}/sync`
 - Sync applications : `POST /applications/sync-due`
 - Métriques : `GET /machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /machines/metrics?type=cpu|ram|disk`
 
 Sous-routes typées pour les intégrations :
 
-- Provisioners : `POST /provisioners/capsule`, `GET/PATCH /provisioners/{id}/capsule`, `POST /provisioners/dynatrace`, `GET/PATCH /provisioners/{id}/dynatrace`
-- Providers : `POST /providers/prometheus`, `GET/PATCH /providers/{id}/prometheus`, `POST /providers/dynatrace`, `GET/PATCH /providers/{id}/dynatrace`
+- Provisioners : `POST /machines/provisioners/capsule`, `GET/PATCH /machines/provisioners/{id}/capsule`, `POST /machines/provisioners/dynatrace`, `GET/PATCH /machines/provisioners/{id}/dynatrace`
+- Providers : `POST /machines/providers/prometheus`, `GET/PATCH /machines/providers/{id}/prometheus`, `POST /machines/providers/dynatrace`, `GET/PATCH /machines/providers/{id}/dynatrace`
 
-Les réponses génériques `/providers` et `/provisioners` n'exposent jamais le champ `config`. Les secrets sont stockés chiffrés en base et les tokens ne sont jamais renvoyés par l'API.
+Les réponses génériques `/machines/providers` et `/machines/provisioners` n'exposent jamais le champ `config`. Les secrets sont stockés chiffrés en base et les tokens ne sont jamais renvoyés par l'API.
+Un provisioner ne peut être lié qu'à un seul provider par `type`.
 
 La documentation OpenAPI est exposée sur la racine `/`. Les routes FastAPI par défaut `/docs` et `/redoc` sont désactivées.
 

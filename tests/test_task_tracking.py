@@ -271,7 +271,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     monkeypatch.setattr("internal.infra.queue.enqueue.celery_app.send_task", fake_send_task)
 
     application_response = client.post(f"/applications/{application.id}/sync")
-    provisioner_response = client.post(f"/provisioners/{provisioner.id}/run")
+    provisioner_response = client.post(f"/machines/provisioners/{provisioner.id}/run")
 
     assert application_response.status_code == 202
     assert application_response.json() == {"task_id": "manual-application-sync"}
