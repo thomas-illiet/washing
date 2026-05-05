@@ -1,3 +1,5 @@
+"""Beat task that dispatches due application sync jobs."""
+
 from internal.infra.config.settings import get_settings
 from internal.infra.db.session import SessionLocal
 from internal.infra.queue.celery import celery_app
@@ -7,6 +9,7 @@ from internal.usecases.applications import dispatch_due_application_syncs
 
 @celery_app.task(name=DISPATCH_DUE_APPLICATION_SYNCS_TASK)
 def dispatch_due_application_syncs_task() -> dict[str, list[int] | int]:
+    """Celery entrypoint that schedules due application sync work."""
     settings = get_settings()
     db = SessionLocal()
     try:

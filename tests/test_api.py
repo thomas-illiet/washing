@@ -1,3 +1,5 @@
+"""End-to-end API tests for the FastAPI surface."""
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
@@ -5,6 +7,7 @@ from internal.infra.db.models import MachineProvider
 
 
 def test_swagger_is_served_on_root_with_custom_theme(client: TestClient) -> None:
+    """Swagger UI should be served from the root path with local theming."""
     response = client.get("/")
 
     assert response.status_code == 200
@@ -15,11 +18,13 @@ def test_swagger_is_served_on_root_with_custom_theme(client: TestClient) -> None
 
 
 def test_default_docs_endpoints_are_disabled(client: TestClient) -> None:
+    """Default FastAPI docs routes should remain disabled."""
     assert client.get("/docs").status_code == 404
     assert client.get("/redoc").status_code == 404
 
 
 def test_openapi_json_remains_available(client: TestClient) -> None:
+    """The OpenAPI document should remain available for tooling."""
     response = client.get("/openapi.json")
 
     assert response.status_code == 200
@@ -27,6 +32,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
 
 
 def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
+    """Typed provisioner routes should never expose raw config or tokens."""
     platform = client.post("/platforms", json={"name": "VMWare"}).json()
 
     capsule = client.post(
@@ -74,6 +80,7 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
 
 
 def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_session: Session) -> None:
+    """Typed provider routes should hide config and resolve public scopes."""
     platform = client.post("/platforms", json={"name": "Monitoring"}).json()
     provisioner = client.post(
         "/provisioners/dynatrace",
@@ -160,6 +167,7 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
 
 
 def test_application_crud_and_machine_application_id(client: TestClient) -> None:
+    """Applications should stay manageable through CRUD endpoints."""
     application = client.post(
         "/applications",
         json={"name": "billing", "environment": "prod", "region": "eu-west-1"},
@@ -185,6 +193,7 @@ def test_application_crud_and_machine_application_id(client: TestClient) -> None
 
 
 def test_machine_crud_and_flavor_history_endpoint(client: TestClient) -> None:
+    """Machines should expose CRUD and flavor history routes."""
     platform = client.post("/platforms", json={"name": "Proxmox"}).json()
     machine = client.post(
         "/machines",

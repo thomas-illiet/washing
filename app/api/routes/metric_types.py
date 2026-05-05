@@ -1,3 +1,5 @@
+"""Metric type CRUD routes."""
+
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
@@ -12,6 +14,7 @@ router = APIRouter(prefix="/metric-types", tags=["metric-types"])
 
 @router.post("", response_model=MetricTypeRead, status_code=status.HTTP_201_CREATED)
 def create_metric_type(payload: MetricTypeCreate, db: Session = Depends(get_db)) -> MetricType:
+    """Create a metric type."""
     metric_type = MetricType(**payload.model_dump())
     db.add(metric_type)
     commit_or_409(db, "metric type code already exists")
@@ -21,16 +24,19 @@ def create_metric_type(payload: MetricTypeCreate, db: Session = Depends(get_db))
 
 @router.get("", response_model=list[MetricTypeRead])
 def list_metric_types(offset: int = 0, limit: int = 100, db: Session = Depends(get_db)) -> list[MetricType]:
+    """List metric types with pagination."""
     return db.query(MetricType).offset(offset).limit(limit).all()
 
 
 @router.get("/{metric_type_id}", response_model=MetricTypeRead)
 def get_metric_type(metric_type_id: int, db: Session = Depends(get_db)) -> MetricType:
+    """Return one metric type by id."""
     return get_or_404(db, MetricType, metric_type_id, "metric type not found")
 
 
 @router.patch("/{metric_type_id}", response_model=MetricTypeRead)
 def update_metric_type(metric_type_id: int, payload: MetricTypeUpdate, db: Session = Depends(get_db)) -> MetricType:
+    """Patch a metric type."""
     metric_type = get_or_404(db, MetricType, metric_type_id, "metric type not found")
     apply_patch(metric_type, payload.model_dump(exclude_unset=True))
     commit_or_409(db, "metric type code already exists")
@@ -40,6 +46,7 @@ def update_metric_type(metric_type_id: int, payload: MetricTypeUpdate, db: Sessi
 
 @router.delete("/{metric_type_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_metric_type(metric_type_id: int, db: Session = Depends(get_db)) -> Response:
+    """Delete a metric type when no provider still references it."""
     metric_type = get_or_404(db, MetricType, metric_type_id, "metric type not found")
     db.delete(metric_type)
     commit_or_409(db, "metric type is still used by providers")

@@ -1,3 +1,5 @@
+"""Tests covering scheduling use cases."""
+
 from datetime import timedelta
 
 from sqlalchemy.orm import Session
@@ -9,6 +11,7 @@ from internal.usecases.scheduler import dispatch_due_jobs
 
 
 def test_dispatch_due_jobs_enqueues_due_enabled_provisioners(db_session: Session) -> None:
+    """The scheduler should only enqueue due enabled provisioners."""
     now = utcnow()
     platform = Platform(name="Scheduler")
     provisioner = MachineProvisioner(
@@ -33,6 +36,7 @@ def test_dispatch_due_jobs_enqueues_due_enabled_provisioners(db_session: Session
 
 
 def test_application_sync_dispatch_spreads_due_rows(db_session: Session) -> None:
+    """Application dispatch should spread work across ticks."""
     db_session.add_all(
         [
             Application(name="app-a", environment="prod", region="eu"),

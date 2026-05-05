@@ -1,3 +1,5 @@
+"""Prometheus metrics exposed by the API and Celery runtimes."""
+
 from time import perf_counter
 from typing import Literal
 
@@ -50,10 +52,12 @@ _CELERY_METRICS_SERVER_STARTED = False
 
 
 def prometheus_response() -> Response:
+    """Return the Prometheus scrape payload."""
     return Response(content=generate_latest(), headers={"Content-Type": CONTENT_TYPE_LATEST})
 
 
 def route_template(request: Request) -> str:
+    """Resolve the templated route path used for HTTP metrics labels."""
     route = request.scope.get("route")
     path = getattr(route, "path", None)
     if path is not None:
@@ -62,12 +66,14 @@ def route_template(request: Request) -> str:
 
 
 def observe_api_request(method: str, route: str, status_code: int, duration_seconds: float) -> None:
+    """Record one completed API request in Prometheus metrics."""
     labels = {"method": method, "route": route, "status_code": str(status_code)}
     HTTP_REQUESTS_TOTAL.labels(**labels).inc()
     HTTP_REQUEST_DURATION_SECONDS.labels(method=method, route=route).observe(duration_seconds)
 
 
 async def prometheus_http_middleware(request: Request, call_next):
+    """Middleware that records HTTP request metrics for business routes."""
     settings = get_settings()
     if not settings.prometheus_api_enabled or request.url.path == settings.prometheus_api_path:
         return await call_next(request)
@@ -88,6 +94,7 @@ async def prometheus_http_middleware(request: Request, call_next):
 
 
 def configure_celery_prometheus() -> None:
+    """Register Celery signal handlers used to emit Prometheus metrics."""
     global _CELERY_SIGNALS_REGISTERED
     if _CELERY_SIGNALS_REGISTERED:
         return
@@ -129,6 +136,7 @@ def configure_celery_prometheus() -> None:
 
 
 def start_celery_metrics_server(runtime: Literal["worker", "beat"]) -> None:
+    """Start the shared Prometheus HTTP server for a Celery runtime."""
     global _CELERY_METRICS_SERVER_STARTED
     settings = get_settings()
     if not settings.celery_prometheus_enabled:

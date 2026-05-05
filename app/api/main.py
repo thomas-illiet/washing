@@ -1,3 +1,5 @@
+"""FastAPI application factory and Swagger customization."""
+
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -14,6 +16,7 @@ SWAGGER_THEME_PATH = "/static/swagger-washing.css"
 
 
 def _inject_swagger_theme(response: HTMLResponse) -> HTMLResponse:
+    """Inject the local CSS theme into the generated Swagger page."""
     themed_html = response.body.decode("utf-8").replace(
         "</head>",
         f'  <link rel="stylesheet" type="text/css" href="{SWAGGER_THEME_PATH}">\n</head>',
@@ -22,6 +25,7 @@ def _inject_swagger_theme(response: HTMLResponse) -> HTMLResponse:
 
 
 def create_app() -> FastAPI:
+    """Create and configure the FastAPI application."""
     settings = get_settings()
     app = FastAPI(title=settings.app_name, docs_url=None, redoc_url=None)
     app.middleware("http")(prometheus_http_middleware)
@@ -41,6 +45,7 @@ def create_app() -> FastAPI:
 
     @app.get("/", include_in_schema=False)
     def root() -> HTMLResponse:
+        """Serve the customized Swagger UI at the application root."""
         swagger_ui = get_swagger_ui_html(
             openapi_url=app.openapi_url or "/openapi.json",
             title=f"{settings.app_name} API",

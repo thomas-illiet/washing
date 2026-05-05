@@ -25,12 +25,14 @@ METRIC_RENAMES = (
 
 
 def _drop_old_indexes(table_name: str) -> None:
+    """Drop the indexes attached to the pre-rename metric table."""
     op.drop_index(f"ix_{table_name}_provider_collected_at", table_name=table_name)
     op.drop_index(f"ix_{table_name}_collected_at", table_name=table_name)
     op.drop_index(f"ix_{table_name}_machine_id", table_name=table_name)
 
 
 def _create_new_indexes(table_name: str) -> None:
+    """Create the indexes expected by the daily metric schema."""
     op.create_index(f"ix_{table_name}_machine_id", table_name, ["machine_id"])
     op.create_index(f"ix_{table_name}_metric_date", table_name, ["metric_date"])
     op.create_index(f"ix_{table_name}_collected_at", table_name, ["collected_at"])
@@ -38,6 +40,7 @@ def _create_new_indexes(table_name: str) -> None:
 
 
 def upgrade() -> None:
+    """Rename metric tables and convert them to daily storage."""
     for old_table, new_table, metric_code in METRIC_RENAMES:
         _drop_old_indexes(old_table)
         op.drop_constraint(f"fk_{old_table}_machine_id_machines", old_table, type_="foreignkey")
@@ -88,6 +91,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Restore the pre-daily metric table layout."""
     for old_table, new_table, metric_code in reversed(METRIC_RENAMES):
         op.drop_index(f"ix_{new_table}_provider_date", table_name=new_table)
         op.drop_index(f"ix_{new_table}_collected_at", table_name=new_table)

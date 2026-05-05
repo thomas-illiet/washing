@@ -1,3 +1,5 @@
+"""Tests covering worker-facing use cases."""
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,7 @@ from internal.usecases.metrics import run_provider_collection
 
 
 def test_inventory_creates_machine_and_records_flavor_change(db_session: Session) -> None:
+    """Inventory sync should create machines and capture flavor changes."""
     platform = Platform(name="Entity A")
     provisioner = MachineProvisioner(
         platform=platform,
@@ -67,6 +70,7 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
 
 
 def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
+    """Provider collection should upsert CPU metrics by day."""
     platform = Platform(name="Entity B")
     provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
     machine = Machine(
@@ -104,6 +108,7 @@ def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
 
 
 def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session) -> None:
+    """Provider collection should upsert daily disk usage metrics."""
     platform = Platform(name="Entity C")
     provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
     machine = Machine(
@@ -137,6 +142,7 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
 
 
 def test_placeholder_provisioner_run_is_no_op(db_session: Session) -> None:
+    """Placeholder provisioners should succeed without creating machines."""
     platform = Platform(name="Placeholder Inventory")
     provisioner = MachineProvisioner(
         platform=platform,
@@ -153,6 +159,7 @@ def test_placeholder_provisioner_run_is_no_op(db_session: Session) -> None:
 
 
 def test_placeholder_provider_run_is_no_op(db_session: Session) -> None:
+    """Placeholder providers should succeed without writing metrics."""
     platform = Platform(name="Placeholder Metrics")
     provider = MachineProvider(
         platform=platform,
@@ -169,6 +176,7 @@ def test_placeholder_provider_run_is_no_op(db_session: Session) -> None:
 
 
 def test_config_is_encrypted_at_rest(db_session: Session) -> None:
+    """Encrypted config columns should not expose secrets in raw SQL."""
     platform = Platform(name="Encrypted Config")
     provisioner = MachineProvisioner(
         platform=platform,
@@ -209,6 +217,7 @@ def test_config_is_encrypted_at_rest(db_session: Session) -> None:
 
 
 def test_application_sync_marks_success(db_session: Session) -> None:
+    """Application sync should record a success payload and timestamps."""
     application = Application(name="catalog", environment="staging", region="eu")
     db_session.add(application)
     db_session.commit()

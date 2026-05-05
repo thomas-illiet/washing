@@ -1,3 +1,5 @@
+"""Shared pytest fixtures for API and database tests."""
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -12,6 +14,7 @@ from internal.infra.db.models import MetricType
 
 @pytest.fixture()
 def db_session() -> Session:
+    """Provide an in-memory SQLite session seeded with metric types."""
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -40,6 +43,7 @@ def db_session() -> Session:
 
 @pytest.fixture()
 def client(db_session: Session) -> TestClient:
+    """Provide a TestClient wired to the in-memory database fixture."""
     def override_get_db():
         try:
             yield db_session

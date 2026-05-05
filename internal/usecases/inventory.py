@@ -1,3 +1,5 @@
+"""Inventory synchronization use cases."""
+
 from sqlalchemy.orm import Session
 
 from internal.infra.connectors.base import MachineRecord
@@ -7,6 +9,7 @@ from internal.infra.db.models import Application, Machine, MachineFlavorHistory,
 
 
 def _find_machine(db: Session, provisioner: MachineProvisioner, record: MachineRecord) -> Machine | None:
+    """Find the machine matched by external id first, then by hostname."""
     if record.external_id:
         machine = (
             db.query(Machine)
@@ -30,6 +33,7 @@ def _find_machine(db: Session, provisioner: MachineProvisioner, record: MachineR
 
 
 def _flavor_changed(machine: Machine, record: MachineRecord) -> bool:
+    """Return whether compute resources changed for the incoming record."""
     return (
         machine.cpu != record.cpu
         or machine.ram_gb != record.ram_gb
@@ -38,6 +42,7 @@ def _flavor_changed(machine: Machine, record: MachineRecord) -> bool:
 
 
 def _resolve_application_id(db: Session, record: MachineRecord) -> int | None:
+    """Resolve or lazily create the application linked to a machine record."""
     if record.application_id is not None:
         return record.application_id
     if record.application_name is None:
@@ -64,6 +69,7 @@ def _resolve_application_id(db: Session, record: MachineRecord) -> int | None:
 
 
 def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int]:
+    """Run one provisioner discovery and upsert the resulting machine inventory."""
     provisioner = db.get(MachineProvisioner, provisioner_id)
     if provisioner is None:
         raise ValueError(f"provisioner {provisioner_id} not found")

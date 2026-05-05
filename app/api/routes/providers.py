@@ -1,3 +1,10 @@
+"""Typed provider routes.
+
+Generic endpoints expose provider metadata only. Provider-specific
+configuration is managed through typed sub-routes so secrets remain hidden
+from the public API surface.
+"""
+
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -26,6 +33,7 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 
 
 def _load_provider(db: Session, provider_id: int) -> MachineProvider:
+    """Load a provider with the relations needed by the API responses."""
     provider = (
         db.query(MachineProvider)
         .options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))
@@ -38,6 +46,7 @@ def _load_provider(db: Session, provider_id: int) -> MachineProvider:
 
 
 def _load_provider_of_type(db: Session, provider_id: int, connector_type: str) -> MachineProvider:
+    """Load a provider and enforce the expected typed sub-route."""
     provider = _load_provider(db, provider_id)
     if provider.type != connector_type:
         raise HTTPException(status_code=404, detail="provider not found")
@@ -45,6 +54,7 @@ def _load_provider_of_type(db: Session, provider_id: int, connector_type: str) -
 
 
 def _resolve_metric_type_id(db: Session, scope: Scope) -> int:
+    """Map the public provider scope to the persisted metric type row."""
     metric_type = db.query(MetricType).filter(MetricType.code == scope).one_or_none()
     if metric_type is None:
         raise HTTPException(status_code=400, detail=f"metric type for scope '{scope}' not found")
@@ -56,6 +66,7 @@ def _load_provisioners_for_provider(
     provisioner_ids: list[int],
     platform_id: int,
 ) -> list[MachineProvisioner]:
+    """Resolve attached provisioners and validate their platform ownership."""
     provisioners: list[MachineProvisioner] = []
     for provisioner_id in provisioner_ids:
         provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
@@ -66,12 +77,14 @@ def _load_provisioners_for_provider(
 
 
 def _ensure_provider_platform_matches_provisioners(provider: MachineProvider, platform_id: int) -> None:
+    """Prevent moving a provider to a platform that mismatches its provisioners."""
     for provisioner in provider.provisioners:
         if provisioner.platform_id != platform_id:
             raise HTTPException(status_code=400, detail="provider and provisioners must belong to the same platform")
 
 
 def _prometheus_read_model(provider: MachineProvider) -> PrometheusProviderRead:
+    """Build the typed read model without exposing the raw config blob."""
     return PrometheusProviderRead(
         **ProviderRead.model_validate(provider).model_dump(),
         url=str(provider.config.get("url", "")),
@@ -80,6 +93,7 @@ def _prometheus_read_model(provider: MachineProvider) -> PrometheusProviderRead:
 
 
 def _dynatrace_read_model(provider: MachineProvider) -> DynatraceProviderRead:
+    """Build the Dynatrace read model while replacing the token with a flag."""
     return DynatraceProviderRead(
         **ProviderRead.model_validate(provider).model_dump(),
         url=str(provider.config.get("url", "")),
@@ -92,6 +106,11 @@ def create_prometheus_provider(
     payload: PrometheusProviderCreate,
     db: Session = Depends(get_db),
 ) -> PrometheusProviderRead:
+    """Create a typed Prometheus provider.
+
+    The public `scope` is resolved to an internal `metric_type_id`, while
+    provider-specific fields are persisted inside encrypted `config`.
+    """
     provider = MachineProvider(
         platform_id=payload.platform_id,
         metric_type_id=_resolve_metric_type_id(db, payload.scope),
@@ -112,6 +131,11 @@ def create_dynatrace_provider(
     payload: DynatraceProviderCreate,
     db: Session = Depends(get_db),
 ) -> DynatraceProviderRead:
+    """Create a typed Dynatrace provider.
+
+    The returned payload never exposes the stored token and only reports
+    whether a token is present through `has_token`.
+    """
     provider = MachineProvider(
         platform_id=payload.platform_id,
         metric_type_id=_resolve_metric_type_id(db, payload.scope),
@@ -136,6 +160,11 @@ def list_providers(
     limit: int = 100,
     db: Session = Depends(get_db),
 ) -> list[MachineProvider]:
+    """List providers through the generic view.
+
+    This endpoint intentionally exposes shared metadata only and keeps
+    provider-specific configuration behind typed sub-routes.
+    """
     query = db.query(MachineProvider).options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))
     if platform_id is not None:
         query = query.filter(MachineProvider.platform_id == platform_id)
@@ -148,16 +177,19 @@ def list_providers(
 
 @router.get("/{provider_id}", response_model=ProviderRead)
 def get_provider(provider_id: int, db: Session = Depends(get_db)) -> MachineProvider:
+    """Return a provider through the generic public representation."""
     return _load_provider(db, provider_id)
 
 
 @router.get("/{provider_id}/prometheus", response_model=PrometheusProviderRead)
 def get_prometheus_provider(provider_id: int, db: Session = Depends(get_db)) -> PrometheusProviderRead:
+    """Return the Prometheus-specific configuration view for one provider."""
     return _prometheus_read_model(_load_provider_of_type(db, provider_id, "prometheus"))
 
 
 @router.get("/{provider_id}/dynatrace", response_model=DynatraceProviderRead)
 def get_dynatrace_provider(provider_id: int, db: Session = Depends(get_db)) -> DynatraceProviderRead:
+    """Return the Dynatrace-specific configuration view for one provider."""
     return _dynatrace_read_model(_load_provider_of_type(db, provider_id, "dynatrace"))
 
 
@@ -167,6 +199,11 @@ def update_prometheus_provider(
     payload: PrometheusProviderUpdate,
     db: Session = Depends(get_db),
 ) -> PrometheusProviderRead:
+    """Patch a Prometheus provider through its typed sub-route.
+
+    The route updates shared provider fields directly and rewrites the
+    typed configuration inside encrypted storage when `url` or `query` change.
+    """
     provider = _load_provider_of_type(db, provider_id, "prometheus")
     values = payload.model_dump(exclude_unset=True, exclude={"scope", "url", "query", "provisioner_ids"})
     target_platform_id = values.get("platform_id", provider.platform_id)
@@ -199,6 +236,11 @@ def update_dynatrace_provider(
     payload: DynatraceProviderUpdate,
     db: Session = Depends(get_db),
 ) -> DynatraceProviderRead:
+    """Patch a Dynatrace provider without ever returning the raw token.
+
+    Omitting `token` preserves the current secret, while providing one
+    replaces the encrypted value stored in `config`.
+    """
     provider = _load_provider_of_type(db, provider_id, "dynatrace")
     values = payload.model_dump(exclude_unset=True, exclude={"scope", "url", "token", "provisioner_ids"})
     target_platform_id = values.get("platform_id", provider.platform_id)
@@ -227,6 +269,7 @@ def update_dynatrace_provider(
 
 @router.delete("/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_provider(provider_id: int, db: Session = Depends(get_db)) -> Response:
+    """Delete a provider and its association rows."""
     provider = _load_provider(db, provider_id)
     db.delete(provider)
     db.commit()
@@ -235,6 +278,7 @@ def delete_provider(provider_id: int, db: Session = Depends(get_db)) -> Response
 
 @router.get("/{provider_id}/provisioners", response_model=list[ProvisionerRead])
 def list_provider_provisioners(provider_id: int, db: Session = Depends(get_db)) -> list[MachineProvisioner]:
+    """List the provisioners currently attached to a provider."""
     provider = _load_provider(db, provider_id)
     return provider.provisioners
 
@@ -245,6 +289,7 @@ def attach_provider_provisioner(
     provisioner_id: int,
     db: Session = Depends(get_db),
 ) -> MachineProvider:
+    """Attach a provisioner to a provider after platform validation."""
     provider = _load_provider(db, provider_id)
     provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
     if provisioner.platform_id != provider.platform_id:
@@ -261,6 +306,7 @@ def detach_provider_provisioner(
     provisioner_id: int,
     db: Session = Depends(get_db),
 ) -> Response:
+    """Detach a provisioner from a provider if the pair exists."""
     provider = _load_provider(db, provider_id)
     provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
     if provisioner.platform_id != provider.platform_id:
@@ -273,6 +319,7 @@ def detach_provider_provisioner(
 
 @router.post("/{provider_id}/run", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_provider_run(provider_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
+    """Enqueue a manual provider run when the provider is enabled."""
     provider = _load_provider(db, provider_id)
     if not provider.enabled:
         raise HTTPException(status_code=409, detail="provider is disabled")

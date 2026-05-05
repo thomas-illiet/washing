@@ -1,3 +1,5 @@
+"""Application synchronization use cases."""
+
 from datetime import datetime, timedelta
 from math import ceil
 from typing import Callable
@@ -15,6 +17,7 @@ def calculate_application_sync_batch_size(
     tick_seconds: int,
     configured_batch_size: int = 0,
 ) -> int:
+    """Compute the number of applications to sync on each dispatcher tick."""
     if total_applications <= 0:
         return 0
     if configured_batch_size > 0:
@@ -34,6 +37,7 @@ def dispatch_due_application_syncs(
     configured_batch_size: int = 0,
     retry_after_seconds: int = 3600,
 ) -> dict[str, list[int] | int]:
+    """Enqueue the next batch of due application sync jobs."""
     now = now or utcnow()
     total_applications = db.query(func.count(Application.id)).scalar() or 0
     batch_size = calculate_application_sync_batch_size(
@@ -67,6 +71,7 @@ def dispatch_due_application_syncs(
 
 
 def run_application_sync(db: Session, application_id: int) -> dict[str, int]:
+    """Mark one application as successfully synchronized."""
     application = db.get(Application, application_id)
     if application is None:
         raise ValueError(f"application {application_id} not found")

@@ -1,3 +1,9 @@
+"""Typed provisioner routes.
+
+Generic endpoints expose provisioner metadata only. Typed sub-routes own the
+configuration lifecycle so secrets never leak through the generic API.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
@@ -22,6 +28,7 @@ router = APIRouter(prefix="/provisioners", tags=["provisioners"])
 
 
 def _load_provisioner_of_type(db: Session, provisioner_id: int, connector_type: str) -> MachineProvisioner:
+    """Load a provisioner and validate the typed sub-route being used."""
     provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
     if provisioner.type != connector_type:
         raise HTTPException(status_code=404, detail="provisioner not found")
@@ -29,6 +36,7 @@ def _load_provisioner_of_type(db: Session, provisioner_id: int, connector_type: 
 
 
 def _ensure_provisioner_platform_can_change(provisioner: MachineProvisioner, platform_id: int) -> None:
+    """Protect platform moves that would break linked machines or providers."""
     if platform_id == provisioner.platform_id:
         return
     if provisioner.machines:
@@ -39,6 +47,7 @@ def _ensure_provisioner_platform_can_change(provisioner: MachineProvisioner, pla
 
 
 def _capsule_read_model(provisioner: MachineProvisioner) -> CapsuleProvisionerRead:
+    """Build the Capsule-specific read model without returning the token."""
     return CapsuleProvisionerRead(
         **ProvisionerRead.model_validate(provisioner).model_dump(),
         has_token=bool(provisioner.config.get("token")),
@@ -46,6 +55,7 @@ def _capsule_read_model(provisioner: MachineProvisioner) -> CapsuleProvisionerRe
 
 
 def _dynatrace_read_model(provisioner: MachineProvisioner) -> DynatraceProvisionerRead:
+    """Build the Dynatrace read model with visible URL and hidden token."""
     return DynatraceProvisionerRead(
         **ProvisionerRead.model_validate(provisioner).model_dump(),
         url=str(provisioner.config.get("url", "")),
@@ -58,6 +68,11 @@ def create_capsule_provisioner(
     payload: CapsuleProvisionerCreate,
     db: Session = Depends(get_db),
 ) -> CapsuleProvisionerRead:
+    """Create a Capsule provisioner from a typed payload.
+
+    The token is persisted in encrypted `config` and replaced by `has_token`
+    in the response body.
+    """
     provisioner = MachineProvisioner(
         platform_id=payload.platform_id,
         name=payload.name,
@@ -77,6 +92,11 @@ def create_dynatrace_provisioner(
     payload: DynatraceProvisionerCreate,
     db: Session = Depends(get_db),
 ) -> DynatraceProvisionerRead:
+    """Create a Dynatrace provisioner with typed URL and token inputs.
+
+    The generic provisioner fields stay first-class columns, while the
+    Dynatrace-specific configuration is stored in encrypted `config`.
+    """
     provisioner = MachineProvisioner(
         platform_id=payload.platform_id,
         name=payload.name,
@@ -99,6 +119,7 @@ def list_provisioners(
     limit: int = 100,
     db: Session = Depends(get_db),
 ) -> list[MachineProvisioner]:
+    """List provisioners through the generic metadata view."""
     query = db.query(MachineProvisioner)
     if platform_id is not None:
         query = query.filter(MachineProvisioner.platform_id == platform_id)
@@ -109,16 +130,19 @@ def list_provisioners(
 
 @router.get("/{provisioner_id}", response_model=ProvisionerRead)
 def get_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> MachineProvisioner:
+    """Return one provisioner without exposing its typed config."""
     return get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
 
 
 @router.get("/{provisioner_id}/capsule", response_model=CapsuleProvisionerRead)
 def get_capsule_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> CapsuleProvisionerRead:
+    """Return the Capsule-specific view for a provisioner."""
     return _capsule_read_model(_load_provisioner_of_type(db, provisioner_id, "capsule"))
 
 
 @router.get("/{provisioner_id}/dynatrace", response_model=DynatraceProvisionerRead)
 def get_dynatrace_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> DynatraceProvisionerRead:
+    """Return the Dynatrace-specific view for a provisioner."""
     return _dynatrace_read_model(_load_provisioner_of_type(db, provisioner_id, "dynatrace"))
 
 
@@ -128,6 +152,11 @@ def update_capsule_provisioner(
     payload: CapsuleProvisionerUpdate,
     db: Session = Depends(get_db),
 ) -> CapsuleProvisionerRead:
+    """Patch a Capsule provisioner through its typed sub-route.
+
+    Shared provisioner fields are updated directly, while the token stays
+    inside encrypted `config` and is preserved when omitted.
+    """
     provisioner = _load_provisioner_of_type(db, provisioner_id, "capsule")
     values = payload.model_dump(exclude_unset=True, exclude={"token"})
     if "platform_id" in values:
@@ -150,6 +179,11 @@ def update_dynatrace_provisioner(
     payload: DynatraceProvisionerUpdate,
     db: Session = Depends(get_db),
 ) -> DynatraceProvisionerRead:
+    """Patch a Dynatrace provisioner while keeping the secret hidden.
+
+    Omitting `token` keeps the current secret, while a new `url` or `token`
+    rewrites only the typed config values stored in `config`.
+    """
     provisioner = _load_provisioner_of_type(db, provisioner_id, "dynatrace")
     values = payload.model_dump(exclude_unset=True, exclude={"url", "token"})
     if "platform_id" in values:
@@ -170,6 +204,7 @@ def update_dynatrace_provisioner(
 
 @router.delete("/{provisioner_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> Response:
+    """Delete a provisioner and cascade its dependent relations."""
     provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
     db.delete(provisioner)
     db.commit()
@@ -178,6 +213,7 @@ def delete_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> Re
 
 @router.post("/{provisioner_id}/run", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_provisioner_run(provisioner_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
+    """Enqueue a manual provisioner run through Celery."""
     get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
     task = celery_app.send_task(RUN_PROVISIONER_TASK, args=[provisioner_id])
     return TaskEnqueueResponse(task_id=task.id)

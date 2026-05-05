@@ -1,3 +1,5 @@
+"""Read-only metric browsing routes."""
+
 from datetime import date
 from typing import Type
 
@@ -37,6 +39,7 @@ def _list_metrics(
     limit: int,
     db: Session,
 ) -> list:
+    """Run a metric query for one metric family with shared filters."""
     model: Type = METRIC_ROUTE_MODELS[metric_name]
     query = db.query(model).join(MachineProvider, model.provider_id == MachineProvider.id)
 
@@ -70,6 +73,7 @@ def list_metrics(
     limit: int = 100,
     db: Session = Depends(get_db),
 ) -> list:
+    """List stored metric samples for one metric family."""
     if metric_name not in METRIC_ROUTE_MODELS:
         raise HTTPException(status_code=404, detail="metric route not found")
     return _list_metrics(metric_name, platform_id, provider_id, provisioner_id, machine_id, start, end, offset, limit, db)

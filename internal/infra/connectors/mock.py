@@ -1,9 +1,13 @@
+"""Stub connectors used for tests and placeholder integrations."""
+
 from internal.infra.connectors.base import MachineRecord, MetricRecord
 from internal.infra.db.models import Machine, MachineProvider, MachineProvisioner
 
 
 class MockInventoryProvisioner:
+    """Inventory connector that emits deterministic fake machines."""
     def discover(self, provisioner: MachineProvisioner) -> list[MachineRecord]:
+        """Return mock inventory records from config or a deterministic fallback."""
         configured = provisioner.config.get("machines")
         if configured:
             return [MachineRecord(**machine) for machine in configured]
@@ -25,12 +29,16 @@ class MockInventoryProvisioner:
 
 
 class EmptyInventoryProvisioner:
+    """Placeholder inventory connector that returns no machines."""
     def discover(self, provisioner: MachineProvisioner) -> list[MachineRecord]:
+        """Return no inventory records for placeholder integrations."""
         return []
 
 
 class MockMetricCollector:
+    """Metric connector that emits deterministic fake metric samples."""
     def collect(self, provider: MachineProvider, machines: list[Machine]) -> list[MetricRecord]:
+        """Produce deterministic mock metrics for the scoped machines."""
         metric_code = provider.metric_type.code.lower()
         unit = provider.config.get("unit") or provider.metric_type.unit
         default_values = {"cpu": 42.0, "ram": 6.5, "disk": 55.0}
@@ -63,5 +71,7 @@ class MockMetricCollector:
 
 
 class EmptyMetricCollector:
+    """Placeholder metric connector that returns no samples."""
     def collect(self, provider: MachineProvider, machines: list[Machine]) -> list[MetricRecord]:
+        """Return no metrics for placeholder integrations."""
         return []

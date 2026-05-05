@@ -1,3 +1,5 @@
+"""Shared SQLAlchemy base types and helpers."""
+
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,27 +25,33 @@ JsonDict = dict[str, Any]
 
 
 class EncryptedJSONType(TypeDecorator):
+    """SQLAlchemy type that transparently encrypts JSON dictionaries."""
     impl = Text
     cache_ok = True
 
     def process_bind_param(self, value: JsonDict | None, dialect) -> str | None:
+        """Encrypt JSON values before persisting them."""
         if value is None:
             return None
         return encrypt_json_value(value)
 
     def process_result_value(self, value: Any, dialect) -> JsonDict:
+        """Decrypt persisted JSON values when loading them."""
         return decrypt_json_value(value)
 
 
 def utcnow() -> datetime:
+    """Return the current UTC datetime."""
     return datetime.now(timezone.utc)
 
 
 class Base(DeclarativeBase):
+    """Base declarative class for all ORM models."""
     metadata = metadata
 
 
 class TimestampMixin:
+    """Mixin providing created and updated timestamps."""
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -21,6 +21,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def _provisioners_table(config_type: sa.types.TypeEngine) -> sa.Table:
+    """Build a lightweight table object for provisioner config migration."""
     return sa.table(
         "machine_provisioners",
         sa.column("id", sa.Integer()),
@@ -29,6 +30,7 @@ def _provisioners_table(config_type: sa.types.TypeEngine) -> sa.Table:
 
 
 def _providers_table(config_type: sa.types.TypeEngine) -> sa.Table:
+    """Build a lightweight table object for provider config migration."""
     return sa.table(
         "machine_providers",
         sa.column("id", sa.Integer()),
@@ -37,6 +39,7 @@ def _providers_table(config_type: sa.types.TypeEngine) -> sa.Table:
 
 
 def _migrate_config_column(table_name: str, target_column: str, rows: list[dict], serializer) -> None:
+    """Rewrite config rows into the temporary migration column."""
     connection = op.get_bind()
     for row in rows:
         connection.execute(
@@ -46,6 +49,7 @@ def _migrate_config_column(table_name: str, target_column: str, rows: list[dict]
 
 
 def upgrade() -> None:
+    """Encrypt provider and provisioner configs, then drop provider scheduling."""
     connection = op.get_bind()
     provisioners = _provisioners_table(postgresql.JSONB())
     providers = _providers_table(postgresql.JSONB())
@@ -75,6 +79,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Restore plaintext JSON config columns and provider scheduling fields."""
     connection = op.get_bind()
     provisioners = _provisioners_table(sa.Text())
     providers = _providers_table(sa.Text())

@@ -1,3 +1,5 @@
+"""Application CRUD and sync routes."""
+
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
@@ -16,6 +18,7 @@ router = APIRouter(prefix="/applications", tags=["applications"])
 
 @router.post("", response_model=ApplicationRead, status_code=status.HTTP_201_CREATED)
 def create_application(payload: ApplicationCreate, db: Session = Depends(get_db)) -> Application:
+    """Create an application row."""
     application = Application(**payload.model_dump())
     db.add(application)
     commit_or_409(db, "application already exists for this environment and region")
@@ -32,6 +35,7 @@ def list_applications(
     limit: int = 100,
     db: Session = Depends(get_db),
 ) -> list[Application]:
+    """List applications with optional identity filters."""
     query = db.query(Application)
     if name is not None:
         query = query.filter(Application.name == name)
@@ -44,6 +48,7 @@ def list_applications(
 
 @router.post("/sync-due")
 def enqueue_due_application_syncs(db: Session = Depends(get_db)) -> dict[str, list[int] | int]:
+    """Dispatch the next batch of due application sync jobs."""
     settings = get_settings()
     return dispatch_due_application_syncs(
         db,
@@ -57,6 +62,7 @@ def enqueue_due_application_syncs(db: Session = Depends(get_db)) -> dict[str, li
 
 @router.get("/{application_id}", response_model=ApplicationRead)
 def get_application(application_id: int, db: Session = Depends(get_db)) -> Application:
+    """Return one application by id."""
     return get_or_404(db, Application, application_id, "application not found")
 
 
@@ -66,6 +72,7 @@ def update_application(
     payload: ApplicationUpdate,
     db: Session = Depends(get_db),
 ) -> Application:
+    """Patch an application."""
     application = get_or_404(db, Application, application_id, "application not found")
     apply_patch(application, payload.model_dump(exclude_unset=True))
     commit_or_409(db, "application already exists for this environment and region")
@@ -75,6 +82,7 @@ def update_application(
 
 @router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_application(application_id: int, db: Session = Depends(get_db)) -> Response:
+    """Delete an application."""
     application = get_or_404(db, Application, application_id, "application not found")
     db.delete(application)
     db.commit()
@@ -83,6 +91,7 @@ def delete_application(application_id: int, db: Session = Depends(get_db)) -> Re
 
 @router.post("/{application_id}/sync", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_application_sync(application_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
+    """Enqueue a manual sync for one application."""
     get_or_404(db, Application, application_id, "application not found")
     task = celery_app.send_task(SYNC_APPLICATION_TASK, args=[application_id])
     return TaskEnqueueResponse(task_id=task.id)

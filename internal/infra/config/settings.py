@@ -1,9 +1,12 @@
+"""Application settings loaded from environment variables."""
+
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Typed runtime settings for API, workers, and beat."""
     app_name: str = "Metrics Collector"
     database_url: str = "postgresql+psycopg://postgres:postgres@db:5432/metrics_collector"
     celery_broker_url: str = "redis://redis:6379/0"
@@ -25,4 +28,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Return the cached application settings instance."""
     return Settings()

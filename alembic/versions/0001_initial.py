@@ -19,6 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def _timestamps() -> list[sa.Column]:
+    """Return the shared timestamp columns used by the initial schema."""
     return [
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -26,6 +27,7 @@ def _timestamps() -> list[sa.Column]:
 
 
 def _metric_columns(table_name: str) -> list[sa.Column]:
+    """Build the shared columns for the original metric tables."""
     return [
         sa.Column("id", sa.Integer(), nullable=False),
         sa.Column("provider_id", sa.Integer(), nullable=False),
@@ -47,6 +49,7 @@ def _metric_columns(table_name: str) -> list[sa.Column]:
 
 
 def upgrade() -> None:
+    """Create the initial application schema."""
     op.create_table(
         "platforms",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -191,6 +194,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop the initial application schema."""
     for table_name in ("disk_metrics", "ram_metrics", "cpu_metrics"):
         op.drop_index(f"ix_{table_name}_provider_collected_at", table_name=table_name)
         op.drop_index(f"ix_{table_name}_collected_at", table_name=table_name)

@@ -1,3 +1,5 @@
+"""Scheduling helpers for provisioner dispatch."""
+
 from collections.abc import Callable
 from datetime import datetime
 
@@ -9,6 +11,7 @@ from internal.infra.db.models import MachineProvisioner
 
 
 def is_due(cron: str, last_scheduled_at: datetime | None, now: datetime | None = None) -> bool:
+    """Return whether a provisioner should be scheduled at the given time."""
     now = now or utcnow()
     if last_scheduled_at is None:
         return True
@@ -25,6 +28,7 @@ def dispatch_due_jobs(
     enqueue_provisioner: Callable[[int], str],
     now: datetime | None = None,
 ) -> dict[str, list[int]]:
+    """Enqueue every enabled provisioner whose cron is currently due."""
     now = now or utcnow()
     provisioner_ids: list[int] = []
 

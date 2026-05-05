@@ -1,3 +1,5 @@
+"""Canonical Celery task names used across the runtimes."""
+
 RUN_PROVIDER_TASK = "providers.run"
 RUN_PROVISIONER_TASK = "provisioners.run"
 SYNC_APPLICATION_TASK = "applications.sync"

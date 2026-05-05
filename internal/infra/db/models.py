@@ -1,3 +1,5 @@
+"""SQLAlchemy ORM models for the application domain."""
+
 from datetime import date, datetime
 from typing import Any
 
@@ -8,6 +10,7 @@ from internal.infra.db.base import Base, EncryptedJSONType, JSONType, JsonDict, 
 
 
 class Platform(TimestampMixin, Base):
+    """Top-level platform grouping machines, providers, and provisioners."""
     __tablename__ = "platforms"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -24,6 +27,7 @@ class Platform(TimestampMixin, Base):
 
 
 class Application(TimestampMixin, Base):
+    """Business application attached to machines for inventory mapping."""
     __tablename__ = "applications"
     __table_args__ = (
         UniqueConstraint("name", "environment", "region", name="uq_applications_name_environment_region"),
@@ -42,6 +46,7 @@ class Application(TimestampMixin, Base):
 
 
 class MetricType(TimestampMixin, Base):
+    """Reference table describing metric families such as CPU or RAM."""
     __tablename__ = "metric_types"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -54,6 +59,7 @@ class MetricType(TimestampMixin, Base):
 
 
 class MachineProviderProvisioner(Base):
+    """Association table linking providers to provisioners."""
     __tablename__ = "machine_provider_provisioners"
     __table_args__ = (
         UniqueConstraint("provider_id", "provisioner_id", name="uq_machine_provider_provisioners_pair"),
@@ -71,6 +77,7 @@ class MachineProviderProvisioner(Base):
 
 
 class MachineProvisioner(TimestampMixin, Base):
+    """Inventory integration able to discover machines."""
     __tablename__ = "machine_provisioners"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -96,6 +103,7 @@ class MachineProvisioner(TimestampMixin, Base):
 
 
 class MachineProvider(TimestampMixin, Base):
+    """Metric integration able to collect samples for machines."""
     __tablename__ = "machine_providers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -120,14 +128,17 @@ class MachineProvider(TimestampMixin, Base):
 
     @property
     def provisioner_ids(self) -> list[int]:
+        """Expose attached provisioner ids for HTTP serialization."""
         return [provisioner.id for provisioner in self.provisioners]
 
     @property
     def scope(self) -> str:
+        """Expose the public metric scope derived from the metric type code."""
         return self.metric_type.code.lower()
 
 
 class Machine(TimestampMixin, Base):
+    """Persisted machine inventory record."""
     __tablename__ = "machines"
     __table_args__ = (
         UniqueConstraint("platform_id", "hostname", name="uq_machines_platform_hostname"),
@@ -157,6 +168,7 @@ class Machine(TimestampMixin, Base):
 
 
 class MachineFlavorHistory(Base):
+    """Audit row describing a machine flavor change over time."""
     __tablename__ = "machine_flavor_history"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -175,6 +187,7 @@ class MachineFlavorHistory(Base):
 
 
 class MachineMetricMixin(TimestampMixin):
+    """Shared columns for all daily machine metric tables."""
     id: Mapped[int] = mapped_column(primary_key=True)
     provider_id: Mapped[int] = mapped_column(ForeignKey("machine_providers.id", ondelete="CASCADE"), nullable=False)
     machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -186,6 +199,7 @@ class MachineMetricMixin(TimestampMixin):
 
 
 class MachineCPUMetric(MachineMetricMixin, Base):
+    """Daily CPU metric sample."""
     __tablename__ = "machine_cpu_metrics"
     __table_args__ = (
         UniqueConstraint("provider_id", "machine_id", "metric_date", "percentile", name="uq_machine_cpu_metrics_day"),
@@ -196,6 +210,7 @@ class MachineCPUMetric(MachineMetricMixin, Base):
 
 
 class MachineRAMMetric(MachineMetricMixin, Base):
+    """Daily RAM metric sample."""
     __tablename__ = "machine_ram_metrics"
     __table_args__ = (
         UniqueConstraint("provider_id", "machine_id", "metric_date", "percentile", name="uq_machine_ram_metrics_day"),
@@ -206,6 +221,7 @@ class MachineRAMMetric(MachineMetricMixin, Base):
 
 
 class MachineDiskMetric(MachineMetricMixin, Base):
+    """Daily disk metric sample."""
     __tablename__ = "machine_disk_metrics"
     __table_args__ = (
         UniqueConstraint("provider_id", "machine_id", "metric_date", "usage_type", name="uq_machine_disk_metrics_day"),

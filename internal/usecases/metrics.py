@@ -1,3 +1,5 @@
+"""Provider metric collection use cases."""
+
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from internal.infra.connectors.base import MetricRecord
@@ -14,6 +16,7 @@ METRIC_MODELS = {
 
 
 def metric_model_for_code(code: str):
+    """Return the SQLAlchemy metric table for a metric type code."""
     try:
         return METRIC_MODELS[code.lower()]
     except KeyError as exc:
@@ -21,6 +24,7 @@ def metric_model_for_code(code: str):
 
 
 def _scoped_machines(db: Session, provider: MachineProvider) -> list[Machine]:
+    """Return the machines visible to the provider scope."""
     query = db.query(Machine).filter(Machine.platform_id == provider.platform_id)
     provisioner_ids = [provisioner.id for provisioner in provider.provisioners]
     if provisioner_ids:
@@ -29,6 +33,7 @@ def _scoped_machines(db: Session, provider: MachineProvider) -> list[Machine]:
 
 
 def _resolve_machine_id(record: MetricRecord, machines: list[Machine]) -> int | None:
+    """Resolve a metric record to a stored machine id."""
     if record.machine_id is not None:
         return record.machine_id
     if record.machine_external_id is not None:
@@ -43,6 +48,7 @@ def _resolve_machine_id(record: MetricRecord, machines: list[Machine]) -> int | 
 
 
 def _upsert_daily_metric(db: Session, provider: MachineProvider, record: MetricRecord, machines: list[Machine]):
+    """Insert or update the daily metric row targeted by one record."""
     metric_code = provider.metric_type.code.lower()
     metric_model = metric_model_for_code(metric_code)
     collected_at = record.collected_at or utcnow()
@@ -85,6 +91,7 @@ def _upsert_daily_metric(db: Session, provider: MachineProvider, record: MetricR
 
 
 def run_provider_collection(db: Session, provider_id: int) -> dict[str, int]:
+    """Run one provider collection and upsert its daily metric samples."""
     provider = (
         db.query(MachineProvider)
         .options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))

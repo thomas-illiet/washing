@@ -1,3 +1,5 @@
+"""Shared Celery application configuration."""
+
 from celery import Celery
 
 from internal.infra.config.settings import get_settings

@@ -1,3 +1,5 @@
+"""Tests covering Prometheus observability hooks."""
+
 from types import SimpleNamespace
 
 from celery.signals import beat_init, task_postrun, task_prerun, worker_ready, worker_shutdown
@@ -8,10 +10,12 @@ from internal.infra.observability import prometheus as prometheus_module
 
 
 class DummyTask:
+    """Small stand-in task object used by signal tests."""
     name = "tests.dummy_task"
 
 
 def test_api_prometheus_endpoint_exposes_http_metrics(client: TestClient) -> None:
+    """The Prometheus scrape endpoint should include HTTP request metrics."""
     health_response = client.get("/health")
     assert health_response.status_code == 200
 
@@ -25,6 +29,7 @@ def test_api_prometheus_endpoint_exposes_http_metrics(client: TestClient) -> Non
 
 
 def test_celery_prometheus_signals_record_task_metrics() -> None:
+    """Celery signal handlers should record task metrics."""
     prometheus_module.configure_celery_prometheus()
     task = DummyTask()
 
@@ -38,6 +43,7 @@ def test_celery_prometheus_signals_record_task_metrics() -> None:
 
 
 def test_celery_prometheus_runtime_liveness_metrics(monkeypatch) -> None:
+    """Worker and beat liveness gauges should reflect runtime signals."""
     started_ports: list[int] = []
 
     monkeypatch.setattr(

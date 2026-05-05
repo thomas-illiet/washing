@@ -19,6 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    """Add the applications table and machine relationship."""
     op.create_table(
         "applications",
         sa.Column("id", sa.Integer(), nullable=False),
@@ -53,6 +54,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove the applications table and machine relationship."""
     op.drop_constraint("fk_machines_application_id_applications", "machines", type_="foreignkey")
     op.drop_index("ix_machines_application_id", table_name="machines")
     op.drop_column("machines", "application_id")
