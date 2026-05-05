@@ -8,8 +8,9 @@ from tests.constants import TEST_ENCRYPTION_KEY
 
 
 def test_encryption_key_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The application should fail fast when the encryption key is missing."""
-    monkeypatch.delenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", raising=False)
+    """The application should fail fast when the encryption key is missing or invalid."""
+    # Override any local .env value so the validation path is deterministic.
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", "")
     get_settings.cache_clear()
 
     with pytest.raises(ValidationError):
