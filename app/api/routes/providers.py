@@ -205,15 +205,13 @@ def update_prometheus_provider(
     typed configuration inside encrypted storage when `url` or `query` change.
     """
     provider = _load_provider_of_type(db, provider_id, "prometheus")
-    values = payload.model_dump(exclude_unset=True, exclude={"scope", "url", "query", "provisioner_ids"})
+    values = payload.model_dump(exclude_unset=True, exclude={"scope", "url", "query"})
     target_platform_id = values.get("platform_id", provider.platform_id)
 
     if payload.scope is not None:
         provider.metric_type_id = _resolve_metric_type_id(db, payload.scope)
 
-    if payload.provisioner_ids is not None:
-        provider.provisioners = _load_provisioners_for_provider(db, payload.provisioner_ids, target_platform_id)
-    elif "platform_id" in values:
+    if "platform_id" in values:
         _ensure_provider_platform_matches_provisioners(provider, target_platform_id)
 
     apply_patch(provider, values)
@@ -242,15 +240,13 @@ def update_dynatrace_provider(
     replaces the encrypted value stored in `config`.
     """
     provider = _load_provider_of_type(db, provider_id, "dynatrace")
-    values = payload.model_dump(exclude_unset=True, exclude={"scope", "url", "token", "provisioner_ids"})
+    values = payload.model_dump(exclude_unset=True, exclude={"scope", "url", "token"})
     target_platform_id = values.get("platform_id", provider.platform_id)
 
     if payload.scope is not None:
         provider.metric_type_id = _resolve_metric_type_id(db, payload.scope)
 
-    if payload.provisioner_ids is not None:
-        provider.provisioners = _load_provisioners_for_provider(db, payload.provisioner_ids, target_platform_id)
-    elif "platform_id" in values:
+    if "platform_id" in values:
         _ensure_provider_platform_matches_provisioners(provider, target_platform_id)
 
     apply_patch(provider, values)

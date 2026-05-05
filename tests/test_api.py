@@ -29,6 +29,9 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "Metrics Collector"
+    schemas = response.json()["components"]["schemas"]
+    assert "provisioner_ids" not in schemas["PrometheusProviderUpdate"]["properties"]
+    assert "provisioner_ids" not in schemas["DynatraceProviderUpdate"]["properties"]
 
 
 def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
@@ -164,6 +167,78 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     disabled_run = client.post(f"/providers/{dynatrace['id']}/run")
     assert disabled_run.status_code == 409
     assert disabled_run.json()["detail"] == "provider is disabled"
+
+
+def test_provider_patch_ignores_provisioner_ids_and_validates_platform_change(client: TestClient) -> None:
+    """Provider patch routes should ignore association payloads and keep platform checks."""
+    platform = client.post("/platforms", json={"name": "Primary Monitoring"}).json()
+    other_platform = client.post("/platforms", json={"name": "Secondary Monitoring"}).json()
+    provisioner = client.post(
+        "/provisioners/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "inventory",
+            "url": "https://inventory.example",
+            "token": "inventory-secret",
+            "cron": "* * * * *",
+        },
+    ).json()
+
+    prometheus = client.post(
+        "/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    ).json()
+    dynatrace = client.post(
+        "/providers/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "dynatrace disk",
+            "scope": "disk",
+            "url": "https://dynatrace.example",
+            "token": "provider-secret",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    ).json()
+
+    patched_prometheus = client.patch(
+        f"/providers/{prometheus['id']}/prometheus",
+        json={
+            "scope": "ram",
+            "query": "avg(node_memory_MemAvailable_bytes)",
+            "provisioner_ids": [],
+        },
+    )
+    assert patched_prometheus.status_code == 200
+    assert patched_prometheus.json()["scope"] == "ram"
+    assert patched_prometheus.json()["query"] == "avg(node_memory_MemAvailable_bytes)"
+    assert patched_prometheus.json()["provisioner_ids"] == [provisioner["id"]]
+
+    patched_dynatrace = client.patch(
+        f"/providers/{dynatrace['id']}/dynatrace",
+        json={
+            "enabled": False,
+            "token": "provider-secret-v2",
+            "provisioner_ids": [],
+        },
+    )
+    assert patched_dynatrace.status_code == 200
+    assert patched_dynatrace.json()["enabled"] is False
+    assert patched_dynatrace.json()["has_token"] is True
+    assert patched_dynatrace.json()["provisioner_ids"] == [provisioner["id"]]
+
+    incompatible_platform_patch = client.patch(
+        f"/providers/{prometheus['id']}/prometheus",
+        json={"platform_id": other_platform["id"]},
+    )
+    assert incompatible_platform_patch.status_code == 400
+    assert incompatible_platform_patch.json()["detail"] == "provider and provisioners must belong to the same platform"
 
 
 def test_application_crud_and_machine_application_id(client: TestClient) -> None:
