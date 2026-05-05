@@ -8,7 +8,6 @@ from internal.infra.config.settings import get_settings
 from internal.infra.observability.prometheus import prometheus_http_middleware, prometheus_response
 
 OPENAPI_TAGS = [
-    {"name": "health"},
     {"name": "platforms"},
     {"name": "applications"},
     {"name": "machines"},
