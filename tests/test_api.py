@@ -70,9 +70,8 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "sync_at" not in schemas["ApplicationCreate"]["properties"]
     assert "sync_scheduled_at" not in schemas["ApplicationCreate"]["properties"]
     assert "sync_error" not in schemas["ApplicationCreate"]["properties"]
-    assert "sync_at" not in schemas["ApplicationUpdate"]["properties"]
-    assert "sync_scheduled_at" not in schemas["ApplicationUpdate"]["properties"]
-    assert "sync_error" not in schemas["ApplicationUpdate"]["properties"]
+    assert "name" not in schemas["PlatformUpdate"]["properties"]
+    assert "ApplicationUpdate" not in schemas
     assert {"sync_at", "sync_scheduled_at", "sync_error"} <= set(schemas["ApplicationRead"]["properties"])
     assert "enabled" not in schemas["CapsuleProvisionerCreate"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerUpdate"]["properties"]
@@ -127,6 +126,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/provisioners/{provisioner_id}/enable"]["post"]["tags"] == ["machine-provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["machine-provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["machine-provisioners"]
+    assert "patch" not in paths["/v1/applications/{application_id}"]
     for path in [
         "/v1/platforms",
         "/v1/applications",
@@ -173,6 +173,29 @@ def test_platform_list_is_paginated_and_stably_sorted(client: TestClient) -> Non
     assert beyond_total.json()["items"] == []
 
 
+def test_platform_patch_cannot_update_name(client: TestClient) -> None:
+    """Platform patch should allow metadata updates but reject renames."""
+    platform = client.post(
+        "/v1/platforms",
+        json={"name": "VMWare", "description": "Initial description", "extra": {"team": "ops"}},
+    ).json()
+
+    patch_description = client.patch(
+        f"/v1/platforms/{platform['id']}",
+        json={"description": "Updated description", "extra": {"team": "platform"}},
+    )
+    assert patch_description.status_code == 200
+    assert patch_description.json()["name"] == "VMWare"
+    assert patch_description.json()["description"] == "Updated description"
+    assert patch_description.json()["extra"] == {"team": "platform"}
+
+    patch_name = client.patch(
+        f"/v1/platforms/{platform['id']}",
+        json={"name": "AWS"},
+    )
+    assert patch_name.status_code == 422
+
+
 def test_named_fields_reject_blank_strings(client: TestClient) -> None:
     """Business identifiers should reject blank or whitespace-only strings."""
     assert client.post("/v1/platforms", json={"name": "   "}).status_code == 422
@@ -185,7 +208,6 @@ def test_named_fields_reject_blank_strings(client: TestClient) -> None:
     )
 
     platform = client.post("/v1/platforms", json={"name": "Validation Platform"}).json()
-
     assert (
         client.post(
             "/v1/machines/provisioners/capsule",
@@ -209,7 +231,7 @@ def test_named_fields_reject_blank_strings(client: TestClient) -> None:
 
 
 def test_application_write_payloads_cannot_spoof_sync_state(client: TestClient) -> None:
-    """Scheduler-owned sync fields should not be writable from the public API."""
+    """Scheduler-owned sync fields should stay outside the public write surface."""
     create_response = client.post(
         "/v1/applications",
         json={
@@ -231,7 +253,7 @@ def test_application_write_payloads_cannot_spoof_sync_state(client: TestClient) 
         f"/v1/applications/{application['id']}",
         json={"sync_scheduled_at": "2027-01-01T00:00:00Z"},
     )
-    assert update_response.status_code == 422
+    assert update_response.status_code == 405
 
 
 def test_typed_integration_routes_require_existing_platforms(client: TestClient) -> None:
@@ -643,8 +665,8 @@ def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: Tes
     assert detached_provider["provisioner_ids"] == []
 
 
-def test_application_crud_and_machine_application_id(client: TestClient, db_session: Session) -> None:
-    """Applications should stay manageable through CRUD endpoints."""
+def test_application_lifecycle_and_machine_application_id(client: TestClient, db_session: Session) -> None:
+    """Applications should still be visible on machine reads."""
     application = client.post(
         "/v1/applications",
         json={"name": "billing", "environment": "prod", "region": "eu-west-1"},
@@ -665,8 +687,8 @@ def test_application_crud_and_machine_application_id(client: TestClient, db_sess
     assert listed["total"] == 1
     assert listed["items"][0]["name"] == "billing"
 
-    patched = client.patch(f"/v1/applications/{application['id']}", json={"region": "eu-west-2"}).json()
-    assert patched["region"] == "eu-west-2"
+    fetched = client.get(f"/v1/applications/{application['id']}").json()
+    assert fetched["region"] == "eu-west-1"
 
 
 def test_machine_write_endpoints_are_disabled(client: TestClient, db_session: Session) -> None:

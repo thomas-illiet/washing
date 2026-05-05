@@ -4,11 +4,10 @@ from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import PaginationParams, get_db
-from app.api.routes.common import apply_patch, commit_or_409, get_or_404, paginate_query
+from app.api.routes.common import commit_or_409, get_or_404, paginate_query
 from internal.contracts.http.resources import (
     ApplicationCreate,
     ApplicationRead,
-    ApplicationUpdate,
     PaginatedResponse,
     TaskEnqueueResponse,
 )
@@ -77,20 +76,6 @@ def enqueue_due_application_syncs(db: Session = Depends(get_db)) -> dict[str, li
 def get_application(application_id: int, db: Session = Depends(get_db)) -> Application:
     """Return one application by id."""
     return get_or_404(db, Application, application_id, "application not found")
-
-
-@router.patch("/{application_id}", response_model=ApplicationRead)
-def update_application(
-    application_id: int,
-    payload: ApplicationUpdate,
-    db: Session = Depends(get_db),
-) -> Application:
-    """Patch an application."""
-    application = get_or_404(db, Application, application_id, "application not found")
-    apply_patch(application, payload.model_dump(exclude_unset=True))
-    commit_or_409(db, "application already exists for this environment and region")
-    db.refresh(application)
-    return application
 
 
 @router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)

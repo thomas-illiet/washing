@@ -38,7 +38,6 @@ class PlatformCreate(ApiModel):
 
 class PlatformUpdate(ApiModel):
     """Patch payload for a platform."""
-    name: NonEmptyStr | None = None
     description: str | None = None
     extra: dict[str, Any] | None = None
 
@@ -56,14 +55,6 @@ class ApplicationCreate(ApiModel):
     environment: NonEmptyStr
     region: NonEmptyStr
     extra: dict[str, Any] = Field(default_factory=dict)
-
-
-class ApplicationUpdate(ApiModel):
-    """Patch payload for an application."""
-    name: NonEmptyStr | None = None
-    environment: NonEmptyStr | None = None
-    region: NonEmptyStr | None = None
-    extra: dict[str, Any] | None = None
 
 
 class ApplicationRead(ApplicationCreate):

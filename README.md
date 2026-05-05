@@ -180,6 +180,8 @@ La table `applications` contient une ligne par application, environnement et ré
 
 Chaque application doit être synchronisée au moins une fois tous les 5 jours. Celery Beat déclenche un dispatcher dédié qui sélectionne seulement un petit lot d'applications dues à chaque tick, afin d'étaler la charge au lieu de tout synchroniser en une fois.
 
+Les applications ne disposent pas de route HTTP `PATCH` publique. Les changements de données applicatives doivent passer par les tâches de synchronisation.
+
 Variables utiles :
 
 - `APPLICATION_SYNC_TICK_SECONDS` : fréquence du dispatcher de sync applications.

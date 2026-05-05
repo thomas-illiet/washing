@@ -43,7 +43,7 @@ def update_platform(platform_id: int, payload: PlatformUpdate, db: Session = Dep
     """Patch an existing platform."""
     platform = get_or_404(db, Platform, platform_id, "platform not found")
     apply_patch(platform, payload.model_dump(exclude_unset=True))
-    commit_or_409(db, "platform name already exists")
+    db.commit()
     db.refresh(platform)
     return platform
 
