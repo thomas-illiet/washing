@@ -1,9 +1,18 @@
 """End-to-end API tests for the FastAPI surface."""
 
+from datetime import date
+
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from internal.infra.db.models import MachineProvider
+from internal.infra.db.models import (
+    Machine,
+    MachineCPUMetric,
+    MachineDiskMetric,
+    MachineProvider,
+    MachineProvisioner,
+    Platform,
+)
 
 
 def test_swagger_is_served_on_root_with_custom_theme(client: TestClient) -> None:
@@ -29,6 +38,18 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["info"]["title"] == "Metrics Collector"
+    schemas = response.json()["components"]["schemas"]
+    paths = response.json()["paths"]
+    assert "provisioner_ids" not in schemas["PrometheusProviderUpdate"]["properties"]
+    assert "provisioner_ids" not in schemas["DynatraceProviderUpdate"]["properties"]
+    assert "/metric-types" not in paths
+    assert "/metrics/{metric_name}" not in paths
+    assert "/machines/metrics" in paths
+    assert "/machines/{machine_id}/metrics" in paths
+    assert {"type", "offset", "limit"} <= {param["name"] for param in paths["/machines/metrics"]["get"]["parameters"]}
+    assert {"type", "offset", "limit"} <= {
+        param["name"] for param in paths["/machines/{machine_id}/metrics"]["get"]["parameters"]
+    }
 
 
 def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
@@ -77,7 +98,6 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
 
     wrong_route = client.get(f"/provisioners/{capsule['id']}/dynatrace")
     assert wrong_route.status_code == 404
-
 
 def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_session: Session) -> None:
     """Typed provider routes should hide config and resolve public scopes."""
@@ -130,7 +150,7 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
 
     provider_row = db_session.get(MachineProvider, prometheus["id"])
     assert provider_row is not None
-    assert provider_row.metric_type.code == "ram"
+    assert provider_row.scope == "ram"
 
     dynatrace = client.post(
         "/providers/dynatrace",
@@ -213,3 +233,159 @@ def test_machine_crud_and_flavor_history_endpoint(client: TestClient) -> None:
 
     history = client.get(f"/machines/{machine['id']}/flavor-history").json()
     assert history == []
+
+
+def test_machine_metric_history_endpoint_requires_type_and_paginates(client: TestClient, db_session: Session) -> None:
+    """Machine metric history should require a type and expose offset pagination."""
+    platform = Platform(name="Machine Metrics")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(platform=platform, source_provisioner=provisioner, hostname="node-01")
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu provider",
+        type="prometheus",
+        scope="cpu",
+        config={"url": "https://prometheus.example", "query": "avg(up)"},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([platform, provisioner, machine, provider])
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            MachineCPUMetric(provider_id=provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=10),
+            MachineCPUMetric(provider_id=provider.id, machine_id=machine.id, date=date(2026, 5, 2), value=20),
+        ]
+    )
+    db_session.commit()
+
+    missing_type = client.get(f"/machines/{machine.id}/metrics")
+    assert missing_type.status_code == 422
+
+    first_page = client.get(
+        f"/machines/{machine.id}/metrics",
+        params={"type": "cpu", "offset": 0, "limit": 1},
+    )
+    assert first_page.status_code == 200
+    assert first_page.json()["offset"] == 0
+    assert first_page.json()["limit"] == 1
+    assert first_page.json()["total"] == 2
+    assert first_page.json()["items"][0]["provider_id"] == provider.id
+    assert first_page.json()["items"][0]["machine_id"] == machine.id
+    assert first_page.json()["items"][0]["date"] == "2026-05-02"
+    assert first_page.json()["items"][0]["value"] == 20
+
+    second_page = client.get(
+        f"/machines/{machine.id}/metrics",
+        params={"type": "cpu", "offset": 1, "limit": 1},
+    )
+    assert second_page.status_code == 200
+    assert second_page.json()["total"] == 2
+    assert second_page.json()["items"][0]["date"] == "2026-05-01"
+    assert second_page.json()["items"][0]["value"] == 10
+
+    missing_machine = client.get("/machines/9999/metrics", params={"type": "cpu"})
+    assert missing_machine.status_code == 404
+    assert missing_machine.json()["detail"] == "machine not found"
+
+
+def test_machine_metrics_global_endpoint_filters_and_paginates(client: TestClient, db_session: Session) -> None:
+    """Global machine metrics should paginate and support the documented filters."""
+    platform = Platform(name="Global Metrics")
+    other_platform = Platform(name="Other Metrics")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    other_provisioner = MachineProvisioner(
+        platform=other_platform,
+        name="other inventory",
+        type="mock_inventory",
+        cron="* * * * *",
+    )
+    machine_one = Machine(platform=platform, source_provisioner=provisioner, hostname="node-01")
+    machine_two = Machine(platform=platform, source_provisioner=provisioner, hostname="node-02")
+    other_machine = Machine(platform=other_platform, source_provisioner=other_provisioner, hostname="node-03")
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu provider",
+        type="prometheus",
+        scope="cpu",
+        config={"url": "https://prometheus.example", "query": "avg(up)"},
+        provisioners=[provisioner],
+    )
+    other_provider = MachineProvider(
+        platform=other_platform,
+        name="other cpu provider",
+        type="prometheus",
+        scope="cpu",
+        config={"url": "https://prometheus.example", "query": "avg(up)"},
+        provisioners=[other_provisioner],
+    )
+    db_session.add_all(
+        [
+            platform,
+            other_platform,
+            provisioner,
+            other_provisioner,
+            machine_one,
+            machine_two,
+            other_machine,
+            provider,
+            other_provider,
+        ]
+    )
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            MachineCPUMetric(provider_id=provider.id, machine_id=machine_one.id, date=date(2026, 5, 1), value=10),
+            MachineCPUMetric(provider_id=provider.id, machine_id=machine_one.id, date=date(2026, 5, 2), value=20),
+            MachineCPUMetric(provider_id=provider.id, machine_id=machine_two.id, date=date(2026, 5, 3), value=30),
+            MachineDiskMetric(provider_id=provider.id, machine_id=machine_two.id, date=date(2026, 5, 3), value=40),
+            MachineCPUMetric(
+                provider_id=other_provider.id,
+                machine_id=other_machine.id,
+                date=date(2026, 5, 3),
+                value=50,
+            ),
+        ]
+    )
+    db_session.commit()
+
+    missing_type = client.get("/machines/metrics")
+    assert missing_type.status_code == 422
+
+    invalid_type = client.get("/machines/metrics", params={"type": "gpu"})
+    assert invalid_type.status_code == 422
+
+    response = client.get(
+        "/machines/metrics",
+        params={
+            "type": "cpu",
+            "platform_id": platform.id,
+            "provider_id": provider.id,
+            "provisioner_id": provisioner.id,
+            "start": "2026-05-02",
+            "end": "2026-05-03",
+            "offset": 0,
+            "limit": 1,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["offset"] == 0
+    assert response.json()["limit"] == 1
+    assert response.json()["total"] == 2
+    assert response.json()["items"][0]["machine_id"] == machine_two.id
+    assert response.json()["items"][0]["date"] == "2026-05-03"
+    assert response.json()["items"][0]["value"] == 30
+
+    filtered_machine = client.get(
+        "/machines/metrics",
+        params={
+            "type": "cpu",
+            "machine_id": machine_one.id,
+            "offset": 0,
+            "limit": 10,
+        },
+    )
+    assert filtered_machine.status_code == 200
+    assert filtered_machine.json()["total"] == 2
+    assert [item["date"] for item in filtered_machine.json()["items"]] == ["2026-05-02", "2026-05-01"]

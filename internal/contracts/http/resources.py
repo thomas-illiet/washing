@@ -1,13 +1,14 @@
 """HTTP request and response schemas."""
 
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
 
 from croniter import croniter
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator
 
 
 Scope = Literal["cpu", "ram", "disk"]
+ResourceT = TypeVar("ResourceT")
 
 
 def _validate_non_empty(value: str | None, field_name: str) -> str | None:
@@ -49,29 +50,6 @@ class PlatformUpdate(ApiModel):
 
 class PlatformRead(PlatformCreate):
     """Public representation of a platform."""
-    id: int
-    created_at: datetime
-    updated_at: datetime
-
-
-class MetricTypeCreate(ApiModel):
-    """Payload used to create a metric type."""
-    code: str
-    name: str
-    unit: str | None = None
-    description: str | None = None
-
-
-class MetricTypeUpdate(ApiModel):
-    """Patch payload for a metric type."""
-    code: str | None = None
-    name: str | None = None
-    unit: str | None = None
-    description: str | None = None
-
-
-class MetricTypeRead(MetricTypeCreate):
-    """Public representation of a metric type."""
     id: int
     created_at: datetime
     updated_at: datetime
@@ -320,20 +298,23 @@ class MachineFlavorHistoryRead(ApiModel):
     changed_at: datetime
 
 
-class MetricRead(ApiModel):
-    """Public representation of one stored metric sample."""
+class MachineMetricRead(ApiModel):
+    """Public representation of one stored machine metric sample."""
     id: int
     provider_id: int
     machine_id: int
-    metric_date: date
-    value: float
-    percentile: float | None = None
-    usage_type: str | None = None
-    unit: str | None = None
-    labels: dict[str, Any]
-    collected_at: datetime
+    date: date
+    value: int
     created_at: datetime
     updated_at: datetime
+
+
+class PaginatedResponse(ApiModel, Generic[ResourceT]):
+    """Simple offset/limit paginated response payload."""
+    items: list[ResourceT]
+    offset: int
+    limit: int
+    total: int
 
 
 class TaskEnqueueResponse(ApiModel):

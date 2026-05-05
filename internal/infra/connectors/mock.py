@@ -39,12 +39,9 @@ class MockMetricCollector:
     """Metric connector that emits deterministic fake metric samples."""
     def collect(self, provider: MachineProvider, machines: list[Machine]) -> list[MetricRecord]:
         """Produce deterministic mock metrics for the scoped machines."""
-        metric_code = provider.metric_type.code.lower()
-        unit = provider.config.get("unit") or provider.metric_type.unit
+        metric_code = provider.scope.lower()
         default_values = {"cpu": 42.0, "ram": 6.5, "disk": 55.0}
         value = float(provider.config.get("value", default_values.get(metric_code, 1.0)))
-        percentile = float(provider.config.get("percentile", 95.0)) if metric_code in {"cpu", "ram"} else None
-        usage_type = provider.config.get("usage_type", "used") if metric_code == "disk" else None
 
         if not machines:
             return []
@@ -55,16 +52,7 @@ class MockMetricCollector:
             samples.append(
                 MetricRecord(
                     value=float(machine_value),
-                    unit=unit,
-                    percentile=percentile,
-                    usage_type=usage_type,
                     machine_id=machine.id,
-                    labels={
-                        "source": "mock_metric",
-                        "hostname": machine.hostname,
-                        "environment": machine.environment,
-                        "region": machine.region,
-                    },
                 )
             )
         return samples

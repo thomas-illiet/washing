@@ -84,10 +84,10 @@ def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
     )
     provider = MachineProvider(
         platform=platform,
-        metric_type_id=1,
         name="cpu",
         type="mock_metric",
-        config={"value": 75, "percentile": 99},
+        scope="cpu",
+        config={"value": 75},
         provisioners=[provisioner],
     )
     db_session.add_all([machine, provider])
@@ -103,8 +103,7 @@ def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
     assert sample.provider_id == provider.id
     assert sample.machine_id == machine.id
     assert sample.value == 75
-    assert sample.percentile == 99
-    assert sample.metric_date == sample.collected_at.date()
+    assert sample.date is not None
 
 
 def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session) -> None:
@@ -122,10 +121,10 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
     )
     provider = MachineProvider(
         platform=platform,
-        metric_type_id=3,
         name="disk",
         type="mock_metric",
-        config={"value": 64, "usage_type": "used"},
+        scope="disk",
+        config={"value": 64},
         provisioners=[provisioner],
     )
     db_session.add_all([machine, provider])
@@ -138,7 +137,7 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
     assert sample.provider_id == provider.id
     assert sample.machine_id == machine.id
     assert sample.value == 64
-    assert sample.usage_type == "used"
+    assert sample.date is not None
 
 
 def test_placeholder_provisioner_run_is_no_op(db_session: Session) -> None:
@@ -163,9 +162,9 @@ def test_placeholder_provider_run_is_no_op(db_session: Session) -> None:
     platform = Platform(name="Placeholder Metrics")
     provider = MachineProvider(
         platform=platform,
-        metric_type_id=1,
         name="prometheus cpu",
         type="prometheus",
+        scope="cpu",
         config={"url": "https://prometheus.example", "query": "avg(up)"},
     )
     db_session.add(provider)
@@ -173,6 +172,7 @@ def test_placeholder_provider_run_is_no_op(db_session: Session) -> None:
 
     result = run_provider_collection(db_session, provider.id)
     assert result == {"created": 0, "updated": 0, "skipped": 0}
+
 
 
 def test_config_is_encrypted_at_rest(db_session: Session) -> None:
@@ -187,9 +187,9 @@ def test_config_is_encrypted_at_rest(db_session: Session) -> None:
     )
     provider = MachineProvider(
         platform=platform,
-        metric_type_id=1,
         name="dynatrace cpu",
         type="dynatrace",
+        scope="cpu",
         config={"url": "https://dynatrace.example", "token": "provider-secret"},
     )
     db_session.add_all([provisioner, provider])

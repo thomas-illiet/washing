@@ -77,11 +77,11 @@ Endpoints utiles :
 
 - `GET /health`
 - `GET /` : documentation Swagger personnalisée
-- CRUD : `/platforms`, `/applications`, `/machines`, `/providers`, `/provisioners`, `/metric-types`
+- CRUD : `/platforms`, `/applications`, `/machines`, `/providers`, `/provisioners`
 - Association : `POST /providers/{provider_id}/provisioners/{provisioner_id}`
 - Jobs manuels : `POST /providers/{id}/run`, `POST /provisioners/{id}/run`, `POST /applications/{id}/sync`
 - Sync applications : `POST /applications/sync-due`
-- Métriques : `GET /metrics/cpu`, `GET /metrics/ram`, `GET /metrics/disk`
+- Métriques : `GET /machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /machines/metrics?type=cpu|ram|disk`
 
 Sous-routes typées pour les intégrations :
 
@@ -127,7 +127,7 @@ Métriques principales :
 - `celery_worker_up`
 - `celery_beat_up`
 
-Le endpoint Prometheus `/metrics` ne remplace pas les endpoints métier `/metrics/cpu`, `/metrics/ram` et `/metrics/disk`.
+Le endpoint Prometheus `/metrics` ne remplace pas les endpoints métier `/machines/{machine_id}/metrics` et `/machines/metrics`.
 
 Accès par défaut :
 
@@ -137,13 +137,15 @@ Accès par défaut :
 
 ## Métriques Machines
 
-Les métriques sont stockées à la journée, avec une seule ligne par machine, provider, jour et variante de mesure :
+Les métriques sont stockées à la journée, avec une seule ligne par machine, provider et jour :
 
-- `machine_cpu_metrics` : valeur journalière de percentile CPU, avec la colonne `percentile`.
-- `machine_ram_metrics` : valeur journalière de percentile RAM, avec la colonne `percentile`.
-- `machine_disk_metrics` : valeur journalière d'usage disque, avec la colonne `usage_type`.
+- `machine_cpu_metrics`
+- `machine_ram_metrics`
+- `machine_disk_metrics`
 
-Les endpoints `/metrics/cpu`, `/metrics/ram` et `/metrics/disk` filtrent avec `start` et `end` au format date (`YYYY-MM-DD`). Les collectes font un upsert journalier : relancer une collecte le même jour met à jour la ligne existante.
+Chaque table porte le même format métier : `machine_id`, `provider_id`, `date`, `value`.
+
+Les endpoints `GET /machines/{machine_id}/metrics` et `GET /machines/metrics` exigent `type=cpu|ram|disk`, supportent `start` et `end` au format `YYYY-MM-DD`, ainsi que `offset` et `limit`. Les collectes font un upsert journalier : relancer une collecte le même jour met à jour la ligne existante.
 
 ## Applications
 
@@ -193,9 +195,7 @@ Exemple de config interne `mock_metric` :
 
 ```json
 {
-  "value": 42,
-  "unit": "percent",
-  "percentile": 95
+  "value": 42
 }
 ```
 

@@ -1,6 +1,6 @@
 """Provider metric collection use cases."""
 
-from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy.orm import Session, selectinload
 
 from internal.infra.connectors.base import MetricRecord
 from internal.infra.connectors.registry import get_metric_collector
@@ -49,9 +49,9 @@ def _resolve_machine_id(record: MetricRecord, machines: list[Machine]) -> int | 
 
 def _upsert_daily_metric(db: Session, provider: MachineProvider, record: MetricRecord, machines: list[Machine]):
     """Insert or update the daily metric row targeted by one record."""
-    metric_code = provider.metric_type.code.lower()
+    metric_code = provider.scope.lower()
     metric_model = metric_model_for_code(metric_code)
-    collected_at = record.collected_at or utcnow()
+    metric_date = record.date or utcnow().date()
     machine_id = _resolve_machine_id(record, machines)
     if machine_id is None:
         return "skipped"
@@ -59,26 +59,14 @@ def _upsert_daily_metric(db: Session, provider: MachineProvider, record: MetricR
     values = {
         "provider_id": provider.id,
         "machine_id": machine_id,
-        "metric_date": collected_at.date(),
-        "value": record.value,
-        "unit": record.unit,
-        "labels": record.labels,
-        "collected_at": collected_at,
+        "date": metric_date,
+        "value": int(record.value),
     }
     query = db.query(metric_model).filter(
         metric_model.provider_id == provider.id,
         metric_model.machine_id == machine_id,
-        metric_model.metric_date == collected_at.date(),
+        metric_model.date == metric_date,
     )
-
-    if metric_code in {"cpu", "ram"}:
-        percentile = float(record.percentile if record.percentile is not None else provider.config.get("percentile", 95.0))
-        values["percentile"] = percentile
-        query = query.filter(metric_model.percentile == percentile)
-    elif metric_code == "disk":
-        usage_type = record.usage_type or provider.config.get("usage_type", "used")
-        values["usage_type"] = usage_type
-        query = query.filter(metric_model.usage_type == usage_type)
 
     existing = query.one_or_none()
     if existing is None:
@@ -94,7 +82,7 @@ def run_provider_collection(db: Session, provider_id: int) -> dict[str, int]:
     """Run one provider collection and upsert its daily metric samples."""
     provider = (
         db.query(MachineProvider)
-        .options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))
+        .options(selectinload(MachineProvider.provisioners))
         .filter(MachineProvider.id == provider_id)
         .one_or_none()
     )
@@ -107,7 +95,7 @@ def run_provider_collection(db: Session, provider_id: int) -> dict[str, int]:
     db.commit()
     provider = (
         db.query(MachineProvider)
-        .options(joinedload(MachineProvider.metric_type), selectinload(MachineProvider.provisioners))
+        .options(selectinload(MachineProvider.provisioners))
         .filter(MachineProvider.id == provider_id)
         .one()
     )

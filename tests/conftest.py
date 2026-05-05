@@ -9,12 +9,11 @@ from sqlalchemy.pool import StaticPool
 from app.api.deps import get_db
 from app.api.main import app
 from internal.infra.db.base import Base
-from internal.infra.db.models import MetricType
 
 
 @pytest.fixture()
 def db_session() -> Session:
-    """Provide an in-memory SQLite session seeded with metric types."""
+    """Provide an in-memory SQLite session."""
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -24,14 +23,6 @@ def db_session() -> Session:
     Base.metadata.create_all(bind=engine)
 
     db = TestingSessionLocal()
-    db.add_all(
-        [
-            MetricType(code="cpu", name="CPU", unit="percent"),
-            MetricType(code="ram", name="RAM", unit="gb"),
-            MetricType(code="disk", name="Disk", unit="gb"),
-        ]
-    )
-    db.commit()
 
     try:
         yield db

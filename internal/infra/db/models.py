@@ -1,7 +1,6 @@
 """SQLAlchemy ORM models for the application domain."""
 
-from datetime import date, datetime
-from typing import Any
+from datetime import date as date_value, datetime
 
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -43,19 +42,6 @@ class Application(TimestampMixin, Base):
     extra: Mapped[JsonDict] = mapped_column(JSONType, default=dict, nullable=False)
 
     machines: Mapped[list["Machine"]] = relationship(back_populates="application")
-
-
-class MetricType(TimestampMixin, Base):
-    """Reference table describing metric families such as CPU or RAM."""
-    __tablename__ = "metric_types"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    unit: Mapped[str | None] = mapped_column(String(32))
-    description: Mapped[str | None] = mapped_column(Text)
-
-    providers: Mapped[list["MachineProvider"]] = relationship(back_populates="metric_type")
 
 
 class MachineProviderProvisioner(Base):
@@ -108,9 +94,9 @@ class MachineProvider(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     platform_id: Mapped[int] = mapped_column(ForeignKey("platforms.id", ondelete="CASCADE"), nullable=False)
-    metric_type_id: Mapped[int] = mapped_column(ForeignKey("metric_types.id"), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(64), nullable=False, default="mock_metric")
+    scope: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
     config: Mapped[JsonDict] = mapped_column(EncryptedJSONType(), default=dict, nullable=False)
     enabled: Mapped[bool] = mapped_column(default=True, nullable=False)
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -118,7 +104,6 @@ class MachineProvider(TimestampMixin, Base):
     last_error: Mapped[str | None] = mapped_column(Text)
 
     platform: Mapped["Platform"] = relationship(back_populates="providers")
-    metric_type: Mapped["MetricType"] = relationship(back_populates="providers")
     provisioners: Mapped[list["MachineProvisioner"]] = relationship(
         secondary="machine_provider_provisioners",
         back_populates="providers",
@@ -130,11 +115,6 @@ class MachineProvider(TimestampMixin, Base):
     def provisioner_ids(self) -> list[int]:
         """Expose attached provisioner ids for HTTP serialization."""
         return [provisioner.id for provisioner in self.provisioners]
-
-    @property
-    def scope(self) -> str:
-        """Expose the public metric scope derived from the metric type code."""
-        return self.metric_type.code.lower()
 
 
 class Machine(TimestampMixin, Base):
@@ -191,41 +171,32 @@ class MachineMetricMixin(TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     provider_id: Mapped[int] = mapped_column(ForeignKey("machine_providers.id", ondelete="CASCADE"), nullable=False)
     machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id", ondelete="CASCADE"), nullable=False, index=True)
-    metric_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    value: Mapped[float] = mapped_column(Float, nullable=False)
-    unit: Mapped[str | None] = mapped_column(String(32))
-    labels: Mapped[dict[str, Any]] = mapped_column(JSONType, default=dict, nullable=False)
-    collected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    date: Mapped[date_value] = mapped_column(Date, nullable=False, index=True)
+    value: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class MachineCPUMetric(MachineMetricMixin, Base):
     """Daily CPU metric sample."""
     __tablename__ = "machine_cpu_metrics"
     __table_args__ = (
-        UniqueConstraint("provider_id", "machine_id", "metric_date", "percentile", name="uq_machine_cpu_metrics_day"),
-        Index("ix_machine_cpu_metrics_provider_date", "provider_id", "metric_date"),
+        UniqueConstraint("provider_id", "machine_id", "date", name="uq_machine_cpu_metrics_day"),
+        Index("ix_machine_cpu_metrics_provider_date", "provider_id", "date"),
     )
-
-    percentile: Mapped[float] = mapped_column(Float, default=95.0, nullable=False)
 
 
 class MachineRAMMetric(MachineMetricMixin, Base):
     """Daily RAM metric sample."""
     __tablename__ = "machine_ram_metrics"
     __table_args__ = (
-        UniqueConstraint("provider_id", "machine_id", "metric_date", "percentile", name="uq_machine_ram_metrics_day"),
-        Index("ix_machine_ram_metrics_provider_date", "provider_id", "metric_date"),
+        UniqueConstraint("provider_id", "machine_id", "date", name="uq_machine_ram_metrics_day"),
+        Index("ix_machine_ram_metrics_provider_date", "provider_id", "date"),
     )
-
-    percentile: Mapped[float] = mapped_column(Float, default=95.0, nullable=False)
 
 
 class MachineDiskMetric(MachineMetricMixin, Base):
     """Daily disk metric sample."""
     __tablename__ = "machine_disk_metrics"
     __table_args__ = (
-        UniqueConstraint("provider_id", "machine_id", "metric_date", "usage_type", name="uq_machine_disk_metrics_day"),
-        Index("ix_machine_disk_metrics_provider_date", "provider_id", "metric_date"),
+        UniqueConstraint("provider_id", "machine_id", "date", name="uq_machine_disk_metrics_day"),
+        Index("ix_machine_disk_metrics_provider_date", "provider_id", "date"),
     )
-
-    usage_type: Mapped[str] = mapped_column(String(64), default="used", nullable=False)
