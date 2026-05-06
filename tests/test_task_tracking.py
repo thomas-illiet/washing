@@ -19,6 +19,7 @@ from internal.infra.queue.task_names import (
     SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
     SYNC_APPLICATION_METRICS_TASK,
 )
+from internal.infra.security.sanitization import UNEXPECTED_ERROR
 
 
 class FakeTask:
@@ -186,7 +187,7 @@ def test_task_tracking_signals_record_failure_and_prerun_fallback(
     assert execution.resource_id == 42
     assert execution.started_at is not None
     assert execution.finished_at is not None
-    assert execution.error == "sync exploded"
+    assert execution.error == UNEXPECTED_ERROR
 
 
 def test_task_tracking_signals_record_retry(db_session: Session, tracking_session_factory) -> None:
@@ -202,7 +203,7 @@ def test_task_tracking_signals_record_retry(db_session: Session, tracking_sessio
     assert execution.status == "RETRY"
     assert execution.resource_type == "application"
     assert execution.resource_id == 7
-    assert execution.error == "try again later"
+    assert execution.error == UNEXPECTED_ERROR
 
 
 def test_worker_tasks_endpoint_filters_orders_and_paginates(client: TestClient, db_session: Session) -> None:
@@ -237,7 +238,7 @@ def test_worker_tasks_endpoint_filters_orders_and_paginates(client: TestClient, 
                 resource_type="application",
                 resource_id=2,
                 queued_at=datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc),
-                result={"synced": 1},
+                result={"synced": 1, "secret": "hidden"},
             ),
         ]
     )
@@ -259,6 +260,7 @@ def test_worker_tasks_endpoint_filters_orders_and_paginates(client: TestClient, 
     assert response.json()["total"] == 2
     assert response.json()["items"][0]["task_id"] == "task-2"
     assert response.json()["items"][0]["status"] == "FAILURE"
+    assert response.json()["items"][0]["error"] == UNEXPECTED_ERROR
 
     filtered = client.get(
         "/v1/worker/tasks",
@@ -272,6 +274,13 @@ def test_worker_tasks_endpoint_filters_orders_and_paginates(client: TestClient, 
     assert filtered.status_code == 200
     assert filtered.json()["total"] == 1
     assert filtered.json()["items"][0]["task_id"] == "task-1"
+
+    application_rows = client.get(
+        "/v1/worker/tasks",
+        params={"task_name": SYNC_APPLICATION_METRICS_TASK},
+    )
+    assert application_rows.status_code == 200
+    assert application_rows.json()["items"][0]["result"] == {"synced": 1}
 
 
 def test_manual_task_endpoints_return_202_and_create_tracking_rows(

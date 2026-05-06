@@ -8,10 +8,12 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from internal.infra.auth import clear_oidc_caches
 from tests.constants import TEST_ENCRYPTION_KEY
 
 os.environ.setdefault("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
 os.environ.setdefault("APP_ENV", "prod")
+os.environ.setdefault("OIDC_ENABLED", "false")
 
 from app.api.deps import get_db
 from app.api.main import create_app
@@ -51,6 +53,7 @@ def db_session() -> Session:
 def _build_client(db_session: Session) -> TestClient:
     """Build a TestClient wired to the fixture-backed in-memory database."""
     get_settings.cache_clear()
+    clear_oidc_caches()
     app = create_app()
 
     def override_get_db():
@@ -68,21 +71,25 @@ def _build_client(db_session: Session) -> TestClient:
 def client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Provide a deterministic production-mode TestClient."""
     monkeypatch.setenv("APP_ENV", "prod")
+    monkeypatch.setenv("OIDC_ENABLED", "false")
     test_client = _build_client(db_session)
     try:
         yield test_client
     finally:
         test_client.app.dependency_overrides.clear()
         get_settings.cache_clear()
+        clear_oidc_caches()
 
 
 @pytest.fixture()
 def dev_client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> TestClient:
     """Provide a development-mode TestClient with dev-only routes enabled."""
     monkeypatch.setenv("APP_ENV", "dev")
+    monkeypatch.setenv("OIDC_ENABLED", "false")
     test_client = _build_client(db_session)
     try:
         yield test_client
     finally:
         test_client.app.dependency_overrides.clear()
         get_settings.cache_clear()
+        clear_oidc_caches()

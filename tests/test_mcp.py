@@ -17,6 +17,7 @@ from fastmcp.client.transports import StreamableHttpTransport
 
 from app.mcp.main import create_app
 from app.mcp.settings import get_settings
+from internal.infra.auth import clear_oidc_caches
 
 
 APPLICATION_PAYLOAD = {
@@ -126,8 +127,10 @@ class LiveServer:
 def clear_mcp_settings_cache() -> Iterator[None]:
     """Keep MCP settings cache isolated between tests."""
 
+    clear_oidc_caches()
     get_settings.cache_clear()
     yield
+    clear_oidc_caches()
     get_settings.cache_clear()
 
 

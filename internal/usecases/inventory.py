@@ -12,6 +12,7 @@ from internal.infra.connectors.base import MachineRecord
 from internal.infra.connectors.registry import get_machine_provisioner
 from internal.infra.db.base import utcnow
 from internal.infra.db.models import Machine, MachineFlavorHistory, MachineProvisioner
+from internal.infra.security import sanitize_operational_error
 
 PROVISIONER_DISABLED_DETAIL = "provisioner must be enabled before it can run"
 
@@ -102,7 +103,7 @@ def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int
     db.refresh(provisioner)
 
     if not provisioner.enabled:
-        provisioner.last_error = PROVISIONER_DISABLED_DETAIL
+        provisioner.last_error = sanitize_operational_error(PROVISIONER_DISABLED_DETAIL)
         db.commit()
         raise ValueError(PROVISIONER_DISABLED_DETAIL)
 
@@ -160,6 +161,6 @@ def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int
         db.rollback()
         provisioner = db.get(MachineProvisioner, provisioner_id)
         if provisioner is not None:
-            provisioner.last_error = str(exc)
+            provisioner.last_error = sanitize_operational_error(exc)
             db.commit()
         raise

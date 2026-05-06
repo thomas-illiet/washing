@@ -19,6 +19,7 @@ def _clean_env(**overrides: str) -> dict[str, str]:
     env.pop("DATABASE_URL", None)
     env["APP_NAME"] = "Metrics Collector"
     env["APP_ENV"] = "prod"
+    env["OIDC_ENABLED"] = "false"
     env["INTEGRATION_CONFIG_ENCRYPTION_KEY"] = TEST_ENCRYPTION_KEY
     env.update(overrides)
     return env

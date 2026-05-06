@@ -6,6 +6,7 @@ from typing import Annotated, Any, Generic, Literal, TypeVar
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from internal.domain.cron import validate_cron_expression
+from internal.infra.security import sanitize_operational_error, sanitize_task_result
 
 
 Scope = Literal["cpu", "ram", "disk"]
@@ -15,6 +16,7 @@ ResourceT = TypeVar("ResourceT")
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
+# Shared schema building blocks.
 class ApiModel(BaseModel):
     """Base Pydantic model configured for ORM serialization."""
     model_config = ConfigDict(from_attributes=True, extra="forbid")
@@ -31,6 +33,7 @@ class CronModel(ApiModel):
         return value
 
 
+# Platform and application resources.
 class PlatformCreate(ApiModel):
     """Payload used to create a platform."""
     name: NonEmptyStr
@@ -64,7 +67,14 @@ class ApplicationRead(ApiModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("sync_error", mode="before")
+    @classmethod
+    def sanitize_sync_error(cls, value: str | None) -> str | None:
+        """Keep exposed sync errors inside the bounded safe vocabulary."""
+        return sanitize_operational_error(value)
 
+
+# Provisioner resources.
 class ProvisionerRead(CronModel):
     """Generic provisioner view without typed config fields."""
     id: int
@@ -79,6 +89,12 @@ class ProvisionerRead(CronModel):
     last_error: str | None = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("last_error", mode="before")
+    @classmethod
+    def sanitize_last_error(cls, value: str | None) -> str | None:
+        """Keep exposed provisioner errors inside the bounded safe vocabulary."""
+        return sanitize_operational_error(value)
 
 
 class CapsuleProvisionerCreate(CronModel):
@@ -139,6 +155,7 @@ class MockProvisionerRead(ProvisionerRead):
     preset: str
 
 
+# Provider resources.
 class ProviderRead(ApiModel):
     """Generic provider view without exposing raw config storage."""
     id: int
@@ -153,6 +170,12 @@ class ProviderRead(ApiModel):
     last_error: str | None = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("last_error", mode="before")
+    @classmethod
+    def sanitize_last_error(cls, value: str | None) -> str | None:
+        """Keep exposed provider errors inside the bounded safe vocabulary."""
+        return sanitize_operational_error(value)
 
 
 class PrometheusProviderCreate(ApiModel):
@@ -233,7 +256,14 @@ class MockProviderRead(ApiModel):
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("last_error", mode="before")
+    @classmethod
+    def sanitize_last_error(cls, value: str | None) -> str | None:
+        """Keep exposed provider errors inside the bounded safe vocabulary."""
+        return sanitize_operational_error(value)
 
+
+# Machine and metric resources.
 class MachineCreate(ApiModel):
     """Payload used to create a machine."""
     platform_id: int
@@ -291,6 +321,7 @@ class MachineMetricRead(ApiModel):
     value: int
 
 
+# Shared envelopes and async task resources.
 class PaginatedResponse(ApiModel, Generic[ResourceT]):
     """Simple offset/limit paginated response payload."""
     items: list[ResourceT]
@@ -317,3 +348,15 @@ class TaskExecutionRead(ApiModel):
     duration_seconds: float | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
+
+    @field_validator("result", mode="before")
+    @classmethod
+    def sanitize_result(cls, value: object) -> dict[str, Any] | None:
+        """Expose only the safe subset of stored task result keys."""
+        return sanitize_task_result(value)
+
+    @field_validator("error", mode="before")
+    @classmethod
+    def sanitize_error(cls, value: str | None) -> str | None:
+        """Keep exposed task errors inside the bounded safe vocabulary."""
+        return sanitize_operational_error(value)

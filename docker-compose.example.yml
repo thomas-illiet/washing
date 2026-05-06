@@ -30,6 +30,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      keycloak:
+        condition: service_healthy
 
   mcp:
     build: .
@@ -45,6 +47,8 @@ services:
     depends_on:
       api:
         condition: service_started
+      keycloak:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -162,6 +166,59 @@ services:
       timeout: 5s
       retries: 5
 
+  keycloak-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - keycloak_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM}
+      KEYCLOAK_DEV_USER_USERNAME: ${KEYCLOAK_DEV_USER_USERNAME}
+      KEYCLOAK_DEV_USER_PASSWORD: ${KEYCLOAK_DEV_USER_PASSWORD}
+      KEYCLOAK_DEV_ADMIN_USERNAME: ${KEYCLOAK_DEV_ADMIN_USERNAME}
+      KEYCLOAK_DEV_ADMIN_PASSWORD: ${KEYCLOAK_DEV_ADMIN_PASSWORD}
+      OIDC_USER_ROLE_NAME: ${OIDC_USER_ROLE_NAME}
+      OIDC_ADMIN_ROLE_NAME: ${OIDC_ADMIN_ROLE_NAME}
+      OIDC_SWAGGER_CLIENT_ID: ${OIDC_SWAGGER_CLIENT_ID}
+    command: ["start-dev", "--import-realm", "--http-port=8080", "--hostname-strict=false"]
+    volumes:
+      - ./config/keycloak/washing-machine-realm.json:/opt/keycloak/data/import/washing-machine-realm.json:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "bash",
+          "-c",
+          "{ printf 'HEAD /health/ready HTTP/1.0\\r\\n\\r\\n' >&0; grep 'HTTP/1.0 200'; } 0<>/dev/tcp/localhost/9000",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+
   db:
     image: postgres:16-alpine
     environment:
@@ -185,5 +242,6 @@ services:
 
 volumes:
   postgres_data:
+  keycloak_postgres_data:
   grafana_data:
   prometheus_data:

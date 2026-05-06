@@ -1,340 +1,103 @@
 # Metrics Collector
 
-Python backend for collecting machine inventory and metrics from external products.
+Backend Python pour collecter l’inventaire machine et les métriques depuis des produits externes.
 
-The stack includes:
+Le projet expose :
 
-- FastAPI for the REST API
-- FastMCP for the read-only MCP gateway
-- Celery worker for collection jobs
-- Celery Beat for scheduling
-- Flower for Celery control and real-time supervision
-- Postgres for persistence
-- Redis for the Celery broker
-- Alembic for migrations
-- Prometheus for API, Celery, and Flower metrics
-- Grafana for observability dashboards
+- une API FastAPI pour administrer les plateformes, connecteurs et synchronisations
+- une passerelle MCP read-only au-dessus de l’API
+- des workers Celery pour les collectes et les fan-out de tâches
+- un scheduler Beat pour les traitements périodiques
+- une stack locale avec Postgres, Redis, Keycloak, Flower, Prometheus et Grafana
 
-## Run Locally With Docker
+## Démarrage rapide
 
-First create a local `Dockerfile` from the template:
+1. Crée les fichiers locaux à partir des templates.
 
 ```bash
 cp Dockerfile.example Dockerfile
-```
-
-Then create the environment file:
-
-```bash
 cp .env.example .env
+cp docker-compose.example.yml docker-compose.yml
 ```
 
-Then generate a dedicated Fernet key for your local environment:
+2. Génère une clé Fernet pour chiffrer la config des connecteurs.
 
 ```bash
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Update these variables before exposing monitoring:
+3. Mets cette valeur dans `INTEGRATION_CONFIG_ENCRYPTION_KEY` dans `.env`.
 
-- `FLOWER_BASIC_AUTH`
-- `FLOWER_COOKIE_SECRET`
-- `GRAFANA_ADMIN_USER`
-- `GRAFANA_ADMIN_PASSWORD`
-- `INTEGRATION_CONFIG_ENCRYPTION_KEY`
-
-Use `APP_ENV=dev` only when you want development-only routes such as the typed `mock` provisioner and `mock` provider to appear in Swagger.
-
-Then create a local `docker-compose.yml` from the example:
-
-```bash
-cp docker-compose.example.yml docker-compose.yml
-```
-
-Build the image and start dependencies:
+4. Démarre la base et Redis.
 
 ```bash
 docker compose up --build -d db redis
 ```
 
-Apply migrations in the dedicated container:
+5. Applique les migrations.
 
 ```bash
 docker compose run --rm migrate
 ```
 
-If you already have an older Postgres volume, rerun this step after pulling new changes before restarting `api`, `worker`, or `beat`.
-
-Then start the application runtimes:
+6. Démarre le reste de la stack.
 
 ```bash
 docker compose up -d api mcp worker beat flower prometheus grafana
 ```
 
-The `api`, `mcp`, `worker`, `beat`, and `flower` services run with a security posture close to restricted OpenShift:
+La stack locale démarre aussi Keycloak et importe automatiquement le realm `washing-machine` depuis [config/keycloak/washing-machine-realm.json](/Users/thomas-illiet/Documents/New%20project%202/config/keycloak/washing-machine-realm.json).
 
-- non-root user `1000:1000`
-- `cap_drop: ["ALL"]`
-- `read_only: true`
-- `no-new-privileges:true`
+## URLs utiles
 
-Celery Beat is now fully stateless and always uses the in-memory scheduler `celery.beat:Scheduler`. Flower also runs without a persistent local database in this setup.
+- API : `http://localhost:8000`
+- Swagger : `http://localhost:8000/`
+- MCP : `http://localhost:8001/mcp`
+- MCP health : `http://localhost:8001/health`
+- Keycloak : `http://localhost:8080`
+- Flower : `http://localhost:5555`
+- Grafana : `http://localhost:3000`
 
-Available interfaces:
+## Comptes locaux par défaut
 
-- API: `http://localhost:8000`
-- MCP: `http://localhost:8001/mcp`
-- MCP health: `http://localhost:8001/health`
-- Flower: `http://localhost:5555`
-- Grafana: `http://localhost:3000`
+- `reader` : reçoit le rôle `OIDC_USER_ROLE_NAME`
+- `platform-admin` : reçoit `OIDC_USER_ROLE_NAME` et `OIDC_ADMIN_ROLE_NAME`
 
-Prometheus stays internal to the Docker Compose network by default and is not published on the host.
+Les mots de passe viennent de `.env`.
 
-The real `Dockerfile` and `docker-compose.yml` are intentionally not versioned. The repo provides `*.example` files that you can copy and adapt locally.
+## Ce qu’il faut savoir
 
-The Docker image uses `uv` only during the build. At runtime it relies on binaries installed in `/opt/venv/bin`, which avoids cache writes at startup.
+- L’auth supporte tout provider OIDC compatible discovery/JWKS, pas seulement Keycloak.
+- Les noms de rôles sont configurables via `OIDC_USER_ROLE_NAME` et `OIDC_ADMIN_ROLE_NAME`.
+- L’auth valide la signature, l’issuer, `exp` et `nbf`.
+- L’audience est volontairement ignorée.
+- `/health` reste public sur l’API et le MCP.
+- `/metrics` reste public côté API pour Prometheus.
+- `APP_ENV=dev` expose les routes mock dans Swagger.
+- Les connecteurs placeholder peuvent être valides et retourner zéro donnée sans erreur.
+- La table `applications` est une projection dérivée de `machines`, pas la source de vérité.
 
-## Project Structure
+## Vérifications rapides
 
-The codebase is split by runtime, in a layout inspired by Go projects:
+Après le démarrage, tu peux vérifier :
 
-- `app/` contains only executable applications.
-- `app/api`: FastAPI entrypoint, HTTP dependencies, and routes.
-- `app/mcp`: FastMCP read-only gateway that talks to the product API over HTTP only.
-- `app/worker`: Celery worker runtime and all executable tasks, organized in `app/worker/tasks/{scheduler,applications,inventory,metrics}`.
-- `app/beat`: Celery Beat runtime and schedule definitions only, with no task implementation.
-- `internal/usecases`: business logic shared by the API, beat, and workers.
-- `internal/domain`: reserved place for pure domain rules when they need stronger isolation.
-- `internal/infra`: configuration, database, Celery broker, connectors, and observability.
-- `internal/contracts/http`: HTTP input and output schemas.
-- `mock/`: repository-backed JSON presets used by the development-only `mock` provisioner.
+- `GET /health` retourne `200`
+- `GET /` sert Swagger
+- un token lecture peut appeler `GET /v1/platforms`
+- un token lecture reçoit `403` sur `POST /v1/platforms`
+- un token admin peut créer une plateforme
+- `POST /mcp` sans token est refusé si `OIDC_ENABLED=true`
 
-Useful endpoints:
+## Commandes utiles
 
-- `GET /health`
-- `GET /`: Swagger documentation
-- OpenAPI JSON: `GET /v1/openapi.json`
-- MCP transport: `POST /mcp`
-- MCP health: `GET /health` on the dedicated MCP service
-- Management: `/v1/platforms`, `/v1/applications`, `GET /v1/machines`, `GET/DELETE /v1/machines/{id}`, `/v1/machines/providers`, `/v1/machines/provisioners`
-- Association: `POST /v1/machines/providers/{provider_id}/provisioners/{provisioner_id}`
-- Activation: `POST /v1/machines/providers/{id}/enable|disable`, `POST /v1/machines/provisioners/{id}/enable|disable`
-- Manual jobs: `POST /v1/machines/provisioners/{id}/run`, `POST /v1/applications/sync?type=inventory_discovery|metrics`
-- Business metrics: `GET /v1/machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /v1/machines/metrics?type=cpu|ram|disk`
-- Prometheus: `GET /metrics`
-
-All business HTTP routes are versioned under `/v1`. Operational endpoints `/health` and `/metrics` remain unprefixed.
-
-All `GET` endpoints that return a list use the same paginated envelope:
-
-```json
-{
-  "items": [],
-  "offset": 0,
-  "limit": 100,
-  "total": 0
-}
-```
-
-Collections and sublists support `offset` and `limit` with `offset >= 0` and `limit >= 1`.
-
-Typed sub-routes for integrations:
-
-- Provisioners: `POST /v1/machines/provisioners/capsule`, `GET/PATCH /v1/machines/provisioners/{id}/capsule`, `POST /v1/machines/provisioners/dynatrace`, `GET/PATCH /v1/machines/provisioners/{id}/dynatrace`
-- Providers: `POST /v1/machines/providers/prometheus`, `GET/PATCH /v1/machines/providers/{id}/prometheus`, `POST /v1/machines/providers/dynatrace`, `GET/PATCH /v1/machines/providers/{id}/dynatrace`
-
-When `APP_ENV=dev`, Swagger also exposes `POST /v1/machines/provisioners/mock`, `GET/PATCH /v1/machines/provisioners/{id}/mock`, `POST /v1/machines/providers/mock`, and `GET/PATCH /v1/machines/providers/{id}/mock`. These development-only integrations load fake machines from repository JSON presets and create random fake metric samples through `mock_metric`.
-
-Generic `/v1/machines/providers` and `/v1/machines/provisioners` responses never expose the `config` field. Secrets are stored encrypted in the database and tokens are never returned by the API.
-One provisioner can be linked to only one provider per metric scope (`cpu`, `ram`, or `disk`).
-Providers and provisioners are created disabled by default and must be enabled through their dedicated endpoints.
-Machines are discovered and synchronized through provisioners; the public API does not expose `POST` or `PATCH` on `/v1/machines`.
-
-Swagger documentation is exposed at `/` and loads the OpenAPI schema from `/v1/openapi.json`. The default FastAPI `/docs` and `/redoc` routes are disabled.
-
-## Observability
-
-Prometheus can scrape:
-
-- FastAPI API: `http://localhost:8000/metrics`
-- Celery worker: `http://localhost:9101/metrics`
-- Celery Beat: `http://beat:9101/metrics` from the Docker network
-- Flower: `http://flower:5555/metrics` from the Docker network
-
-Flower provides the Celery operational view:
-
-- worker status
-- task history and state
-- queues, pending tasks, and scheduled tasks
-- Celery remote-control actions
-
-Grafana automatically loads a `Celery Monitoring` dashboard with:
-
-- task throughput by state
-- task duration percentiles
-- number of in-progress tasks
-- worker status
-- Beat status
-- health of Prometheus scrape targets
-
-Main metrics:
-
-- `api_http_requests_total`
-- `api_http_request_duration_seconds`
-- `celery_tasks_total`
-- `celery_task_duration_seconds`
-- `celery_tasks_in_progress`
-- `celery_worker_up`
-- `celery_beat_up`
-
-The Prometheus `/metrics` endpoint does not replace the business endpoints `/v1/machines/{machine_id}/metrics` and `/v1/machines/metrics`.
-
-Default access:
-
-- Flower uses HTTP Basic authentication defined through `FLOWER_BASIC_AUTH`
-- Grafana uses `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD`
-- Prometheus is reachable only from other Compose containers unless you explicitly publish a port
-
-## Machine Metrics
-
-Metrics are stored daily, with a single row per machine, provider, and day:
-
-- `machine_cpu_metrics`
-- `machine_ram_metrics`
-- `machine_disk_metrics`
-
-Each table follows the same business shape: `machine_id`, `provider_id`, `date`, `value`.
-
-The `GET /v1/machines/{machine_id}/metrics` and `GET /v1/machines/metrics` endpoints require `type=cpu|ram|disk`, support `start` and `end` in `YYYY-MM-DD` format, as well as `offset` and `limit`, and return the `{items, offset, limit, total}` envelope. Collections perform a daily upsert: rerunning a collection on the same day updates the existing row.
-
-Machine metric collection is primarily dispatched from the application sync pipeline. Each application batch expands internally into one task per `provider_id` / `machine_id` pair so work can be distributed across Celery workers.
-
-`POST /v1/machines/providers/sync` remains available as a manual global trigger across all enabled providers.
-
-## Applications
-
-The `applications` table is now a projection derived from `machines`, with one row per application code, environment, and region.
-Machines store the business code directly in `application`, normalized in uppercase.
-
-Two application sync pipelines are active:
-
-- `inventory_discovery`: rebuilds the `applications` projection from grouped machine rows.
-- `metrics`: selects due applications, then dispatches one machine-metrics task per visible `provider_id` / `machine_id` pair for that application batch.
-
-The manual entrypoint is `POST /v1/applications/sync?type=inventory_discovery|metrics`.
-
-Applications are exposed as read-only HTTP resources. The public API does not expose `POST`, `PATCH`, or `DELETE` on `/v1/applications`.
-
-Useful variables:
-
-- `APPLICATION_INVENTORY_SYNC_TICK_SECONDS`: frequency of the projection rebuild.
-- `APPLICATION_METRICS_SYNC_TICK_SECONDS`: frequency of the due-application metrics dispatcher.
-- `APPLICATION_METRICS_SYNC_WINDOW_DAYS`: maximum window between two application metrics dispatches, default `5` days.
-- `APPLICATION_METRICS_SYNC_BATCH_SIZE`: if `0`, the batch size is computed automatically to spread all applications across the window.
-- `APPLICATION_METRICS_SYNC_RETRY_AFTER_SECONDS`: delay before rescheduling an application already queued for metrics sync.
-
-## MCP Gateway
-
-The MCP service is a dedicated read-only runtime that never imports the product business code directly. It proxies the product API over HTTP and exposes only:
-
-- applications
-- machines
-- machine metrics
-
-The gateway does not expose mutations, sync triggers, providers, provisioners, platforms, or worker tasks.
-
-Authorization behavior:
-
-- only the incoming `Authorization` header is forwarded to the product API
-- no other client headers are relayed in V1
-- if `Authorization` is absent, the downstream API call is sent without auth
-
-Useful MCP resource templates:
-
-- `metrics-collector://applications{?name,environment,region,offset,limit}`
-- `metrics-collector://applications/{application_id}`
-- `metrics-collector://machines{?platform_id,application,source_provisioner_id,environment,region,offset,limit}`
-- `metrics-collector://machines/{machine_id}`
-- `metrics-collector://machine-metrics/{type}{?platform_id,provider_id,provisioner_id,machine_id,start,end,offset,limit}`
-- `metrics-collector://machines/{machine_id}/metrics/{type}{?provider_id,start,end,offset,limit}`
-
-Runtime variables:
-
-- `APP_ENV`: application environment. Supported values are `dev`, `test`, and `prod`. Development-only typed routes are exposed only when this is set to `dev`.
-- `MCP_PRODUCT_API_BASE_URL`: product API base URL used by the MCP proxy. In Docker Compose, use `http://api:8000`.
-- `MCP_PRODUCT_API_TIMEOUT_SECONDS`: timeout applied to downstream product API requests.
-
-## MVP Connectors
-
-Two historical stub connectors are available:
-
-- `mock_inventory` to discover machines
-- `mock_metric` to generate one CPU/RAM/Disk percentage sample per provider scope, machine, and collection
-
-The new typed integrations exposed by the API are:
-
-- Provisioners: `capsule`, `dynatrace`
-- Providers: `prometheus`, `dynatrace`
-
-In development mode only (`APP_ENV=dev`), an extra typed provisioner `mock` is available. It stores a preset name in the database and reads the corresponding JSON file from `mock/`.
-
-Available mock presets:
-
-- `single-vm`
-- `small-fleet`
-- `mixed-apps`
-
-Example internal `mock_inventory` config:
-
-```json
-{
-  "machines": [
-    {
-      "external_id": "vm-1",
-      "hostname": "VM-1",
-      "application": "billing",
-      "region": "EU-WEST-1",
-      "environment": "DEV",
-      "cpu": 2,
-      "ram_mb": 8192,
-      "disk_mb": 81920
-    }
-  ]
-}
-```
-
-Example internal `mock_metric` config:
-
-```json
-{
-  "value": 42,
-  "values_by_hostname": {
-    "vm-1": 90
-  }
-}
-```
-
-If `value` is omitted, `mock_metric` falls back to a random integer percentage between `0` and `100` for the provider scope on each machine. `values_by_hostname` overrides both the random fallback and the shared `value` for the matching hostnames.
-
-One provisioner can be linked to only one provider per metric scope (`cpu`, `ram`, or `disk`).
-
-## Development
+Lancer les tests :
 
 ```bash
-uv python install 3.13
-uv sync --group dev
-uv run pytest
+uv sync --dev
+uv run pytest -q
 ```
 
-To apply migrations against Postgres:
-
-```bash
-uv run alembic upgrade head
-```
-
-The project targets Python 3.13. The `INTEGRATION_CONFIG_ENCRYPTION_KEY` key must be present at runtime for the API, worker, beat, and during Alembic migrations.
-
-Run runtimes manually:
+Lancer les runtimes à la main :
 
 ```bash
 uv run uvicorn app.api.main:app --reload
@@ -343,3 +106,58 @@ uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
 uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
 uv run celery -A app.worker.celery.celery_app flower
 ```
+
+Appliquer les migrations localement :
+
+```bash
+uv run alembic upgrade head
+```
+
+Suivre les logs Docker :
+
+```bash
+docker compose logs -f api mcp worker beat
+```
+
+Arrêter la stack :
+
+```bash
+docker compose down
+```
+
+Reset complet local :
+
+```bash
+docker compose down -v
+```
+
+## Vue rapide du projet
+
+- `app/api` : API FastAPI
+- `app/mcp` : gateway MCP read-only
+- `app/worker` : worker Celery et tâches exécutables
+- `app/beat` : scheduler Celery Beat
+- `internal/usecases` : logique métier partagée
+- `internal/domain` : règles pures de normalisation et validation
+- `internal/infra` : DB, auth, queue, connecteurs, sécurité, observabilité
+- `internal/contracts/http` : schémas HTTP
+- `mock/` : presets JSON pour les mocks de dev
+
+## Docs détaillées
+
+Le `README` racine sert d’accueil. Pour le reste, va directement dans [docs/README.md](./docs/README.md).
+
+- [Documentation index](./docs/README.md) : point d’entrée de la doc longue
+- [Setup](./docs/setup.md) : installation locale, Docker, Python, tests, smoke checks
+- [Configuration](./docs/configuration.md) : variables d’environnement, OIDC, scheduler, observability
+- [Architecture](./docs/architecture.md) : runtimes, couches, flux métier, modèle de données
+- [Deployment](./docs/deployment.md) : image, topologie, ordre de rollout, scaling, checklist
+- [Operations](./docs/operations.md) : migrations, logs, maintenance, troubleshooting
+- [Celery Task Map](./docs/celery-task-map.md) : cartographie des tâches, dispatchers et fan-out
+
+## Pièges classiques
+
+- Modifier le fichier de realm Keycloak ne met pas à jour un realm déjà importé.
+- Changer `INTEGRATION_CONFIG_ENCRYPTION_KEY` casse la lecture des configs déjà stockées si tu ne migres pas les données.
+- Plusieurs instances `beat` compliquent l’exploitation, même si les dispatchers réservent maintenant les lignes correctement.
+- Les fichiers `Dockerfile` et `docker-compose.yml` réels ne sont pas versionnés : le repo fournit les `*.example`.

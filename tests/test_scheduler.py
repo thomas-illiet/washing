@@ -35,6 +35,14 @@ def test_dispatch_due_jobs_enqueues_due_enabled_provisioners(db_session: Session
     assert result == {"provisioners": [provisioner.id]}
     assert enqueued_provisioners == [provisioner.id]
 
+    second_result = dispatch_due_jobs(
+        db_session,
+        enqueue_provisioner=lambda provisioner_id: enqueued_provisioners.append(provisioner_id) or "task-provisioner",
+        now=now,
+    )
+    assert second_result == {"provisioners": []}
+    assert enqueued_provisioners == [provisioner.id]
+
 
 def test_dispatch_due_jobs_skips_disabled_provisioners_by_default(db_session: Session) -> None:
     """New provisioners should stay unscheduled until explicitly enabled."""
@@ -85,3 +93,12 @@ def test_application_metrics_sync_dispatch_spreads_due_rows(db_session: Session)
 
     scheduled_count = db_session.query(Application).filter(Application.sync_scheduled_at.is_not(None)).count()
     assert scheduled_count == 1
+
+    second_result = dispatch_due_application_metrics_syncs(
+        db_session,
+        enqueue_application=lambda application_id: enqueued.append(application_id) or "task-application",
+        window_days=5,
+        tick_seconds=3600,
+    )
+    assert second_result == {"applications": [enqueued[1]], "batch_size": 1}
+    assert len(enqueued) == 2

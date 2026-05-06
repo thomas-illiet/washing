@@ -9,6 +9,7 @@ from internal.infra.connectors.base import MetricRecord
 from internal.infra.connectors.registry import get_metric_collector
 from internal.infra.db.base import utcnow
 from internal.infra.db.models import Machine, MachineCPUMetric, MachineDiskMetric, MachineProvider, MachineRAMMetric
+from internal.infra.security import sanitize_operational_error
 
 
 METRIC_MODELS = {
@@ -193,6 +194,6 @@ def run_provider_machine_collection(db: Session, provider_id: int, machine_id: i
         db.rollback()
         provider = db.get(MachineProvider, provider_id)
         if provider is not None:
-            provider.last_error = str(exc)
+            provider.last_error = sanitize_operational_error(exc)
             db.commit()
         raise

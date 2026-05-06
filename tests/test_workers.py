@@ -12,6 +12,7 @@ from internal.infra.connectors.providers import mock as mock_metrics
 from internal.infra.connectors.provisioners import CapsuleInventoryProvisioner, DynatraceInventoryProvisioner
 from internal.infra.connectors.provisioners import mock as mock_provisioners
 from internal.infra.connectors.registry import get_machine_provisioner, get_metric_collector
+from internal.infra.security.sanitization import DISABLED_ERROR, INVALID_CONFIGURATION_ERROR
 from internal.infra.db.models import (
     Application,
     Machine,
@@ -129,7 +130,7 @@ def test_disabled_provisioner_run_is_rejected(db_session: Session) -> None:
         run_provisioner_inventory(db_session, provisioner.id)
 
     db_session.refresh(provisioner)
-    assert provisioner.last_error == PROVISIONER_DISABLED_DETAIL
+    assert provisioner.last_error == DISABLED_ERROR
     assert provisioner.last_run_at is not None
     assert db_session.query(Machine).count() == 0
 
@@ -602,7 +603,8 @@ def test_mock_preset_invalid_json_sets_last_error(
         run_provisioner_inventory(db_session, provisioner.id)
 
     db_session.refresh(provisioner)
-    assert provisioner.last_error == str(exc_info.value)
+    assert exc_info.value is not None
+    assert provisioner.last_error == INVALID_CONFIGURATION_ERROR
 
 
 @pytest.mark.parametrize(

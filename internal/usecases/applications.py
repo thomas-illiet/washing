@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, selectinload
 from internal.domain import coalesce_dimension, normalize_application_code
 from internal.infra.db.base import utcnow
 from internal.infra.db.models import Application, Machine, MachineProvider
+from internal.infra.security.sanitization import DISPATCH_FAILED_ERROR, sanitize_operational_error
 
 
 def calculate_application_metrics_sync_batch_size(
@@ -96,23 +97,43 @@ def dispatch_due_application_metrics_syncs(
 
     due_before = now - timedelta(days=window_days)
     retry_before = now - timedelta(seconds=retry_after_seconds)
-    due_applications = (
+    due_applications_query = (
         db.query(Application)
         .filter(or_(Application.sync_at.is_(None), Application.sync_at <= due_before))
         .filter(or_(Application.sync_scheduled_at.is_(None), Application.sync_scheduled_at <= retry_before))
         .order_by(Application.sync_at.asc().nullsfirst(), Application.id.asc())
         .limit(batch_size)
-        .all()
     )
+    if db.get_bind().dialect.name != "sqlite":
+        # Reserve rows first so concurrent schedulers do not enqueue the same application twice.
+        due_applications_query = due_applications_query.with_for_update(skip_locked=True)
+    due_applications = due_applications_query.all()
 
     application_ids: list[int] = []
     for application in due_applications:
-        enqueue_application(application.id)
         application.sync_scheduled_at = now
         application_ids.append(application.id)
 
+    # Persist the reservation before any publish side effect happens.
     db.commit()
-    return {"applications": application_ids, "batch_size": batch_size}
+
+    enqueued_ids: list[int] = []
+    try:
+        for application_id in application_ids:
+            enqueue_application(application_id)
+            enqueued_ids.append(application_id)
+    except Exception as exc:
+        remaining_ids = application_ids[len(enqueued_ids):]
+        if remaining_ids:
+            # Only release rows that were never published.
+            (
+                db.query(Application)
+                .filter(Application.id.in_(remaining_ids))
+                .update({"sync_scheduled_at": None, "sync_error": DISPATCH_FAILED_ERROR}, synchronize_session=False)
+            )
+            db.commit()
+        raise exc
+    return {"applications": enqueued_ids, "batch_size": batch_size}
 
 
 def _application_machines(db: Session, application: Application) -> list[Machine]:
@@ -164,6 +185,7 @@ def run_application_metrics_sync(
     try:
         machines = _application_machines(db, application)
         providers = _visible_enabled_providers(db, {machine.platform_id for machine in machines})
+        # Expand one logical application sync into many machine/provider tasks for the workers.
         pairs = [
             (machine.id, provider.id)
             for machine in machines
@@ -199,6 +221,6 @@ def run_application_metrics_sync(
         application = db.get(Application, application_id)
         if application is not None:
             application.sync_scheduled_at = None
-            application.sync_error = str(exc)
+            application.sync_error = sanitize_operational_error(exc)
             db.commit()
         raise

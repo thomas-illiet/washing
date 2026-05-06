@@ -33,6 +33,5 @@ def decrypt_json_value(value: Any) -> dict[str, Any]:
     try:
         decrypted = _get_fernet().decrypt(value.encode("utf-8")).decode("utf-8")
         return json.loads(decrypted)
-    except InvalidToken:
-        # Keep compatibility with legacy plaintext rows; all current writes remain encrypted.
-        return json.loads(value)
+    except InvalidToken as exc:
+        raise ValueError("invalid encrypted payload") from exc

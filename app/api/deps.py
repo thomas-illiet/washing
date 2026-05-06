@@ -11,7 +11,7 @@ class PaginationParams:
     def __init__(
         self,
         offset: int = Query(default=0, ge=0),
-        limit: int = Query(default=100, ge=1),
+        limit: int = Query(default=100, ge=1, le=200),
     ) -> None:
         """Store validated pagination query parameters for downstream handlers."""
         self.offset = offset

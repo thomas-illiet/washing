@@ -2,7 +2,6 @@
 
 from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Any
 
 from celery.signals import before_task_publish, task_failure, task_postrun, task_prerun, task_retry
 from sqlalchemy.exc import IntegrityError
@@ -16,6 +15,7 @@ from internal.infra.queue.task_names import (
     RUN_PROVISIONER_TASK,
     SYNC_APPLICATION_METRICS_TASK,
 )
+from internal.infra.security import sanitize_operational_error, sanitize_task_result
 
 
 RESOURCE_TYPE_HEADER = "x-resource-type"
@@ -30,6 +30,7 @@ TERMINAL_TASK_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
 _CELERY_TASK_TRACKING_REGISTERED = False
 
 
+# Public helper used by the use cases before tasks are published.
 def build_task_tracking_headers(task_name: str, args: Sequence[object] | None = None) -> dict[str, object]:
     """Return Celery headers carrying the task tracking business context."""
     resource_type = TASK_RESOURCE_TYPES.get(task_name)
@@ -48,6 +49,7 @@ def configure_celery_task_tracking() -> None:
     if _CELERY_TASK_TRACKING_REGISTERED:
         return
 
+    # Publish-time signals create the initial row as soon as the task leaves the API layer.
     @before_task_publish.connect(weak=False)
     def _record_task_publish(
         sender: str | None = None,
@@ -139,7 +141,7 @@ def configure_celery_task_tracking() -> None:
                     execution.duration_seconds = _duration_seconds(execution.started_at, now)
 
             if state == "SUCCESS":
-                execution.result = _coerce_json_dict(retval)
+                execution.result = sanitize_task_result(retval)
                 execution.error = None
 
         _mutate_execution(
@@ -219,6 +221,7 @@ def configure_celery_task_tracking() -> None:
     _CELERY_TASK_TRACKING_REGISTERED = True
 
 
+# Database mutation helpers.
 def _create_execution_if_missing(
     task_id: str,
     task_name: str,
@@ -280,6 +283,7 @@ def _mutate_execution(
             db.commit()
         except IntegrityError:
             db.rollback()
+            # Another worker may have inserted the row first between load and commit.
             execution = db.query(CeleryTaskExecution).filter(CeleryTaskExecution.task_id == task_id).one()
             mutate(execution)
             db.commit()
@@ -287,6 +291,7 @@ def _mutate_execution(
         db.close()
 
 
+# Celery signal payload parsing helpers.
 def _published_task_id(headers: Mapping[str, object] | None, body: object | None) -> str | None:
     """Extract the task id from a before_task_publish signal payload."""
     if headers is not None:
@@ -354,6 +359,7 @@ def _resolve_resource_context(
     args: Sequence[object] | None,
 ) -> tuple[str | None, int | None]:
     """Resolve tracked resource metadata from headers first, then task args."""
+    # Prefer explicit publish headers so retries keep the same business linkage.
     resource_type = _string_or_none(headers.get(RESOURCE_TYPE_HEADER)) if headers is not None else None
     if resource_type is None:
         resource_type = TASK_RESOURCE_TYPES.get(task_name)
@@ -365,28 +371,7 @@ def _resolve_resource_context(
     return resource_type, resource_id
 
 
-def _coerce_json_dict(value: object) -> dict[str, Any] | None:
-    """Normalize task results to a JSON object payload."""
-    if value is None:
-        return None
-    if isinstance(value, Mapping):
-        return {str(key): _coerce_json_value(item) for key, item in value.items()}
-    return {"value": _coerce_json_value(value)}
-
-
-def _coerce_json_value(value: object) -> Any:
-    """Convert task payload values to JSON-serializable primitives."""
-    if value is None or isinstance(value, bool | int | float | str):
-        return value
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Mapping):
-        return {str(key): _coerce_json_value(item) for key, item in value.items()}
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
-        return [_coerce_json_value(item) for item in value]
-    return str(value)
-
-
+# Small coercion helpers shared by the signal handlers.
 def _duration_seconds(started_at: datetime, finished_at: datetime) -> float:
     """Compute a non-negative duration while tolerating naive SQLite timestamps."""
     if started_at.tzinfo is None and finished_at.tzinfo is not None:
@@ -416,7 +401,4 @@ def _string_or_none(value: object) -> str | None:
 
 def _stringify_error(value: BaseException | str | None) -> str | None:
     """Render Celery failure and retry reasons as a short message."""
-    if value is None:
-        return None
-    message = str(value).strip()
-    return message or value.__class__.__name__
+    return sanitize_operational_error(value)

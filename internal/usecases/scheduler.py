@@ -30,13 +30,32 @@ def dispatch_due_jobs(
 ) -> dict[str, list[int]]:
     """Enqueue every enabled provisioner whose cron is currently due."""
     now = now or utcnow()
-    provisioner_ids: list[int] = []
+    provisioners_query = db.query(MachineProvisioner).filter(MachineProvisioner.enabled.is_(True))
+    if db.get_bind().dialect.name != "sqlite":
+        # Reserve rows first so concurrent schedulers cannot double-dispatch the same cron slot.
+        provisioners_query = provisioners_query.with_for_update(skip_locked=True)
 
-    for provisioner in db.query(MachineProvisioner).filter(MachineProvisioner.enabled.is_(True)).all():
+    reserved: list[tuple[int, datetime | None]] = []
+    for provisioner in provisioners_query.all():
         if is_due(provisioner.cron, provisioner.last_scheduled_at, now):
-            enqueue_provisioner(provisioner.id)
+            reserved.append((provisioner.id, provisioner.last_scheduled_at))
             provisioner.last_scheduled_at = now
-            provisioner_ids.append(provisioner.id)
 
+    # Commit the reservation before enqueueing so later readers see the slot as taken.
     db.commit()
-    return {"provisioners": provisioner_ids}
+
+    enqueued_provisioners: list[int] = []
+    try:
+        for provisioner_id, _previous_last_scheduled_at in reserved:
+            enqueue_provisioner(provisioner_id)
+            enqueued_provisioners.append(provisioner_id)
+    except Exception:
+        for provisioner_id, previous_last_scheduled_at in reserved[len(enqueued_provisioners):]:
+            provisioner = db.get(MachineProvisioner, provisioner_id)
+            if provisioner is not None:
+                # Restore only the rows whose publish never happened.
+                provisioner.last_scheduled_at = previous_last_scheduled_at
+        db.commit()
+        raise
+
+    return {"provisioners": enqueued_provisioners}

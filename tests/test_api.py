@@ -78,6 +78,7 @@ def test_swagger_is_served_on_root(client: TestClient) -> None:
     assert "SwaggerUIBundle" in response.text
     assert "/v1/openapi.json" in response.text
     assert "/static/swagger-washing-machine.css" in response.text
+    assert "/static/swagger-tag-images/machines.png" in response.text
     assert '"defaultModelsExpandDepth": -1' in response.text
 
 
