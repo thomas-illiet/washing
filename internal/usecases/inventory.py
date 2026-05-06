@@ -2,10 +2,11 @@
 
 from sqlalchemy.orm import Session
 
+from internal.domain import normalize_application_code
 from internal.infra.connectors.base import MachineRecord
 from internal.infra.connectors.registry import get_machine_provisioner
 from internal.infra.db.base import utcnow
-from internal.infra.db.models import Application, Machine, MachineFlavorHistory, MachineProvisioner
+from internal.infra.db.models import Machine, MachineFlavorHistory, MachineProvisioner
 
 
 def _gb_to_mb(value: float | None) -> float | None:
@@ -48,31 +49,9 @@ def _flavor_changed(machine: Machine, record: MachineRecord) -> bool:
     )
 
 
-def _resolve_application_id(db: Session, record: MachineRecord) -> int | None:
-    """Resolve or lazily create the application linked to a machine record."""
-    if record.application_id is not None:
-        return record.application_id
-    if record.application_name is None:
-        return None
-
-    application = (
-        db.query(Application)
-        .filter(
-            Application.name == record.application_name,
-            Application.environment == (record.environment or "unknown"),
-            Application.region == (record.region or "unknown"),
-        )
-        .one_or_none()
-    )
-    if application is None:
-        application = Application(
-            name=record.application_name,
-            environment=record.environment or "unknown",
-            region=record.region or "unknown",
-        )
-        db.add(application)
-        db.flush()
-    return application.id
+def _resolve_application(record: MachineRecord) -> str | None:
+    """Resolve the canonical application code linked to a machine record."""
+    return normalize_application_code(record.application)
 
 
 def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int]:
@@ -96,11 +75,11 @@ def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int
 
         for record in records:
             machine = _find_machine(db, provisioner, record)
-            application_id = _resolve_application_id(db, record)
+            application = _resolve_application(record)
             if machine is None:
                 machine = Machine(
                     platform_id=provisioner.platform_id,
-                    application_id=application_id,
+                    application=application,
                     source_provisioner_id=provisioner.id,
                     external_id=record.external_id,
                     hostname=record.hostname,
@@ -129,7 +108,7 @@ def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int
                 flavor_changes += 1
 
             machine.source_provisioner_id = provisioner.id
-            machine.application_id = application_id
+            machine.application = application
             machine.external_id = record.external_id
             machine.hostname = record.hostname
             machine.region = record.region

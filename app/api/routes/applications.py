@@ -1,32 +1,26 @@
-"""Application CRUD and sync routes."""
+"""Application read and sync routes."""
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import PaginationParams, get_db
-from app.api.routes.common import commit_or_409, get_or_404, paginate_query
+from app.api.routes.common import get_or_404, paginate_query
+from internal.domain import normalize_application_code, normalize_dimension
 from internal.contracts.http.resources import (
-    ApplicationCreate,
     ApplicationRead,
+    ApplicationSyncType,
     PaginatedResponse,
     TaskEnqueueResponse,
 )
 from internal.infra.db.models import Application
 from internal.infra.queue.enqueue import enqueue_celery_task
-from internal.infra.queue.task_names import DISPATCH_DUE_APPLICATION_SYNCS_TASK, SYNC_APPLICATION_TASK
+from internal.infra.queue.task_names import (
+    DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
+    SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
+)
 
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
-
-
-@router.post("", response_model=ApplicationRead, status_code=status.HTTP_201_CREATED)
-def create_application(payload: ApplicationCreate, db: Session = Depends(get_db)) -> Application:
-    """Create an application row."""
-    application = Application(**payload.model_dump())
-    db.add(application)
-    commit_or_409(db, "application already exists for this environment and region")
-    db.refresh(application)
-    return application
 
 
 @router.get("", response_model=PaginatedResponse[ApplicationRead])
@@ -39,12 +33,15 @@ def list_applications(
 ) -> PaginatedResponse[ApplicationRead]:
     """List applications with optional identity filters."""
     query = db.query(Application)
-    if name is not None:
-        query = query.filter(Application.name == name)
-    if environment is not None:
-        query = query.filter(Application.environment == environment)
-    if region is not None:
-        query = query.filter(Application.region == region)
+    normalized_name = normalize_application_code(name)
+    normalized_environment = normalize_dimension(environment)
+    normalized_region = normalize_dimension(region)
+    if normalized_name is not None:
+        query = query.filter(Application.name == normalized_name)
+    if normalized_environment is not None:
+        query = query.filter(Application.environment == normalized_environment)
+    if normalized_region is not None:
+        query = query.filter(Application.region == normalized_region)
     return paginate_query(
         query,
         ApplicationRead,
@@ -56,10 +53,17 @@ def list_applications(
     )
 
 
-@router.post("/sync-due", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
-def enqueue_due_application_syncs() -> TaskEnqueueResponse:
-    """Enqueue the dispatcher that schedules the next due application sync batch."""
-    task = enqueue_celery_task(DISPATCH_DUE_APPLICATION_SYNCS_TASK)
+@router.post("/sync", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+def enqueue_application_sync(
+    sync_type: ApplicationSyncType = Query(alias="type"),
+) -> TaskEnqueueResponse:
+    """Enqueue one application sync pipeline."""
+    task_name = (
+        SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK
+        if sync_type == "inventory_discovery"
+        else DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK
+    )
+    task = enqueue_celery_task(task_name)
     return TaskEnqueueResponse(task_id=task.id)
 
 
@@ -67,20 +71,3 @@ def enqueue_due_application_syncs() -> TaskEnqueueResponse:
 def get_application(application_id: int, db: Session = Depends(get_db)) -> Application:
     """Return one application by id."""
     return get_or_404(db, Application, application_id, "application not found")
-
-
-@router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_application(application_id: int, db: Session = Depends(get_db)) -> Response:
-    """Delete an application."""
-    application = get_or_404(db, Application, application_id, "application not found")
-    db.delete(application)
-    db.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post("/{application_id}/sync", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
-def enqueue_application_sync(application_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
-    """Enqueue a manual sync for one application."""
-    get_or_404(db, Application, application_id, "application not found")
-    task = enqueue_celery_task(SYNC_APPLICATION_TASK, args=[application_id])
-    return TaskEnqueueResponse(task_id=task.id)

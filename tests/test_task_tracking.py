@@ -12,9 +12,10 @@ from sqlalchemy.orm import Session, sessionmaker
 from internal.infra.db.models import Application, CeleryTaskExecution, MachineProvisioner, Platform
 from internal.infra.queue import task_tracking
 from internal.infra.queue.task_names import (
-    DISPATCH_DUE_APPLICATION_SYNCS_TASK,
+    DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
     RUN_PROVISIONER_TASK,
-    SYNC_APPLICATION_TASK,
+    SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
+    SYNC_APPLICATION_METRICS_TASK,
 )
 
 
@@ -124,7 +125,7 @@ def test_task_tracking_signals_record_failure_and_prerun_fallback(
     tracking_session_factory,
 ) -> None:
     """A task should be created on prerun fallback and capture terminal failures."""
-    task = _fake_task(SYNC_APPLICATION_TASK, args=[42])
+    task = _fake_task(SYNC_APPLICATION_METRICS_TASK, args=[42])
 
     task_prerun.send(sender=task, task_id="task-failure", task=task, args=[42], kwargs={})
     task_failure.send(
@@ -158,7 +159,7 @@ def test_task_tracking_signals_record_failure_and_prerun_fallback(
 
 def test_task_tracking_signals_record_retry(db_session: Session, tracking_session_factory) -> None:
     """Retry signals should persist the intermediate retry state and error message."""
-    task = _fake_task(SYNC_APPLICATION_TASK, args=[7])
+    task = _fake_task(SYNC_APPLICATION_METRICS_TASK, args=[7])
     request = SimpleNamespace(id="task-retry", args=[7])
 
     task_prerun.send(sender=task, task_id="task-retry", task=task, args=[7], kwargs={})
@@ -199,7 +200,7 @@ def test_worker_tasks_endpoint_filters_orders_and_paginates(client: TestClient, 
             ),
             CeleryTaskExecution(
                 task_id="task-3",
-                task_name=SYNC_APPLICATION_TASK,
+                task_name=SYNC_APPLICATION_METRICS_TASK,
                 status="SUCCESS",
                 resource_type="application",
                 resource_id=2,
@@ -260,7 +261,13 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     db_session.add_all([application, provisioner])
     db_session.commit()
 
-    task_ids = iter(["manual-application-sync", "manual-provisioner-run", "manual-sync-due-dispatch"])
+    task_ids = iter(
+        [
+            "manual-application-inventory-sync",
+            "manual-application-metrics-dispatch",
+            "manual-provisioner-run",
+        ]
+    )
 
     def fake_send_task(
         task_name: str,
@@ -276,16 +283,16 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
 
     monkeypatch.setattr("internal.infra.queue.enqueue.celery_app.send_task", fake_send_task)
 
-    application_response = client.post(f"/v1/applications/{application.id}/sync")
+    inventory_sync_response = client.post("/v1/applications/sync", params={"type": "inventory_discovery"})
+    metrics_sync_response = client.post("/v1/applications/sync", params={"type": "metrics"})
     provisioner_response = client.post(f"/v1/machines/provisioners/{provisioner.id}/run")
-    sync_due_response = client.post("/v1/applications/sync-due")
 
-    assert application_response.status_code == 202
-    assert application_response.json() == {"task_id": "manual-application-sync"}
+    assert inventory_sync_response.status_code == 202
+    assert inventory_sync_response.json() == {"task_id": "manual-application-inventory-sync"}
+    assert metrics_sync_response.status_code == 202
+    assert metrics_sync_response.json() == {"task_id": "manual-application-metrics-dispatch"}
     assert provisioner_response.status_code == 202
     assert provisioner_response.json() == {"task_id": "manual-provisioner-run"}
-    assert sync_due_response.status_code == 202
-    assert sync_due_response.json() == {"task_id": "manual-sync-due-dispatch"}
 
     db_session.expire_all()
     rows = (
@@ -294,7 +301,19 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
         .all()
     )
     assert [(row.task_id, row.task_name, row.status, row.resource_type, row.resource_id) for row in rows] == [
-        ("manual-application-sync", SYNC_APPLICATION_TASK, "PENDING", "application", application.id),
+        (
+            "manual-application-inventory-sync",
+            SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
+            "PENDING",
+            None,
+            None,
+        ),
+        (
+            "manual-application-metrics-dispatch",
+            DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
+            "PENDING",
+            None,
+            None,
+        ),
         ("manual-provisioner-run", RUN_PROVISIONER_TASK, "PENDING", "provisioner", provisioner.id),
-        ("manual-sync-due-dispatch", DISPATCH_DUE_APPLICATION_SYNCS_TASK, "PENDING", None, None),
     ]

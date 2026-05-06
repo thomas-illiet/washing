@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from internal.infra.db.base import utcnow
 from internal.infra.db.models import CeleryTaskExecution
 from internal.infra.db.session import SessionLocal
-from internal.infra.queue.task_names import RUN_PROVIDER_TASK, RUN_PROVISIONER_TASK, SYNC_APPLICATION_TASK
+from internal.infra.queue.task_names import RUN_PROVIDER_TASK, RUN_PROVISIONER_TASK, SYNC_APPLICATION_METRICS_TASK
 
 
 RESOURCE_TYPE_HEADER = "x-resource-type"
@@ -18,7 +18,7 @@ RESOURCE_ID_HEADER = "x-resource-id"
 TASK_RESOURCE_TYPES = {
     RUN_PROVIDER_TASK: "provider",
     RUN_PROVISIONER_TASK: "provisioner",
-    SYNC_APPLICATION_TASK: "application",
+    SYNC_APPLICATION_METRICS_TASK: "application",
 }
 TERMINAL_TASK_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
 _CELERY_TASK_TRACKING_REGISTERED = False

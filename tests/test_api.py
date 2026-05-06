@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from internal.domain.cron import INVALID_CRON_EXPRESSION_DETAIL
 from internal.infra.config.settings import get_settings
 from internal.infra.db.models import (
+    Application,
     Machine,
     MachineCPUMetric,
     MachineDiskMetric,
@@ -16,6 +17,7 @@ from internal.infra.db.models import (
     MachineProvisioner,
     Platform,
 )
+from internal.usecases.applications import rebuild_applications_from_machines
 
 EXPECTED_OPENAPI_DESCRIPTION = (
     "Inventory and machine metrics API for platforms, applications, providers, and provisioners.\n\n"
@@ -104,12 +106,12 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     paths = body["paths"]
     tag_descriptions = {tag["name"]: tag.get("description") for tag in body["tags"]}
     tags = [tag["name"] for tag in body["tags"]]
-    assert "sync_at" not in schemas["ApplicationCreate"]["properties"]
-    assert "sync_scheduled_at" not in schemas["ApplicationCreate"]["properties"]
-    assert "sync_error" not in schemas["ApplicationCreate"]["properties"]
     assert "name" not in schemas["PlatformUpdate"]["properties"]
+    assert "ApplicationCreate" not in schemas
     assert "ApplicationUpdate" not in schemas
     assert {"sync_at", "sync_scheduled_at", "sync_error"} <= set(schemas["ApplicationRead"]["properties"])
+    assert "application" in schemas["MachineRead"]["properties"]
+    assert "application_id" not in schemas["MachineRead"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerCreate"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerUpdate"]["properties"]
     assert "enabled" not in schemas["DynatraceProvisionerCreate"]["properties"]
@@ -142,7 +144,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/provisioners/{provisioner_id}/enable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/disable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/run" in paths
-    assert "/v1/applications/sync-due" in paths
+    assert "/v1/applications/sync" in paths
     assert "/v1/worker/tasks" in paths
     assert "Health" not in tags
     assert tags == list(EXPECTED_OPENAPI_TAG_DESCRIPTIONS)
@@ -166,13 +168,16 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/provisioners/{provisioner_id}/enable"]["post"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["Machine Provisioners"]
-    assert paths["/v1/applications/sync-due"]["post"]["tags"] == ["Applications"]
-    sync_due_responses = paths["/v1/applications/sync-due"]["post"]["responses"]
-    assert "202" in sync_due_responses
+    assert paths["/v1/applications/sync"]["post"]["tags"] == ["Applications"]
+    assert {param["name"] for param in paths["/v1/applications/sync"]["post"]["parameters"]} == {"type"}
+    sync_responses = paths["/v1/applications/sync"]["post"]["responses"]
+    assert "202" in sync_responses
     assert (
-        sync_due_responses["202"]["content"]["application/json"]["schema"]["$ref"].rpartition("/")[2]
+        sync_responses["202"]["content"]["application/json"]["schema"]["$ref"].rpartition("/")[2]
         == "TaskEnqueueResponse"
     )
+    assert "post" not in paths["/v1/applications"]
+    assert "delete" not in paths["/v1/applications/{application_id}"]
     assert "patch" not in paths["/v1/applications/{application_id}"]
     for path in [
         "/v1/platforms",
@@ -246,13 +251,6 @@ def test_platform_patch_cannot_update_name(client: TestClient) -> None:
 def test_named_fields_reject_blank_strings(client: TestClient) -> None:
     """Business identifiers should reject blank or whitespace-only strings."""
     assert client.post("/v1/platforms", json={"name": "   "}).status_code == 422
-    assert (
-        client.post(
-            "/v1/applications",
-            json={"name": "billing", "environment": "   ", "region": "eu-west-1"},
-        ).status_code
-        == 422
-    )
 
     platform = client.post("/v1/platforms", json={"name": "Validation Platform"}).json()
     assert (
@@ -277,30 +275,16 @@ def test_named_fields_reject_blank_strings(client: TestClient) -> None:
     )
 
 
-def test_application_write_payloads_cannot_spoof_sync_state(client: TestClient) -> None:
-    """Scheduler-owned sync fields should stay outside the public write surface."""
+def test_application_routes_are_read_only_and_sync_type_is_validated(client: TestClient) -> None:
+    """Application writes should stay disabled while manual sync accepts only known types."""
     create_response = client.post(
         "/v1/applications",
-        json={
-            "name": "billing",
-            "environment": "prod",
-            "region": "eu-west-1",
-            "sync_at": "2027-01-01T00:00:00Z",
-            "sync_error": "spoofed",
-        },
+        json={"name": "billing", "environment": "prod", "region": "eu-west-1"},
     )
-    assert create_response.status_code == 422
+    assert create_response.status_code == 405
 
-    application = client.post(
-        "/v1/applications",
-        json={"name": "catalog", "environment": "prod", "region": "eu-west-1"},
-    ).json()
-
-    update_response = client.patch(
-        f"/v1/applications/{application['id']}",
-        json={"sync_scheduled_at": "2027-01-01T00:00:00Z"},
-    )
-    assert update_response.status_code == 405
+    invalid_sync_response = client.post("/v1/applications/sync", params={"type": "invalid"})
+    assert invalid_sync_response.status_code == 422
 
 
 def test_typed_integration_routes_require_existing_platforms(client: TestClient) -> None:
@@ -819,29 +803,29 @@ def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: Tes
     assert detached_provider["provisioner_ids"] == []
 
 
-def test_application_lifecycle_and_machine_application_id(client: TestClient, db_session: Session) -> None:
-    """Applications should still be visible on machine reads."""
-    application = client.post(
-        "/v1/applications",
-        json={"name": "billing", "environment": "prod", "region": "eu-west-1"},
-    ).json()
+def test_application_projection_and_machine_application_field(client: TestClient, db_session: Session) -> None:
+    """Applications should be discoverable from machine-owned application codes."""
     platform = client.post("/v1/platforms", json={"name": "Application platform"}).json()
 
     machine = _persist_machine(
         db_session,
         platform_id=platform["id"],
-        application_id=application["id"],
+        application="billing",
+        environment="PROD",
+        region="EU-WEST-1",
         hostname="billing-01",
     )
+    rebuild_applications_from_machines(db_session)
+
     fetched_machine = client.get(f"/v1/machines/{machine.id}")
     assert fetched_machine.status_code == 200
-    assert fetched_machine.json()["application_id"] == application["id"]
+    assert fetched_machine.json()["application"] == "BILLING"
 
     listed = client.get("/v1/applications", params={"environment": "prod", "region": "eu-west-1"}).json()
     assert listed["total"] == 1
-    assert listed["items"][0]["name"] == "billing"
+    assert listed["items"][0]["name"] == "BILLING"
 
-    fetched = client.get(f"/v1/applications/{application['id']}").json()
+    fetched = client.get(f"/v1/applications/{listed['items'][0]['id']}").json()
     assert fetched["region"] == "eu-west-1"
 
 
@@ -859,10 +843,6 @@ def test_machine_write_endpoints_are_disabled(client: TestClient, db_session: Se
 
 def test_machine_list_filters_are_paginated(client: TestClient, db_session: Session) -> None:
     """Machine list filters should keep working with the shared paginated envelope."""
-    application = client.post(
-        "/v1/applications",
-        json={"name": "checkout", "environment": "prod", "region": "eu-west-1"},
-    ).json()
     platform = client.post("/v1/platforms", json={"name": "Machine Filter Platform"}).json()
     other_platform = client.post("/v1/platforms", json={"name": "Other Machine Platform"}).json()
 
@@ -889,7 +869,7 @@ def test_machine_list_filters_are_paginated(client: TestClient, db_session: Sess
         [
             Machine(
                 platform_id=platform["id"],
-                application_id=application["id"],
+                application="checkout",
                 source_provisioner_id=provisioner["id"],
                 hostname="checkout-02",
                 environment="prod",
@@ -897,7 +877,7 @@ def test_machine_list_filters_are_paginated(client: TestClient, db_session: Sess
             ),
             Machine(
                 platform_id=platform["id"],
-                application_id=application["id"],
+                application="CHECKOUT",
                 source_provisioner_id=provisioner["id"],
                 hostname="checkout-01",
                 environment="prod",
@@ -918,7 +898,7 @@ def test_machine_list_filters_are_paginated(client: TestClient, db_session: Sess
         "/v1/machines",
         params={
             "platform_id": platform["id"],
-            "application_id": application["id"],
+            "application": "checkout",
             "source_provisioner_id": provisioner["id"],
             "environment": "prod",
             "region": "eu-west-1",
@@ -934,7 +914,7 @@ def test_machine_list_filters_are_paginated(client: TestClient, db_session: Sess
         "/v1/machines",
         params={
             "platform_id": platform["id"],
-            "application_id": application["id"],
+            "application": "CHECKOUT",
             "source_provisioner_id": provisioner["id"],
             "environment": "prod",
             "region": "eu-west-1",

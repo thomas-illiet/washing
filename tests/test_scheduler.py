@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from internal.infra.db.base import utcnow
 from internal.infra.db.models import Application, MachineProvisioner, Platform
-from internal.usecases.applications import dispatch_due_application_syncs
+from internal.usecases.applications import dispatch_due_application_metrics_syncs
 from internal.usecases.scheduler import dispatch_due_jobs
 
 
@@ -61,8 +61,8 @@ def test_dispatch_due_jobs_skips_disabled_provisioners_by_default(db_session: Se
     assert enqueued_provisioners == []
 
 
-def test_application_sync_dispatch_spreads_due_rows(db_session: Session) -> None:
-    """Application dispatch should spread work across ticks."""
+def test_application_metrics_sync_dispatch_spreads_due_rows(db_session: Session) -> None:
+    """Metrics sync dispatch should spread work across ticks."""
     db_session.add_all(
         [
             Application(name="app-a", environment="prod", region="eu"),
@@ -73,7 +73,7 @@ def test_application_sync_dispatch_spreads_due_rows(db_session: Session) -> None
     db_session.commit()
 
     enqueued: list[int] = []
-    result = dispatch_due_application_syncs(
+    result = dispatch_due_application_metrics_syncs(
         db_session,
         enqueue_application=lambda application_id: enqueued.append(application_id) or "task-application",
         window_days=5,

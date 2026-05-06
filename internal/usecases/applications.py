@@ -7,11 +7,15 @@ from typing import Callable
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from internal.domain import coalesce_dimension, normalize_application_code
 from internal.infra.db.base import utcnow
-from internal.infra.db.models import Application
+from internal.infra.db.models import Application, Machine
 
 
-def calculate_application_sync_batch_size(
+APPLICATION_METRICS_NOT_IMPLEMENTED = "application metrics sync not implemented"
+
+
+def calculate_application_metrics_sync_batch_size(
     total_applications: int,
     window_days: int,
     tick_seconds: int,
@@ -28,7 +32,51 @@ def calculate_application_sync_batch_size(
     return max(1, ceil(total_applications / ticks_per_window))
 
 
-def dispatch_due_application_syncs(
+def rebuild_applications_from_machines(db: Session) -> dict[str, int]:
+    """Rebuild the applications projection from the current machine snapshot."""
+    grouped_rows = (
+        db.query(Machine.application, Machine.environment, Machine.region)
+        .filter(Machine.application.is_not(None))
+        .group_by(Machine.application, Machine.environment, Machine.region)
+        .all()
+    )
+    snapshot = {
+        (
+            normalize_application_code(application),
+            coalesce_dimension(environment),
+            coalesce_dimension(region),
+        )
+        for application, environment, region in grouped_rows
+        if normalize_application_code(application) is not None
+    }
+    snapshot.discard((None, "unknown", "unknown"))
+
+    existing = db.query(Application).all()
+    existing_by_key = {(item.name, item.environment, item.region): item for item in existing}
+
+    created = 0
+    for name, environment, region in sorted(snapshot):
+        if (name, environment, region) in existing_by_key:
+            continue
+        db.add(Application(name=name, environment=environment, region=region))
+        created += 1
+
+    deleted = 0
+    for key, application in existing_by_key.items():
+        if key in snapshot:
+            continue
+        db.delete(application)
+        deleted += 1
+
+    db.commit()
+    return {
+        "created": created,
+        "deleted": deleted,
+        "total": len(snapshot),
+    }
+
+
+def dispatch_due_application_metrics_syncs(
     db: Session,
     enqueue_application: Callable[[int], str],
     now: datetime | None = None,
@@ -40,7 +88,7 @@ def dispatch_due_application_syncs(
     """Enqueue the next batch of due application sync jobs."""
     now = now or utcnow()
     total_applications = db.query(func.count(Application.id)).scalar() or 0
-    batch_size = calculate_application_sync_batch_size(
+    batch_size = calculate_application_metrics_sync_batch_size(
         total_applications=total_applications,
         window_days=window_days,
         tick_seconds=tick_seconds,
@@ -70,26 +118,24 @@ def dispatch_due_application_syncs(
     return {"applications": application_ids, "batch_size": batch_size}
 
 
-def run_application_sync(db: Session, application_id: int) -> dict[str, int]:
-    """Mark one application as successfully synchronized."""
+def run_application_metrics_sync(db: Session, application_id: int) -> dict[str, int | str]:
+    """Persist the placeholder metrics-sync outcome for one application."""
     application = db.get(Application, application_id)
     if application is None:
         raise ValueError(f"application {application_id} not found")
 
-    now = utcnow()
     try:
-        application.sync_at = now
         application.sync_scheduled_at = None
-        application.sync_error = None
+        application.sync_error = APPLICATION_METRICS_NOT_IMPLEMENTED
         application.extra = {
             **(application.extra or {}),
-            "last_sync": {
-                "status": "success",
-                "synced_at": now.isoformat(),
+            "last_metrics_sync": {
+                "status": "not_implemented",
+                "updated_at": utcnow().isoformat(),
             },
         }
         db.commit()
-        return {"synced": 1}
+        return {"synced": 0, "status": "not_implemented"}
     except Exception as exc:
         db.rollback()
         application = db.get(Application, application_id)

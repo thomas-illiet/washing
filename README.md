@@ -108,8 +108,7 @@ Useful endpoints:
 - Management: `/v1/platforms`, `/v1/applications`, `GET /v1/machines`, `GET/DELETE /v1/machines/{id}`, `/v1/machines/providers`, `/v1/machines/provisioners`
 - Association: `POST /v1/machines/providers/{provider_id}/provisioners/{provisioner_id}`
 - Activation: `POST /v1/machines/providers/{id}/enable|disable`, `POST /v1/machines/provisioners/{id}/enable|disable`
-- Manual jobs: `POST /v1/machines/provisioners/{id}/run`, `POST /v1/applications/{id}/sync`
-- Application sync: `POST /v1/applications/sync-due` to asynchronously trigger the dispatcher
+- Manual jobs: `POST /v1/machines/provisioners/{id}/run`, `POST /v1/applications/sync?type=inventory_discovery|metrics`
 - Business metrics: `GET /v1/machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /v1/machines/metrics?type=cpu|ram|disk`
 - Prometheus: `GET /metrics`
 
@@ -197,19 +196,25 @@ The `GET /v1/machines/{machine_id}/metrics` and `GET /v1/machines/metrics` endpo
 
 ## Applications
 
-The `applications` table contains one row per application, environment, and region. Machines can reference this table through `application_id`.
+The `applications` table is now a projection derived from `machines`, with one row per application code, environment, and region.
+Machines store the business code directly in `application`, normalized in uppercase.
 
-Each application must be synchronized at least once every 5 days. Celery Beat triggers a dedicated dispatcher that selects only a small batch of due applications on each tick, spreading the load instead of synchronizing everything at once.
-The `POST /v1/applications/sync-due` endpoint enqueues that dispatcher in Celery; the API no longer performs the dispatch directly in its own process.
+Two independent sync pipelines exist:
 
-Applications do not expose a public HTTP `PATCH` route. Application data changes must go through synchronization tasks.
+- `inventory_discovery`: rebuilds the `applications` projection from grouped machine rows.
+- `metrics`: dispatches applications whose metrics sync is missing or too old.
+
+The manual entrypoint is `POST /v1/applications/sync?type=inventory_discovery|metrics`.
+
+Applications are exposed as read-only HTTP resources. The public API does not expose `POST`, `PATCH`, or `DELETE` on `/v1/applications`.
 
 Useful variables:
 
-- `APPLICATION_SYNC_TICK_SECONDS`: frequency of the application sync dispatcher.
-- `APPLICATION_SYNC_WINDOW_DAYS`: maximum window between synchronizations, default `5` days.
-- `APPLICATION_SYNC_BATCH_SIZE`: if `0`, the batch size is computed automatically to spread all applications across the window.
-- `APPLICATION_SYNC_RETRY_AFTER_SECONDS`: delay before rescheduling a row that was already queued but not yet synchronized.
+- `APPLICATION_INVENTORY_SYNC_TICK_SECONDS`: frequency of the projection rebuild.
+- `APPLICATION_METRICS_SYNC_TICK_SECONDS`: frequency of the metrics-sync dispatcher.
+- `APPLICATION_METRICS_SYNC_WINDOW_DAYS`: maximum window between metrics syncs, default `5` days.
+- `APPLICATION_METRICS_SYNC_BATCH_SIZE`: if `0`, the batch size is computed automatically to spread all applications across the window.
+- `APPLICATION_METRICS_SYNC_RETRY_AFTER_SECONDS`: delay before rescheduling an application already queued for metrics sync.
 
 ## MVP Connectors
 
@@ -231,7 +236,7 @@ Example internal `mock_inventory` config:
     {
       "external_id": "vm-1",
       "hostname": "vm-1",
-      "application_name": "billing",
+      "application": "billing",
       "region": "eu-west-1",
       "environment": "dev",
       "cpu": 2,

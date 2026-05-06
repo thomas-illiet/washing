@@ -12,8 +12,7 @@ class MachineRecord:
     """Normalized inventory payload returned by provisioner connectors."""
     external_id: str | None
     hostname: str
-    application_id: int | None = None
-    application_name: str | None = None
+    application: str | None = None
     region: str | None = None
     environment: str | None = None
     cpu: float | None = None

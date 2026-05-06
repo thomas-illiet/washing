@@ -10,14 +10,20 @@ class MockInventoryProvisioner:
         """Return mock inventory records from config or a deterministic fallback."""
         configured = provisioner.config.get("machines")
         if configured:
-            return [MachineRecord(**machine) for machine in configured]
+            records: list[MachineRecord] = []
+            for machine in configured:
+                payload = dict(machine)
+                if "application" not in payload and "application_name" in payload:
+                    payload["application"] = payload.pop("application_name")
+                records.append(MachineRecord(**payload))
+            return records
 
         prefix = provisioner.config.get("hostname_prefix", f"platform-{provisioner.platform_id}")
         return [
             MachineRecord(
                 external_id=f"{provisioner.id}-vm-1",
                 hostname=f"{prefix}-vm-1",
-                application_name=provisioner.config.get("application_name"),
+                application=provisioner.config.get("application") or provisioner.config.get("application_name"),
                 region=provisioner.config.get("region", "eu-west-1"),
                 environment=provisioner.config.get("environment", "dev"),
                 cpu=float(provisioner.config.get("cpu", 2)),

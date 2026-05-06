@@ -10,6 +10,7 @@ from internal.domain.cron import validate_cron_expression
 
 Scope = Literal["cpu", "ram", "disk"]
 TaskExecutionStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE", "RETRY", "REVOKED"]
+ApplicationSyncType = Literal["inventory_discovery", "metrics"]
 ResourceT = TypeVar("ResourceT")
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -50,17 +51,13 @@ class PlatformRead(PlatformCreate):
     updated_at: datetime
 
 
-class ApplicationCreate(ApiModel):
-    """Payload used to create an application."""
+class ApplicationRead(ApiModel):
+    """Public representation of an application."""
+    id: int
     name: NonEmptyStr
     environment: NonEmptyStr
     region: NonEmptyStr
     extra: dict[str, Any] = Field(default_factory=dict)
-
-
-class ApplicationRead(ApplicationCreate):
-    """Public representation of an application."""
-    id: int
     sync_at: datetime | None = None
     sync_scheduled_at: datetime | None = None
     sync_error: str | None = None
@@ -190,7 +187,7 @@ class DynatraceProviderRead(ProviderRead):
 class MachineCreate(ApiModel):
     """Payload used to create a machine."""
     platform_id: int
-    application_id: int | None = None
+    application: NonEmptyStr | None = None
     source_provisioner_id: int | None = None
     external_id: str | None = None
     hostname: NonEmptyStr
@@ -205,7 +202,7 @@ class MachineCreate(ApiModel):
 class MachineUpdate(ApiModel):
     """Patch payload for a machine."""
     platform_id: int | None = None
-    application_id: int | None = None
+    application: NonEmptyStr | None = None
     source_provisioner_id: int | None = None
     external_id: str | None = None
     hostname: NonEmptyStr | None = None

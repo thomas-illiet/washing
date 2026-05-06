@@ -13,7 +13,11 @@ from internal.infra.db.models import (
     MachineProvisioner,
     Platform,
 )
-from internal.usecases.applications import run_application_sync
+from internal.usecases.applications import (
+    APPLICATION_METRICS_NOT_IMPLEMENTED,
+    rebuild_applications_from_machines,
+    run_application_metrics_sync,
+)
 from internal.usecases.inventory import run_provisioner_inventory
 from internal.usecases.metrics import run_provider_collection
 
@@ -31,7 +35,7 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
                 {
                     "external_id": "vm-1",
                     "hostname": "vm-1",
-                    "application_name": "checkout",
+                    "application": "checkout",
                     "cpu": 2,
                     "ram_gb": 8,
                     "disk_gb": 80,
@@ -50,7 +54,7 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
             {
                 "external_id": "vm-1",
                 "hostname": "vm-1",
-                "application_name": "checkout",
+                "application": "checkout",
                 "cpu": 4,
                 "ram_gb": 16,
                 "disk_gb": 120,
@@ -64,13 +68,60 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
 
     machine = db_session.query(Machine).filter(Machine.hostname == "vm-1").one()
     assert machine.cpu == 4
-    assert machine.application_id is not None
-    assert db_session.query(Application).filter(Application.name == "checkout").count() == 1
+    assert machine.application == "CHECKOUT"
+    assert db_session.query(Application).count() == 0
     assert db_session.query(MachineFlavorHistory).count() == 1
     history = db_session.query(MachineFlavorHistory).one()
     assert history.cpu == 4
     assert history.ram_mb == 16 * 1024
     assert history.disk_mb == 120 * 1024
+
+
+def test_inventory_discovery_rebuild_groups_machine_applications_and_prunes_orphans(db_session: Session) -> None:
+    """The application projection should be rebuilt from machine groups only."""
+    platform = Platform(name="Projection Platform")
+    orphan = Application(name="ORPHAN", environment="prod", region="eu-west-1")
+    db_session.add_all(
+        [
+            platform,
+            orphan,
+            Machine(
+                platform=platform,
+                hostname="billing-01",
+                application="billing",
+                environment="PROD",
+                region="EU-WEST-1",
+            ),
+            Machine(
+                platform=platform,
+                hostname="billing-02",
+                application="BILLING",
+                environment="prod",
+                region="eu-west-1",
+            ),
+            Machine(
+                platform=platform,
+                hostname="catalog-01",
+                application=" catalog ",
+                environment="Staging",
+                region="EU-CENTRAL-1",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    result = rebuild_applications_from_machines(db_session)
+
+    applications = (
+        db_session.query(Application)
+        .order_by(Application.name.asc(), Application.environment.asc(), Application.region.asc())
+        .all()
+    )
+    assert result == {"created": 2, "deleted": 1, "total": 2}
+    assert [(item.name, item.environment, item.region) for item in applications] == [
+        ("BILLING", "prod", "eu-west-1"),
+        ("CATALOG", "staging", "eu-central-1"),
+    ]
 
 
 def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
@@ -220,16 +271,17 @@ def test_config_is_encrypted_at_rest(db_session: Session) -> None:
     assert db_session.get(MachineProvider, provider.id).config["token"] == "provider-secret"
 
 
-def test_application_sync_marks_success(db_session: Session) -> None:
-    """Application sync should record a success payload and timestamps."""
+def test_application_metrics_sync_marks_not_implemented(db_session: Session) -> None:
+    """Application metrics sync should record its controlled placeholder failure."""
     application = Application(name="catalog", environment="staging", region="eu")
+    application.sync_scheduled_at = application.created_at if application.created_at else None
     db_session.add(application)
     db_session.commit()
 
-    result = run_application_sync(db_session, application.id)
+    result = run_application_metrics_sync(db_session, application.id)
 
     db_session.refresh(application)
-    assert result == {"synced": 1}
-    assert application.sync_at is not None
+    assert result == {"synced": 0, "status": "not_implemented"}
+    assert application.sync_at is None
     assert application.sync_scheduled_at is None
-    assert application.sync_error is None
+    assert application.sync_error == APPLICATION_METRICS_NOT_IMPLEMENTED

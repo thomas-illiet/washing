@@ -5,6 +5,7 @@ from datetime import date as date_value, datetime
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
+from internal.domain import coalesce_dimension, normalize_application_code, normalize_dimension
 from internal.infra.db.base import Base, EncryptedJSONType, JSONType, JsonDict, TimestampMixin, utcnow
 
 
@@ -41,7 +42,15 @@ class Application(TimestampMixin, Base):
     sync_error: Mapped[str | None] = mapped_column(Text)
     extra: Mapped[JsonDict] = mapped_column(JSONType, default=dict, nullable=False)
 
-    machines: Mapped[list["Machine"]] = relationship(back_populates="application")
+    @validates("name")
+    def validate_name(self, _key: str, value: str) -> str:
+        """Persist application codes in canonical uppercase form."""
+        return normalize_application_code(value) or value
+
+    @validates("environment", "region")
+    def validate_dimension(self, key: str, value: str) -> str:
+        """Persist application grouping dimensions in canonical lowercase form."""
+        return coalesce_dimension(value)
 
 
 class CeleryTaskExecution(Base):
@@ -178,7 +187,7 @@ class Machine(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     platform_id: Mapped[int] = mapped_column(ForeignKey("platforms.id", ondelete="CASCADE"), nullable=False)
-    application_id: Mapped[int | None] = mapped_column(ForeignKey("applications.id", ondelete="SET NULL"), index=True)
+    application: Mapped[str | None] = mapped_column(String(255), index=True)
     source_provisioner_id: Mapped[int | None] = mapped_column(ForeignKey("machine_provisioners.id", ondelete="SET NULL"))
     external_id: Mapped[str | None] = mapped_column(String(255), index=True)
     hostname: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
@@ -190,12 +199,21 @@ class Machine(TimestampMixin, Base):
     extra: Mapped[JsonDict] = mapped_column(JSONType, default=dict, nullable=False)
 
     platform: Mapped["Platform"] = relationship(back_populates="machines")
-    application: Mapped["Application | None"] = relationship(back_populates="machines")
     source_provisioner: Mapped["MachineProvisioner | None"] = relationship(back_populates="machines")
     flavor_history: Mapped[list["MachineFlavorHistory"]] = relationship(
         back_populates="machine",
         cascade="all, delete-orphan",
     )
+
+    @validates("application")
+    def validate_application(self, _key: str, value: str | None) -> str | None:
+        """Persist machine application codes in canonical uppercase form."""
+        return normalize_application_code(value)
+
+    @validates("environment", "region")
+    def validate_machine_dimension(self, key: str, value: str | None) -> str | None:
+        """Persist machine grouping dimensions in canonical lowercase form."""
+        return normalize_dimension(value)
 
 
 class MachineFlavorHistory(Base):

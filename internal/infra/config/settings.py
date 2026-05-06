@@ -14,10 +14,11 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://redis:6379/0"
     celery_result_backend: str = "redis://redis:6379/1"
     scheduler_tick_seconds: int = 60
-    application_sync_tick_seconds: int = 3600
-    application_sync_window_days: int = 5
-    application_sync_batch_size: int = 0
-    application_sync_retry_after_seconds: int = 3600
+    application_inventory_sync_tick_seconds: int = 3600
+    application_metrics_sync_tick_seconds: int = 3600
+    application_metrics_sync_window_days: int = 5
+    application_metrics_sync_batch_size: int = 0
+    application_metrics_sync_retry_after_seconds: int = 3600
     prometheus_api_enabled: bool = True
     prometheus_api_path: str = "/metrics"
     celery_prometheus_enabled: bool = True
