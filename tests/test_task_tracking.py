@@ -11,7 +11,11 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from internal.infra.db.models import Application, CeleryTaskExecution, MachineProvisioner, Platform
 from internal.infra.queue import task_tracking
-from internal.infra.queue.task_names import RUN_PROVISIONER_TASK, SYNC_APPLICATION_TASK
+from internal.infra.queue.task_names import (
+    DISPATCH_DUE_APPLICATION_SYNCS_TASK,
+    RUN_PROVISIONER_TASK,
+    SYNC_APPLICATION_TASK,
+)
 
 
 class FakeTask:
@@ -256,7 +260,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     db_session.add_all([application, provisioner])
     db_session.commit()
 
-    task_ids = iter(["manual-application-sync", "manual-provisioner-run"])
+    task_ids = iter(["manual-application-sync", "manual-provisioner-run", "manual-sync-due-dispatch"])
 
     def fake_send_task(
         task_name: str,
@@ -274,11 +278,14 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
 
     application_response = client.post(f"/v1/applications/{application.id}/sync")
     provisioner_response = client.post(f"/v1/machines/provisioners/{provisioner.id}/run")
+    sync_due_response = client.post("/v1/applications/sync-due")
 
     assert application_response.status_code == 202
     assert application_response.json() == {"task_id": "manual-application-sync"}
     assert provisioner_response.status_code == 202
     assert provisioner_response.json() == {"task_id": "manual-provisioner-run"}
+    assert sync_due_response.status_code == 202
+    assert sync_due_response.json() == {"task_id": "manual-sync-due-dispatch"}
 
     db_session.expire_all()
     rows = (
@@ -289,4 +296,5 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     assert [(row.task_id, row.task_name, row.status, row.resource_type, row.resource_id) for row in rows] == [
         ("manual-application-sync", SYNC_APPLICATION_TASK, "PENDING", "application", application.id),
         ("manual-provisioner-run", RUN_PROVISIONER_TASK, "PENDING", "provisioner", provisioner.id),
+        ("manual-sync-due-dispatch", DISPATCH_DUE_APPLICATION_SYNCS_TASK, "PENDING", None, None),
     ]

@@ -93,8 +93,8 @@ Le code est désormais séparé par runtime, dans un style proche des projets Go
 
 - `app/` ne contient que les applications exécutables.
 - `app/api` : point d'entrée FastAPI, dépendances HTTP et routes.
-- `app/worker` : runtime Celery worker et tâches d'exécution.
-- `app/beat` : runtime Celery Beat et tâches de dispatch planifiées.
+- `app/worker` : runtime Celery worker et toutes les tâches exécutables, rangées dans `app/worker/tasks/{scheduler,applications,inventory,metrics}`.
+- `app/beat` : runtime Celery Beat et définitions de planning uniquement, sans implémentation de tâches.
 - `internal/usecases` : logique métier mutualisée entre API, beat et workers.
 - `internal/domain` : emplacement réservé aux règles métier pures quand elles doivent être isolées.
 - `internal/infra` : config, base de données, broker Celery, connecteurs, observabilité.
@@ -109,7 +109,7 @@ Endpoints utiles :
 - Association : `POST /v1/machines/providers/{provider_id}/provisioners/{provisioner_id}`
 - Activation : `POST /v1/machines/providers/{id}/enable|disable`, `POST /v1/machines/provisioners/{id}/enable|disable`
 - Jobs manuels : `POST /v1/machines/provisioners/{id}/run`, `POST /v1/applications/{id}/sync`
-- Sync applications : `POST /v1/applications/sync-due`
+- Sync applications : `POST /v1/applications/sync-due` pour déclencher asynchronement le dispatcher
 - Métriques métier : `GET /v1/machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /v1/machines/metrics?type=cpu|ram|disk`
 - Prometheus : `GET /metrics`
 
@@ -200,6 +200,7 @@ Les endpoints `GET /v1/machines/{machine_id}/metrics` et `GET /v1/machines/metri
 La table `applications` contient une ligne par application, environnement et région. Les machines peuvent référencer cette table via `application_id`.
 
 Chaque application doit être synchronisée au moins une fois tous les 5 jours. Celery Beat déclenche un dispatcher dédié qui sélectionne seulement un petit lot d'applications dues à chaque tick, afin d'étaler la charge au lieu de tout synchroniser en une fois.
+Le endpoint `POST /v1/applications/sync-due` enfile ce dispatcher dans Celery ; l'API ne fait plus le dispatch directement dans son propre process.
 
 Les applications ne disposent pas de route HTTP `PATCH` publique. Les changements de données applicatives doivent passer par les tâches de synchronisation.
 

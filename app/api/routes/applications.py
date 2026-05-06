@@ -11,11 +11,9 @@ from internal.contracts.http.resources import (
     PaginatedResponse,
     TaskEnqueueResponse,
 )
-from internal.infra.config.settings import get_settings
 from internal.infra.db.models import Application
 from internal.infra.queue.enqueue import enqueue_celery_task
-from internal.infra.queue.task_names import SYNC_APPLICATION_TASK
-from internal.usecases.applications import dispatch_due_application_syncs
+from internal.infra.queue.task_names import DISPATCH_DUE_APPLICATION_SYNCS_TASK, SYNC_APPLICATION_TASK
 
 
 router = APIRouter(prefix="/applications", tags=["Applications"])
@@ -58,18 +56,11 @@ def list_applications(
     )
 
 
-@router.post("/sync-due")
-def enqueue_due_application_syncs(db: Session = Depends(get_db)) -> dict[str, list[int] | int]:
-    """Dispatch the next batch of due application sync jobs."""
-    settings = get_settings()
-    return dispatch_due_application_syncs(
-        db,
-        enqueue_application=lambda application_id: enqueue_celery_task(SYNC_APPLICATION_TASK, args=[application_id]).id,
-        window_days=settings.application_sync_window_days,
-        tick_seconds=settings.application_sync_tick_seconds,
-        configured_batch_size=settings.application_sync_batch_size,
-        retry_after_seconds=settings.application_sync_retry_after_seconds,
-    )
+@router.post("/sync-due", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+def enqueue_due_application_syncs() -> TaskEnqueueResponse:
+    """Enqueue the dispatcher that schedules the next due application sync batch."""
+    task = enqueue_celery_task(DISPATCH_DUE_APPLICATION_SYNCS_TASK)
+    return TaskEnqueueResponse(task_id=task.id)
 
 
 @router.get("/{application_id}", response_model=ApplicationRead)

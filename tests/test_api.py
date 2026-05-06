@@ -142,6 +142,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/provisioners/{provisioner_id}/enable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/disable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/run" in paths
+    assert "/v1/applications/sync-due" in paths
     assert "/v1/worker/tasks" in paths
     assert "Health" not in tags
     assert tags == list(EXPECTED_OPENAPI_TAG_DESCRIPTIONS)
@@ -165,6 +166,13 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/provisioners/{provisioner_id}/enable"]["post"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["Machine Provisioners"]
+    assert paths["/v1/applications/sync-due"]["post"]["tags"] == ["Applications"]
+    sync_due_responses = paths["/v1/applications/sync-due"]["post"]["responses"]
+    assert "202" in sync_due_responses
+    assert (
+        sync_due_responses["202"]["content"]["application/json"]["schema"]["$ref"].rpartition("/")[2]
+        == "TaskEnqueueResponse"
+    )
     assert "patch" not in paths["/v1/applications/{application_id}"]
     for path in [
         "/v1/platforms",
