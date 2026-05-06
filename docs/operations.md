@@ -119,6 +119,41 @@ Use cases:
 - rebuild application projection: trigger `POST /v1/applications/sync?type=inventory_discovery`
 - do not treat `applications` as the source of truth for inventory
 
+### Task history retention
+
+Tracked Celery executions are cleaned up automatically once per day by Beat.
+
+Behavior:
+
+- the cleanup task deletes rows in `celery_task_executions` older than the retention window
+- the default retention is `90` days
+- the retention is configurable through `CELERY_TASK_EXECUTION_RETENTION_DAYS`
+
+If you need a longer audit trail, increase the retention before the next daily cleanup runs.
+
+### Stale machine retention
+
+Machine inventory rows are cleaned up automatically once per day by Beat.
+
+Behavior:
+
+- the cleanup task deletes rows in `machines` whose `updated_at` is older than the retention window
+- the default retention is `15` days
+- the retention is configurable through `MACHINE_RETENTION_DAYS`
+- child machine rows such as flavor history and metric samples follow the delete through database cascades
+- the task does not clean or rebuild `applications`
+
+### Stale application retention
+
+Application projection rows are cleaned up automatically once per day by Beat.
+
+Behavior:
+
+- the cleanup task deletes rows in `applications` whose `updated_at` is older than the retention window
+- the default retention is `15` days
+- the retention is configurable through `APPLICATION_RETENTION_DAYS`
+- the task only touches `applications`
+
 ## Troubleshooting guide
 
 | Symptom | Likely cause | Where to look |
@@ -126,6 +161,7 @@ Use cases:
 | `401` on Swagger API calls | missing login, invalid token, wrong issuer | API logs, OIDC settings, Keycloak login |
 | `403` on POST/PATCH/DELETE | caller has only the read role | token role claims, `OIDC_ADMIN_ROLE_NAME` |
 | Tasks stay `PENDING` | worker not running or broker issue | Flower, Redis, worker logs, `GET /v1/worker/tasks` |
+| Old task history disappears | daily retention cleanup ran as expected | `CELERY_TASK_EXECUTION_RETENTION_DAYS`, Beat logs |
 | Scheduled syncs do not happen | beat not running or schedule misconfigured | beat logs, scheduler settings, worker queue |
 | Inventory updates but metrics stay empty | provider disabled, no visible providers, or placeholder connector | provider config, `applications.sync_metrics`, worker logs |
 | Connector run returns no data | placeholder connector or empty upstream result | connector type, docs, expected no-op behavior |

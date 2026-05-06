@@ -46,7 +46,6 @@ class Application(TimestampMixin, Base):
     sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     sync_scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     sync_error: Mapped[str | None] = mapped_column(Text)
-    extra: Mapped[JsonDict] = mapped_column(JSONType, default=dict, nullable=False)
 
     @validates("name")
     def validate_name(self, _key: str, value: str) -> str:

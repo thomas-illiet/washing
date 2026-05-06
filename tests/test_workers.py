@@ -828,6 +828,3 @@ def test_application_metrics_sync_dispatches_machine_provider_pairs(db_session: 
     assert application.sync_at is not None
     assert application.sync_scheduled_at is None
     assert application.sync_error is None
-    assert application.extra["last_metrics_sync"]["status"] == "dispatched"
-    assert application.extra["last_metrics_sync"]["machines"] == 2
-    assert application.extra["last_metrics_sync"]["tasks"] == 4

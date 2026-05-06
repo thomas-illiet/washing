@@ -62,6 +62,33 @@ def test_oidc_role_names_are_configurable_and_must_stay_distinct(monkeypatch: py
         OIDCSettings(_env_file=None)
 
 
+def test_task_execution_retention_days_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Retention days should reject zero or negative values."""
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("CELERY_TASK_EXECUTION_RETENTION_DAYS", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_machine_retention_days_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Machine retention days should reject zero or negative values."""
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("MACHINE_RETENTION_DAYS", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_application_retention_days_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Application retention days should reject zero or negative values."""
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("APPLICATION_RETENTION_DAYS", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
 def test_encrypted_payloads_fail_closed_when_ciphertext_is_invalid() -> None:
     """Corrupted ciphertext should never be treated as plaintext JSON."""
     payload = encrypt_json_value({"token": "secret"})

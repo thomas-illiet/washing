@@ -113,6 +113,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "ApplicationCreate" not in schemas
     assert "ApplicationUpdate" not in schemas
     assert {"sync_at", "sync_scheduled_at", "sync_error"} <= set(schemas["ApplicationRead"]["properties"])
+    assert "extra" not in schemas["ApplicationRead"]["properties"]
     assert "application" in schemas["MachineRead"]["properties"]
     assert "application_id" not in schemas["MachineRead"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerCreate"]["properties"]
@@ -1132,9 +1133,11 @@ def test_application_projection_and_machine_application_field(client: TestClient
     listed = client.get("/v1/applications", params={"environment": "prod", "region": "eu-west-1"}).json()
     assert listed["total"] == 1
     assert listed["items"][0]["name"] == "BILLING"
+    assert "extra" not in listed["items"][0]
 
     fetched = client.get(f"/v1/applications/{listed['items'][0]['id']}").json()
     assert fetched["region"] == "EU-WEST-1"
+    assert "extra" not in fetched
 
 
 def test_machine_write_endpoints_are_disabled(client: TestClient, db_session: Session) -> None:

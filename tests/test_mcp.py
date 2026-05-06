@@ -27,7 +27,6 @@ APPLICATION_PAYLOAD = {
             "name": "BILLING",
             "environment": "PROD",
             "region": "EU-WEST-1",
-            "extra": {},
             "sync_at": None,
             "sync_scheduled_at": None,
             "sync_error": None,

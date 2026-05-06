@@ -60,7 +60,6 @@ class ApplicationRead(ApiModel):
     name: NonEmptyStr
     environment: NonEmptyStr
     region: NonEmptyStr
-    extra: dict[str, Any] = Field(default_factory=dict)
     sync_at: datetime | None = None
     sync_scheduled_at: datetime | None = None
     sync_error: str | None = None

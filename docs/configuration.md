@@ -19,6 +19,9 @@ This page documents the main environment variables used by the application and t
 | `INTEGRATION_CONFIG_ENCRYPTION_KEY` | required | API, worker, beat | Fernet key used for encrypted connector config at rest. |
 | `CELERY_BROKER_URL` | `redis://redis:6379/0` | API, worker, beat | Broker for task publication and delivery. |
 | `CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | Worker, Flower | Celery result backend. |
+| `CELERY_TASK_EXECUTION_RETENTION_DAYS` | `90` | Worker maintenance task | Number of days to keep rows in `celery_task_executions`. |
+| `APPLICATION_RETENTION_DAYS` | `15` | Worker maintenance task | Number of days to keep application projection rows since their last `updated_at`. |
+| `MACHINE_RETENTION_DAYS` | `15` | Worker maintenance task | Number of days to keep machine inventory rows since their last `updated_at`. |
 
 ## OIDC and RBAC settings
 

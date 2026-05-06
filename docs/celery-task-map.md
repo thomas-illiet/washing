@@ -22,10 +22,16 @@ flowchart TD
     Beat["Celery Beat\napp/beat/celery.py"] --> SchedProv["schedule: scheduler.dispatch_due_machine_provisioner_jobs"]
     Beat --> SchedInv["schedule: applications.sync_inventory_discovery"]
     Beat --> SchedMet["schedule: applications.dispatch_due_metrics_syncs"]
+    Beat --> SchedCleanup["schedule: maintenance.purge_old_task_executions"]
+    Beat --> SchedMachineCleanup["schedule: maintenance.purge_stale_machines"]
+    Beat --> SchedApplicationCleanup["schedule: maintenance.purge_stale_applications"]
 
     SchedProv --> Enqueue
     SchedInv --> Enqueue
     SchedMet --> Enqueue
+    SchedCleanup --> Enqueue
+    SchedMachineCleanup --> Enqueue
+    SchedApplicationCleanup --> Enqueue
 
     Enqueue["enqueue_celery_task()\ninternal/infra/queue/enqueue.py\ncelery_app.send_task(...)"] --> Broker["Redis / Celery broker"]
     Broker --> Worker["Celery Worker\napp/worker/celery.py"]
@@ -38,6 +44,8 @@ flowchart TD
     Worker --> RunProvider["providers.run(provider_id)"]
     Worker --> RunProviderMachine["providers.run_machine(provider_id, machine_id)"]
     Worker --> SyncMet["applications.sync_metrics(application_id)"]
+    Worker --> CleanupMachines["maintenance.purge_stale_machines()"]
+    Worker --> CleanupApplications["maintenance.purge_stale_applications()"]
 
     DispatchProv -->|"enqueues one task per due provisioner"| Enqueue
     DispatchMet -->|"enqueues one task per due application"| Enqueue
@@ -55,6 +63,9 @@ flowchart TD
 | `applications.sync_inventory_discovery` | `sync_application_inventory_discovery_task` | Beat schedule, `POST /v1/applications/sync?type=inventory_discovery` | Rebuilds the `applications` projection from current machine inventory. |
 | `applications.dispatch_due_metrics_syncs` | `dispatch_due_application_metrics_syncs_task` | Beat schedule, `POST /v1/applications/sync?type=metrics` | Selects due applications, then enqueues `applications.sync_metrics` in batches. |
 | `applications.sync_metrics` | `sync_application_metrics_task` | Application metrics dispatcher only | Resolves the machines/providers for one application batch, then enqueues `providers.run_machine` once per visible pair. |
+| `maintenance.purge_old_task_executions` | `purge_old_task_executions_task` | Beat daily schedule only | Deletes `celery_task_executions` rows older than the configured retention window. |
+| `maintenance.purge_stale_applications` | `purge_stale_applications_task` | Beat daily schedule only | Deletes stale `applications` rows based on `updated_at`, without touching other tables. |
+| `maintenance.purge_stale_machines` | `purge_stale_machines_task` | Beat daily schedule only | Deletes stale `machines` rows based on `updated_at`, without cleaning the `applications` projection. |
 | `providers.dispatch_enabled_syncs` | `dispatch_enabled_provider_syncs_task` | `POST /v1/machines/providers/sync` | Selects enabled providers, then enqueues `providers.run` once per provider. |
 | `providers.run` | `run_provider_task` | Provider dispatcher only | Resolves the provider scope, then enqueues `providers.run_machine` once per visible machine. |
 | `providers.run_machine` | `run_provider_machine_task` | Provider dispatcher only | Collects one machine metric sample for one `provider_id` / `machine_id` pair and upserts the daily metric row. |
@@ -83,5 +94,8 @@ flowchart TD
 
 - All task dispatches pass through `enqueue_celery_task()`, which attaches tracking headers before calling `celery_app.send_task(...)`.
 - `scheduler.dispatch_due_machine_provisioner_jobs`, `applications.dispatch_due_metrics_syncs`, `providers.dispatch_enabled_syncs`, and `providers.run` are dispatcher tasks, not terminal business tasks.
+- `maintenance.purge_old_task_executions` is a housekeeping task that keeps the task history table bounded over time.
+- `maintenance.purge_stale_applications` is a housekeeping task for the `applications` projection only.
+- `maintenance.purge_stale_machines` is a housekeeping task for machine inventory only; `applications` cleanup stays separate.
 - `providers.run_machine` is the terminal execution task for distributed machine metric collection.
 - `applications.sync_metrics` is the application-batch pivot: batching cadence is tracked on `applications`, while execution fan-out happens on `provider/machine` child tasks.

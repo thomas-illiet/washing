@@ -76,6 +76,9 @@ Les mots de passe viennent de `.env`.
 - `APP_ENV=dev` expose les routes mock dans Swagger.
 - Les connecteurs placeholder peuvent être valides et retourner zéro donnée sans erreur.
 - La table `applications` est une projection dérivée de `machines`, pas la source de vérité.
+- L’historique `celery_task_executions` est purgé automatiquement tous les jours selon `CELERY_TASK_EXECUTION_RETENTION_DAYS`.
+- L’inventaire `machines` est purgé automatiquement tous les jours selon `MACHINE_RETENTION_DAYS`.
+- La projection `applications` est purgée séparément tous les jours selon `APPLICATION_RETENTION_DAYS`, sans toucher aux autres tables.
 
 ## Vérifications rapides
 

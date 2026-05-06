@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@db:5432/metrics_collector"
     celery_broker_url: str = "redis://redis:6379/0"
     celery_result_backend: str = "redis://redis:6379/1"
+    celery_task_execution_retention_days: int = 90
+    application_retention_days: int = 15
+    machine_retention_days: int = 15
     scheduler_tick_seconds: int = 60
     application_inventory_sync_tick_seconds: int = 3600
     application_metrics_sync_tick_seconds: int = 3600
@@ -34,6 +37,18 @@ class Settings(BaseSettings):
     def validate_integration_config_encryption_key(cls, value: str) -> str:
         """Fail fast when the configured encryption key is missing or invalid."""
         Fernet(value.encode("utf-8"))
+        return value
+
+    @field_validator(
+        "celery_task_execution_retention_days",
+        "application_retention_days",
+        "machine_retention_days",
+    )
+    @classmethod
+    def validate_positive_retention_days(cls, value: int) -> int:
+        """Require positive retention windows for maintenance cleanup tasks."""
+        if value <= 0:
+            raise ValueError("retention day settings must be greater than 0")
         return value
 
     @property

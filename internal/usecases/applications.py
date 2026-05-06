@@ -200,15 +200,6 @@ def run_application_metrics_sync(
         application.sync_scheduled_at = None
         application.sync_at = now
         application.sync_error = None
-        application.extra = {
-            **(application.extra or {}),
-            "last_metrics_sync": {
-                "status": "dispatched" if pairs else "noop",
-                "updated_at": now.isoformat(),
-                "machines": len(machines),
-                "tasks": len(pairs),
-            },
-        }
         db.commit()
         return {
             "application_id": application.id,

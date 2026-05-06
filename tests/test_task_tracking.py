@@ -14,12 +14,14 @@ from internal.infra.queue import task_tracking
 from internal.infra.queue.task_names import (
     DISPATCH_ENABLED_PROVIDER_SYNCS_TASK,
     DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
+    PURGE_OLD_TASK_EXECUTIONS_TASK,
     RUN_PROVIDER_MACHINE_TASK,
     RUN_PROVISIONER_TASK,
     SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
     SYNC_APPLICATION_METRICS_TASK,
 )
 from internal.infra.security.sanitization import UNEXPECTED_ERROR
+from internal.usecases.maintenance import purge_old_task_executions
 
 
 class FakeTask:
@@ -378,3 +380,34 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
         ),
         ("manual-provisioner-run", RUN_PROVISIONER_TASK, "PENDING", "provisioner", provisioner.id),
     ]
+
+
+def test_purge_old_task_executions_deletes_only_rows_older_than_retention(db_session: Session) -> None:
+    """Maintenance cleanup should delete only rows older than the cutoff."""
+    db_session.add_all(
+        [
+            CeleryTaskExecution(
+                task_id="old-task",
+                task_name=PURGE_OLD_TASK_EXECUTIONS_TASK,
+                status="SUCCESS",
+                queued_at=datetime(2025, 1, 1, 10, 0, tzinfo=timezone.utc),
+            ),
+            CeleryTaskExecution(
+                task_id="fresh-task",
+                task_name=RUN_PROVISIONER_TASK,
+                status="SUCCESS",
+                queued_at=datetime(2026, 5, 1, 10, 0, tzinfo=timezone.utc),
+            ),
+        ]
+    )
+    db_session.commit()
+
+    result = purge_old_task_executions(
+        db_session,
+        retention_days=90,
+        now=datetime(2026, 5, 7, 10, 0, tzinfo=timezone.utc),
+    )
+
+    assert result == {"deleted": 1, "retention_days": 90, "status": "completed"}
+    remaining_ids = [row.task_id for row in db_session.query(CeleryTaskExecution).order_by(CeleryTaskExecution.task_id)]
+    assert remaining_ids == ["fresh-task"]

@@ -1,5 +1,8 @@
 """Canonical Celery task names used across the runtimes."""
 
+PURGE_OLD_TASK_EXECUTIONS_TASK = "maintenance.purge_old_task_executions"
+PURGE_STALE_APPLICATIONS_TASK = "maintenance.purge_stale_applications"
+PURGE_STALE_MACHINES_TASK = "maintenance.purge_stale_machines"
 DISPATCH_ENABLED_PROVIDER_SYNCS_TASK = "providers.dispatch_enabled_syncs"
 RUN_PROVIDER_TASK = "providers.run"
 RUN_PROVIDER_MACHINE_TASK = "providers.run_machine"
