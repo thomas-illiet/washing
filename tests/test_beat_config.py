@@ -1,9 +1,14 @@
 """Tests covering Celery Beat configuration."""
 
 from app.beat.celery import celery_app
-from internal.infra.config.settings import get_settings
+from app.beat.schedule import build_beat_schedule
 
 
-def test_beat_uses_configured_schedule_file() -> None:
-    """Ensure Beat persists its schedule to the configured path."""
-    assert celery_app.conf.beat_schedule_filename == get_settings().celery_beat_schedule_path
+def test_beat_uses_in_memory_scheduler() -> None:
+    """Ensure Beat always uses the in-memory scheduler."""
+    assert celery_app.conf.beat_scheduler == "celery.beat:Scheduler"
+
+
+def test_beat_loads_expected_schedule() -> None:
+    """Ensure Beat keeps using the application schedule builder."""
+    assert celery_app.conf.beat_schedule == build_beat_schedule()

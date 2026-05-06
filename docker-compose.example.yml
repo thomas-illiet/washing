@@ -1,10 +1,26 @@
 services:
+  migrate:
+    build: .
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    env_file: .env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build: .
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
-    command: sh -c "uv run alembic upgrade head && uv run uvicorn app.api.main:app --host 0.0.0.0 --port 8000"
-    volumes:
-      - .:/app
+    command: ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     depends_on:
@@ -15,10 +31,13 @@ services:
 
   worker:
     build: .
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
-    command: uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
-    volumes:
-      - .:/app
+    command: ["celery", "-A", "app.worker.celery.celery_app", "worker", "--loglevel=INFO", "--pool=solo"]
     ports:
       - "9101:9101"
     depends_on:
@@ -29,13 +48,13 @@ services:
 
   beat:
     build: .
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
-    command: uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
-    environment:
-      CELERY_BEAT_SCHEDULE_PATH: /var/run/celery/celerybeat-schedule
-    volumes:
-      - .:/app
-      - beat_data:/var/run/celery
+    command: ["celery", "-A", "app.beat.celery.celery_app", "beat", "--loglevel=INFO"]
     depends_on:
       db:
         condition: service_healthy
@@ -44,18 +63,17 @@ services:
 
   flower:
     build: .
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
-    command: uv run celery -A app.worker.celery.celery_app flower
+    command: ["celery", "-A", "app.worker.celery.celery_app", "flower"]
     environment:
       FLOWER_ADDRESS: 0.0.0.0
       FLOWER_PORT: "5555"
-      FLOWER_PERSISTENT: "True"
-      FLOWER_DB: /data/flower.db
-      FLOWER_STATE_SAVE_INTERVAL: "5000"
-      FLOWER_PURGE_OFFLINE_WORKERS: "300"
-    volumes:
-      - .:/app
-      - flower_data:/data
+      FLOWER_PERSISTENT: "False"
     ports:
       - "5555:5555"
     depends_on:
@@ -135,7 +153,5 @@ services:
 
 volumes:
   postgres_data:
-  beat_data:
-  flower_data:
   grafana_data:
   prometheus_data:

@@ -23,6 +23,12 @@ COPY app ./app
 COPY internal ./internal
 RUN uv sync --frozen --no-dev
 
-COPY . .
+COPY alembic ./alembic
+COPY alembic.ini ./
 
-CMD ["uv", "run", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN chgrp -R 0 /app /opt/venv \
+    && chmod -R g=u /app /opt/venv
+
+USER 1000
+
+CMD ["uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

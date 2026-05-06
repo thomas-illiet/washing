@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from tests.constants import TEST_ENCRYPTION_KEY
@@ -50,3 +51,39 @@ def test_alembic_upgrade_head_smoke_on_sqlite(tmp_path: Path) -> None:
 
     assert result.returncode == 0, result.stderr
     assert database_path.exists()
+
+
+def test_beat_smoke_starts_without_local_schedule_persistence(tmp_path: Path) -> None:
+    """Beat should start in a read-only working directory without writing schedule state."""
+    readonly_dir = tmp_path / "readonly"
+    readonly_dir.mkdir()
+    readonly_dir.chmod(0o555)
+
+    process = subprocess.Popen(
+        [sys.executable, "-m", "celery", "-A", "app.beat.celery.celery_app", "beat", "--loglevel=INFO"],
+        cwd=readonly_dir,
+        env=_clean_env(
+            DATABASE_URL="sqlite://",
+            CELERY_BROKER_URL="memory://",
+            CELERY_RESULT_BACKEND="cache+memory://",
+            CELERY_PROMETHEUS_ENABLED="false",
+            PYTHONDONTWRITEBYTECODE="1",
+            PYTHONPATH=str(PROJECT_ROOT),
+            HOME=str(readonly_dir),
+        ),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+
+    try:
+        time.sleep(3)
+        if process.poll() is None:
+            process.terminate()
+        output, _ = process.communicate(timeout=10)
+    finally:
+        readonly_dir.chmod(0o755)
+
+    assert "beat: Starting..." in output
+    assert "Read-only file system" not in output
+    assert "Traceback" not in output

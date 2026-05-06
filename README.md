@@ -48,11 +48,32 @@ Créer ensuite un `docker-compose.yml` local à partir de l'exemple :
 cp docker-compose.example.yml docker-compose.yml
 ```
 
+Construire ensuite l'image et demarrer les dependances :
+
 ```bash
-docker compose up --build
+docker compose up --build -d db redis
 ```
 
-Le scheduler Celery Beat n'ecrit pas son etat dans le code source. Avec le compose d'exemple, son fichier de schedule est persiste dans un volume Docker dedie via `CELERY_BEAT_SCHEDULE_PATH=/var/run/celery/celerybeat-schedule`.
+Appliquer ensuite les migrations dans le conteneur dedie :
+
+```bash
+docker compose run --rm migrate
+```
+
+Puis lancer les runtimes applicatifs :
+
+```bash
+docker compose up -d api worker beat flower prometheus grafana
+```
+
+Les services applicatifs `api`, `worker`, `beat` et `flower` tournent avec une posture proche d'OpenShift restreint :
+
+- utilisateur non-root `1000:1000`
+- `cap_drop: ["ALL"]`
+- `read_only: true`
+- `no-new-privileges:true`
+
+Celery Beat est maintenant completement stateless et utilise toujours le scheduler memoire `celery.beat:Scheduler`. Flower tourne egalement sans base locale persistante dans cette configuration.
 
 Interfaces disponibles :
 
@@ -64,7 +85,7 @@ Prometheus reste interne au réseau Docker Compose par défaut et n'est pas publ
 
 Le `Dockerfile` réel et le `docker-compose.yml` réel ne sont pas versionnés volontairement. Le repo fournit des fichiers `*.example` à copier et adapter localement.
 
-L'image Docker et les commandes du compose d'exemple utilisent `uv` pour la résolution, l'installation et l'exécution.
+L'image Docker utilise `uv` uniquement pendant le build. Le runtime s'appuie ensuite sur les binaires installes dans `/opt/venv/bin`, ce qui evite les ecritures de cache au demarrage.
 
 ## Structure du projet
 
@@ -252,5 +273,3 @@ uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
 uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
 uv run celery -A app.worker.celery.celery_app flower
 ```
-
-Par defaut, Celery Beat stocke son fichier de schedule dans `/tmp/celerybeat-schedule`. Vous pouvez surcharger ce chemin avec `CELERY_BEAT_SCHEDULE_PATH`.

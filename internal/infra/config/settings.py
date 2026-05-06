@@ -13,7 +13,6 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://postgres:postgres@db:5432/metrics_collector"
     celery_broker_url: str = "redis://redis:6379/0"
     celery_result_backend: str = "redis://redis:6379/1"
-    celery_beat_schedule_path: str = "/tmp/celerybeat-schedule"
     scheduler_tick_seconds: int = 60
     application_sync_tick_seconds: int = 3600
     application_sync_window_days: int = 5
