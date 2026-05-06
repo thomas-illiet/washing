@@ -3,7 +3,8 @@
 from internal.infra.connectors.base import MachineProvisionerConnector, MetricCollectorConnector
 from internal.infra.connectors.providers import EmptyMetricCollector, MockMetricCollector
 from internal.infra.connectors.provisioners import (
-    EmptyInventoryProvisioner,
+    CapsuleInventoryProvisioner,
+    DynatraceInventoryProvisioner,
     MockInventoryProvisioner,
 )
 
@@ -18,8 +19,8 @@ METRIC_COLLECTORS: dict[str, MetricCollectorConnector] = {
 MACHINE_PROVISIONERS: dict[str, MachineProvisionerConnector] = {
     "mock": MockInventoryProvisioner(),
     "mock_inventory": MockInventoryProvisioner(),
-    "capsule": EmptyInventoryProvisioner(),
-    "dynatrace": EmptyInventoryProvisioner(),
+    "capsule": CapsuleInventoryProvisioner(),
+    "dynatrace": DynatraceInventoryProvisioner(),
 }
 
 

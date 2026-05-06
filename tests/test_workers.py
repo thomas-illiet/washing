@@ -7,7 +7,11 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from internal.infra.connectors.providers import EmptyMetricCollector
+from internal.infra.connectors.providers import mock as mock_metrics
+from internal.infra.connectors.provisioners import CapsuleInventoryProvisioner, DynatraceInventoryProvisioner
 from internal.infra.connectors.provisioners import mock as mock_provisioners
+from internal.infra.connectors.registry import get_machine_provisioner, get_metric_collector
 from internal.infra.db.models import (
     Application,
     Machine,
@@ -15,6 +19,7 @@ from internal.infra.db.models import (
     MachineDiskMetric,
     MachineFlavorHistory,
     MachineProvider,
+    MachineRAMMetric,
     MachineProvisioner,
     Platform,
 )
@@ -244,6 +249,161 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
     assert sample.date is not None
 
 
+@pytest.mark.parametrize(
+    ("scope", "metric_model"),
+    [
+        ("cpu", MachineCPUMetric),
+        ("ram", MachineRAMMetric),
+        ("disk", MachineDiskMetric),
+    ],
+)
+def test_provider_collection_generates_random_metric_in_scope(
+    db_session: Session,
+    scope: str,
+    metric_model: type[MachineCPUMetric | MachineRAMMetric | MachineDiskMetric],
+) -> None:
+    """Mock providers should generate one bounded random sample for their scope."""
+    platform = Platform(name=f"Random {scope.upper()} Metrics")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id=f"{scope}-vm-1",
+        hostname=f"{scope}-vm-1",
+    )
+    provider = MachineProvider(
+        platform=platform,
+        name=f"{scope} random",
+        type="mock_metric",
+        scope=scope,
+        config={},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, provider])
+    db_session.commit()
+
+    result = run_provider_collection(db_session, provider.id)
+
+    assert result == {"created": 1, "updated": 0, "skipped": 0}
+    sample = db_session.query(metric_model).one()
+    assert sample.provider_id == provider.id
+    assert sample.machine_id == machine.id
+    assert 0 <= sample.value <= 100
+    assert sample.date is not None
+
+    other_counts = {
+        MachineCPUMetric: db_session.query(MachineCPUMetric).count(),
+        MachineRAMMetric: db_session.query(MachineRAMMetric).count(),
+        MachineDiskMetric: db_session.query(MachineDiskMetric).count(),
+    }
+    for model, count in other_counts.items():
+        expected_count = 1 if model is metric_model else 0
+        assert count == expected_count
+
+
+def test_provider_collection_draws_one_random_value_per_machine(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mock providers should draw a fallback random value for each machine independently."""
+    calls: list[tuple[int, int]] = []
+
+    def fake_randint(lower_bound: int, upper_bound: int) -> int:
+        calls.append((lower_bound, upper_bound))
+        return 50
+
+    monkeypatch.setattr(mock_metrics.random, "randint", fake_randint)
+
+    platform = Platform(name="Per Machine Random Metrics")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machines = [
+        Machine(platform=platform, source_provisioner=provisioner, external_id="vm-1", hostname="vm-1"),
+        Machine(platform=platform, source_provisioner=provisioner, external_id="vm-2", hostname="vm-2"),
+    ]
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu random",
+        type="mock_metric",
+        scope="cpu",
+        config={},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([*machines, provider])
+    db_session.commit()
+
+    result = run_provider_collection(db_session, provider.id)
+
+    assert result == {"created": 2, "updated": 0, "skipped": 0}
+    assert calls == [(0, 100), (0, 100)]
+    assert [sample.value for sample in db_session.query(MachineCPUMetric).order_by(MachineCPUMetric.id.asc()).all()] == [50, 50]
+
+
+def test_provider_collection_values_by_hostname_override_random(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Hostname-specific values should win over the random fallback."""
+    monkeypatch.setattr(mock_metrics.random, "randint", lambda _lower_bound, _upper_bound: 12)
+
+    platform = Platform(name="Hostname Override Metrics")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machines = [
+        Machine(platform=platform, source_provisioner=provisioner, external_id="vm-1", hostname="vm-1"),
+        Machine(platform=platform, source_provisioner=provisioner, external_id="vm-2", hostname="vm-2"),
+    ]
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu hostname override",
+        type="mock_metric",
+        scope="cpu",
+        config={"values_by_hostname": {"vm-1": 88}},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([*machines, provider])
+    db_session.commit()
+
+    result = run_provider_collection(db_session, provider.id)
+
+    assert result == {"created": 2, "updated": 0, "skipped": 0}
+    values_by_machine = {
+        sample.machine_id: sample.value
+        for sample in db_session.query(MachineCPUMetric).order_by(MachineCPUMetric.machine_id.asc()).all()
+    }
+    assert values_by_machine[machines[0].id] == 88
+    assert values_by_machine[machines[1].id] == 12
+
+
+def test_provider_collection_value_overrides_random(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fixed mock value should disable the random fallback."""
+
+    def unexpected_randint(_lower_bound: int, _upper_bound: int) -> int:
+        raise AssertionError("random fallback should not be used when value is configured")
+
+    monkeypatch.setattr(mock_metrics.random, "randint", unexpected_randint)
+
+    platform = Platform(name="Fixed Value Metrics")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(platform=platform, source_provisioner=provisioner, external_id="vm-1", hostname="vm-1")
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu fixed value",
+        type="mock_metric",
+        scope="cpu",
+        config={"value": 73},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, provider])
+    db_session.commit()
+
+    result = run_provider_collection(db_session, provider.id)
+
+    assert result == {"created": 1, "updated": 0, "skipped": 0}
+    assert db_session.query(MachineCPUMetric).one().value == 73
+
+
 def test_mock_preset_inventory_creates_machines_from_repository_json(db_session: Session) -> None:
     """Mock presets should create inventory rows from the repository JSON payloads."""
     platform = Platform(name="Mock Preset Inventory")
@@ -296,40 +456,72 @@ def test_mock_preset_invalid_json_sets_last_error(
     assert provisioner.last_error == str(exc_info.value)
 
 
-def test_placeholder_provisioner_run_is_no_op(db_session: Session) -> None:
+@pytest.mark.parametrize(
+    ("connector_type", "config", "expected_connector"),
+    [
+        ("capsule", {"token": "capsule-secret"}, CapsuleInventoryProvisioner),
+        (
+            "dynatrace",
+            {"url": "https://dynatrace.example", "token": "dynatrace-secret"},
+            DynatraceInventoryProvisioner,
+        ),
+    ],
+)
+def test_placeholder_provisioner_run_is_no_op(
+    db_session: Session,
+    connector_type: str,
+    config: dict[str, str],
+    expected_connector: type[CapsuleInventoryProvisioner | DynatraceInventoryProvisioner],
+) -> None:
     """Placeholder provisioners should succeed without creating machines."""
-    platform = Platform(name="Placeholder Inventory")
+    platform = Platform(name=f"Placeholder {connector_type.title()} Inventory")
     provisioner = MachineProvisioner(
         platform=platform,
-        name="capsule inventory",
-        type="capsule",
+        name=f"{connector_type} inventory",
+        type=connector_type,
         enabled=True,
         cron="* * * * *",
-        config={"token": "capsule-secret"},
+        config=config,
     )
     db_session.add(provisioner)
     db_session.commit()
 
+    assert isinstance(get_machine_provisioner(connector_type), expected_connector)
     result = run_provisioner_inventory(db_session, provisioner.id)
     assert result == {"created": 0, "updated": 0, "flavor_changes": 0}
 
 
-def test_placeholder_provider_run_is_no_op(db_session: Session) -> None:
+@pytest.mark.parametrize(
+    ("connector_type", "scope", "config"),
+    [
+        ("prometheus", "cpu", {"url": "https://prometheus.example", "query": "avg(up)"}),
+        ("dynatrace", "disk", {"url": "https://dynatrace.example", "token": "provider-secret"}),
+    ],
+)
+def test_placeholder_provider_run_is_no_op(
+    db_session: Session,
+    connector_type: str,
+    scope: str,
+    config: dict[str, str],
+) -> None:
     """Placeholder providers should succeed without writing metrics."""
     platform = Platform(name="Placeholder Metrics")
     provider = MachineProvider(
         platform=platform,
-        name="prometheus cpu",
-        type="prometheus",
-        scope="cpu",
-        config={"url": "https://prometheus.example", "query": "avg(up)"},
+        name=f"{connector_type} {scope}",
+        type=connector_type,
+        scope=scope,
+        config=config,
     )
     db_session.add(provider)
     db_session.commit()
 
+    assert isinstance(get_metric_collector(connector_type), EmptyMetricCollector)
     result = run_provider_collection(db_session, provider.id)
     assert result == {"created": 0, "updated": 0, "skipped": 0}
-
+    assert db_session.query(MachineCPUMetric).count() == 0
+    assert db_session.query(MachineRAMMetric).count() == 0
+    assert db_session.query(MachineDiskMetric).count() == 0
 
 
 def test_config_is_encrypted_at_rest(db_session: Session) -> None:

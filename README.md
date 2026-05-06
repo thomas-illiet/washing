@@ -265,7 +265,7 @@ Runtime variables:
 Two historical stub connectors are available:
 
 - `mock_inventory` to discover machines
-- `mock_metric` to generate CPU/RAM/Disk samples
+- `mock_metric` to generate one CPU/RAM/Disk percentage sample per provider scope, machine, and collection
 
 The new typed integrations exposed by the API are:
 
@@ -303,9 +303,14 @@ Example internal `mock_metric` config:
 
 ```json
 {
-  "value": 42
+  "value": 42,
+  "values_by_hostname": {
+    "vm-1": 90
+  }
 }
 ```
+
+If `value` is omitted, `mock_metric` falls back to a random integer percentage between `0` and `100` for the provider scope on each machine. `values_by_hostname` overrides both the random fallback and the shared `value` for the matching hostnames.
 
 ## Development
 
