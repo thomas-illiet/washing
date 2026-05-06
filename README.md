@@ -1,40 +1,40 @@
 # Metrics Collector
 
-Backend Python pour collecter l'inventaire machines et des métriques depuis des produits externes.
+Python backend for collecting machine inventory and metrics from external products.
 
-La stack contient :
+The stack includes:
 
-- FastAPI pour l'API REST
-- Celery worker pour les jobs de collecte
-- Celery Beat pour le scheduler
-- Flower pour le pilotage et la supervision temps réel de Celery
-- Postgres pour la persistance
-- Redis pour le broker Celery
-- Alembic pour les migrations
-- Prometheus pour les métriques API, Celery et Flower
-- Grafana pour les dashboards d'observabilité
+- FastAPI for the REST API
+- Celery worker for collection jobs
+- Celery Beat for scheduling
+- Flower for Celery control and real-time supervision
+- Postgres for persistence
+- Redis for the Celery broker
+- Alembic for migrations
+- Prometheus for API, Celery, and Flower metrics
+- Grafana for observability dashboards
 
-## Lancer en local avec Docker
+## Run Locally With Docker
 
-Créer d'abord un `Dockerfile` local à partir du template :
+First create a local `Dockerfile` from the template:
 
 ```bash
 cp Dockerfile.example Dockerfile
 ```
 
-Créer ensuite le fichier d'environnement :
+Then create the environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-Générer ensuite une clé Fernet dédiée à l'environnement local :
+Then generate a dedicated Fernet key for your local environment:
 
 ```bash
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-Variables à adapter avant d'exposer le monitoring :
+Update these variables before exposing monitoring:
 
 - `FLOWER_BASIC_AUTH`
 - `FLOWER_COOKIE_SECRET`
@@ -42,80 +42,80 @@ Variables à adapter avant d'exposer le monitoring :
 - `GRAFANA_ADMIN_PASSWORD`
 - `INTEGRATION_CONFIG_ENCRYPTION_KEY`
 
-Créer ensuite un `docker-compose.yml` local à partir de l'exemple :
+Then create a local `docker-compose.yml` from the example:
 
 ```bash
 cp docker-compose.example.yml docker-compose.yml
 ```
 
-Construire ensuite l'image et demarrer les dependances :
+Build the image and start dependencies:
 
 ```bash
 docker compose up --build -d db redis
 ```
 
-Appliquer ensuite les migrations dans le conteneur dedie :
+Apply migrations in the dedicated container:
 
 ```bash
 docker compose run --rm migrate
 ```
 
-Puis lancer les runtimes applicatifs :
+Then start the application runtimes:
 
 ```bash
 docker compose up -d api worker beat flower prometheus grafana
 ```
 
-Les services applicatifs `api`, `worker`, `beat` et `flower` tournent avec une posture proche d'OpenShift restreint :
+The `api`, `worker`, `beat`, and `flower` services run with a security posture close to restricted OpenShift:
 
-- utilisateur non-root `1000:1000`
+- non-root user `1000:1000`
 - `cap_drop: ["ALL"]`
 - `read_only: true`
 - `no-new-privileges:true`
 
-Celery Beat est maintenant completement stateless et utilise toujours le scheduler memoire `celery.beat:Scheduler`. Flower tourne egalement sans base locale persistante dans cette configuration.
+Celery Beat is now fully stateless and always uses the in-memory scheduler `celery.beat:Scheduler`. Flower also runs without a persistent local database in this setup.
 
-Interfaces disponibles :
+Available interfaces:
 
-- API : `http://localhost:8000`
-- Flower : `http://localhost:5555`
-- Grafana : `http://localhost:3000`
+- API: `http://localhost:8000`
+- Flower: `http://localhost:5555`
+- Grafana: `http://localhost:3000`
 
-Prometheus reste interne au réseau Docker Compose par défaut et n'est pas publié sur l'hôte.
+Prometheus stays internal to the Docker Compose network by default and is not published on the host.
 
-Le `Dockerfile` réel et le `docker-compose.yml` réel ne sont pas versionnés volontairement. Le repo fournit des fichiers `*.example` à copier et adapter localement.
+The real `Dockerfile` and `docker-compose.yml` are intentionally not versioned. The repo provides `*.example` files that you can copy and adapt locally.
 
-L'image Docker utilise `uv` uniquement pendant le build. Le runtime s'appuie ensuite sur les binaires installes dans `/opt/venv/bin`, ce qui evite les ecritures de cache au demarrage.
+The Docker image uses `uv` only during the build. At runtime it relies on binaries installed in `/opt/venv/bin`, which avoids cache writes at startup.
 
-## Structure du projet
+## Project Structure
 
-Le code est désormais séparé par runtime, dans un style proche des projets Go :
+The codebase is split by runtime, in a layout inspired by Go projects:
 
-- `app/` ne contient que les applications exécutables.
-- `app/api` : point d'entrée FastAPI, dépendances HTTP et routes.
-- `app/worker` : runtime Celery worker et toutes les tâches exécutables, rangées dans `app/worker/tasks/{scheduler,applications,inventory,metrics}`.
-- `app/beat` : runtime Celery Beat et définitions de planning uniquement, sans implémentation de tâches.
-- `internal/usecases` : logique métier mutualisée entre API, beat et workers.
-- `internal/domain` : emplacement réservé aux règles métier pures quand elles doivent être isolées.
-- `internal/infra` : config, base de données, broker Celery, connecteurs, observabilité.
-- `internal/contracts/http` : schémas d'entrée et de sortie HTTP.
+- `app/` contains only executable applications.
+- `app/api`: FastAPI entrypoint, HTTP dependencies, and routes.
+- `app/worker`: Celery worker runtime and all executable tasks, organized in `app/worker/tasks/{scheduler,applications,inventory,metrics}`.
+- `app/beat`: Celery Beat runtime and schedule definitions only, with no task implementation.
+- `internal/usecases`: business logic shared by the API, beat, and workers.
+- `internal/domain`: reserved place for pure domain rules when they need stronger isolation.
+- `internal/infra`: configuration, database, Celery broker, connectors, and observability.
+- `internal/contracts/http`: HTTP input and output schemas.
 
-Endpoints utiles :
+Useful endpoints:
 
 - `GET /health`
-- `GET /` : documentation Swagger
-- OpenAPI JSON : `GET /v1/openapi.json`
-- Gestion : `/v1/platforms`, `/v1/applications`, `GET /v1/machines`, `GET/DELETE /v1/machines/{id}`, `/v1/machines/providers`, `/v1/machines/provisioners`
-- Association : `POST /v1/machines/providers/{provider_id}/provisioners/{provisioner_id}`
-- Activation : `POST /v1/machines/providers/{id}/enable|disable`, `POST /v1/machines/provisioners/{id}/enable|disable`
-- Jobs manuels : `POST /v1/machines/provisioners/{id}/run`, `POST /v1/applications/{id}/sync`
-- Sync applications : `POST /v1/applications/sync-due` pour déclencher asynchronement le dispatcher
-- Métriques métier : `GET /v1/machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /v1/machines/metrics?type=cpu|ram|disk`
-- Prometheus : `GET /metrics`
+- `GET /`: Swagger documentation
+- OpenAPI JSON: `GET /v1/openapi.json`
+- Management: `/v1/platforms`, `/v1/applications`, `GET /v1/machines`, `GET/DELETE /v1/machines/{id}`, `/v1/machines/providers`, `/v1/machines/provisioners`
+- Association: `POST /v1/machines/providers/{provider_id}/provisioners/{provisioner_id}`
+- Activation: `POST /v1/machines/providers/{id}/enable|disable`, `POST /v1/machines/provisioners/{id}/enable|disable`
+- Manual jobs: `POST /v1/machines/provisioners/{id}/run`, `POST /v1/applications/{id}/sync`
+- Application sync: `POST /v1/applications/sync-due` to asynchronously trigger the dispatcher
+- Business metrics: `GET /v1/machines/{machine_id}/metrics?type=cpu|ram|disk`, `GET /v1/machines/metrics?type=cpu|ram|disk`
+- Prometheus: `GET /metrics`
 
-Toutes les routes métier HTTP sont versionnées sous `/v1`. Les endpoints opérationnels `/health` et `/metrics` restent sans préfixe.
+All business HTTP routes are versioned under `/v1`. Operational endpoints `/health` and `/metrics` remain unprefixed.
 
-Tous les endpoints `GET` qui renvoient une liste utilisent la même enveloppe paginée :
+All `GET` endpoints that return a list use the same paginated envelope:
 
 ```json
 {
@@ -126,46 +126,46 @@ Tous les endpoints `GET` qui renvoient une liste utilisent la même enveloppe pa
 }
 ```
 
-Les collections et sous-listes supportent `offset` et `limit` avec `offset >= 0` et `limit >= 1`.
+Collections and sublists support `offset` and `limit` with `offset >= 0` and `limit >= 1`.
 
-Sous-routes typées pour les intégrations :
+Typed sub-routes for integrations:
 
-- Provisioners : `POST /v1/machines/provisioners/capsule`, `GET/PATCH /v1/machines/provisioners/{id}/capsule`, `POST /v1/machines/provisioners/dynatrace`, `GET/PATCH /v1/machines/provisioners/{id}/dynatrace`
-- Providers : `POST /v1/machines/providers/prometheus`, `GET/PATCH /v1/machines/providers/{id}/prometheus`, `POST /v1/machines/providers/dynatrace`, `GET/PATCH /v1/machines/providers/{id}/dynatrace`
+- Provisioners: `POST /v1/machines/provisioners/capsule`, `GET/PATCH /v1/machines/provisioners/{id}/capsule`, `POST /v1/machines/provisioners/dynatrace`, `GET/PATCH /v1/machines/provisioners/{id}/dynatrace`
+- Providers: `POST /v1/machines/providers/prometheus`, `GET/PATCH /v1/machines/providers/{id}/prometheus`, `POST /v1/machines/providers/dynatrace`, `GET/PATCH /v1/machines/providers/{id}/dynatrace`
 
-Les réponses génériques `/v1/machines/providers` et `/v1/machines/provisioners` n'exposent jamais le champ `config`. Les secrets sont stockés chiffrés en base et les tokens ne sont jamais renvoyés par l'API.
-Un provisioner ne peut être lié qu'à un seul provider par `type`.
-Les providers et provisioners sont créés désactivés par défaut et doivent être activés via leurs endpoints dédiés.
-Les machines sont découvertes et synchronisées via les provisioners ; l'API publique n'expose pas de `POST` ni de `PATCH` sur `/v1/machines`.
+Generic `/v1/machines/providers` and `/v1/machines/provisioners` responses never expose the `config` field. Secrets are stored encrypted in the database and tokens are never returned by the API.
+One provisioner can be linked to only one provider of a given `type`.
+Providers and provisioners are created disabled by default and must be enabled through their dedicated endpoints.
+Machines are discovered and synchronized through provisioners; the public API does not expose `POST` or `PATCH` on `/v1/machines`.
 
-La documentation Swagger est exposée sur la racine `/` et charge le schéma OpenAPI depuis `/v1/openapi.json`. Les routes FastAPI par défaut `/docs` et `/redoc` sont désactivées.
+Swagger documentation is exposed at `/` and loads the OpenAPI schema from `/v1/openapi.json`. The default FastAPI `/docs` and `/redoc` routes are disabled.
 
-## Observabilité
+## Observability
 
-Prometheus peut scraper :
+Prometheus can scrape:
 
-- API FastAPI : `http://localhost:8000/metrics`
-- Worker Celery : `http://localhost:9101/metrics`
-- Beat Celery : `http://beat:9101/metrics` depuis le réseau Docker
-- Flower : `http://flower:5555/metrics` depuis le réseau Docker
+- FastAPI API: `http://localhost:8000/metrics`
+- Celery worker: `http://localhost:9101/metrics`
+- Celery Beat: `http://beat:9101/metrics` from the Docker network
+- Flower: `http://flower:5555/metrics` from the Docker network
 
-Flower fournit la vue opérationnelle Celery :
+Flower provides the Celery operational view:
 
-- état des workers
-- historique et état des tâches
-- files, tâches en attente et tâches planifiées
-- actions de contrôle à distance Celery
+- worker status
+- task history and state
+- queues, pending tasks, and scheduled tasks
+- Celery remote-control actions
 
-Grafana charge automatiquement un dashboard `Celery Monitoring` avec :
+Grafana automatically loads a `Celery Monitoring` dashboard with:
 
-- throughput des tâches par état
-- percentiles de durée des tâches
-- nombre de tâches en cours
-- statut du worker
-- statut de Beat
-- santé des cibles scrapées par Prometheus
+- task throughput by state
+- task duration percentiles
+- number of in-progress tasks
+- worker status
+- Beat status
+- health of Prometheus scrape targets
 
-Métriques principales :
+Main metrics:
 
 - `api_http_requests_total`
 - `api_http_request_duration_seconds`
@@ -175,55 +175,55 @@ Métriques principales :
 - `celery_worker_up`
 - `celery_beat_up`
 
-Le endpoint Prometheus `/metrics` ne remplace pas les endpoints métier `/v1/machines/{machine_id}/metrics` et `/v1/machines/metrics`.
+The Prometheus `/metrics` endpoint does not replace the business endpoints `/v1/machines/{machine_id}/metrics` and `/v1/machines/metrics`.
 
-Accès par défaut :
+Default access:
 
-- Flower utilise l'authentification HTTP Basic définie via `FLOWER_BASIC_AUTH`
-- Grafana utilise `GRAFANA_ADMIN_USER` et `GRAFANA_ADMIN_PASSWORD`
-- Prometheus n'est accessible que depuis les autres containers du compose, sauf publication explicite d'un port
+- Flower uses HTTP Basic authentication defined through `FLOWER_BASIC_AUTH`
+- Grafana uses `GRAFANA_ADMIN_USER` and `GRAFANA_ADMIN_PASSWORD`
+- Prometheus is reachable only from other Compose containers unless you explicitly publish a port
 
-## Métriques Machines
+## Machine Metrics
 
-Les métriques sont stockées à la journée, avec une seule ligne par machine, provider et jour :
+Metrics are stored daily, with a single row per machine, provider, and day:
 
 - `machine_cpu_metrics`
 - `machine_ram_metrics`
 - `machine_disk_metrics`
 
-Chaque table porte le même format métier : `machine_id`, `provider_id`, `date`, `value`.
+Each table follows the same business shape: `machine_id`, `provider_id`, `date`, `value`.
 
-Les endpoints `GET /v1/machines/{machine_id}/metrics` et `GET /v1/machines/metrics` exigent `type=cpu|ram|disk`, supportent `start` et `end` au format `YYYY-MM-DD`, ainsi que `offset` et `limit`, et renvoient l'enveloppe `{items, offset, limit, total}`. Les collectes font un upsert journalier : relancer une collecte le même jour met à jour la ligne existante.
+The `GET /v1/machines/{machine_id}/metrics` and `GET /v1/machines/metrics` endpoints require `type=cpu|ram|disk`, support `start` and `end` in `YYYY-MM-DD` format, as well as `offset` and `limit`, and return the `{items, offset, limit, total}` envelope. Collections perform a daily upsert: rerunning a collection on the same day updates the existing row.
 
 ## Applications
 
-La table `applications` contient une ligne par application, environnement et région. Les machines peuvent référencer cette table via `application_id`.
+The `applications` table contains one row per application, environment, and region. Machines can reference this table through `application_id`.
 
-Chaque application doit être synchronisée au moins une fois tous les 5 jours. Celery Beat déclenche un dispatcher dédié qui sélectionne seulement un petit lot d'applications dues à chaque tick, afin d'étaler la charge au lieu de tout synchroniser en une fois.
-Le endpoint `POST /v1/applications/sync-due` enfile ce dispatcher dans Celery ; l'API ne fait plus le dispatch directement dans son propre process.
+Each application must be synchronized at least once every 5 days. Celery Beat triggers a dedicated dispatcher that selects only a small batch of due applications on each tick, spreading the load instead of synchronizing everything at once.
+The `POST /v1/applications/sync-due` endpoint enqueues that dispatcher in Celery; the API no longer performs the dispatch directly in its own process.
 
-Les applications ne disposent pas de route HTTP `PATCH` publique. Les changements de données applicatives doivent passer par les tâches de synchronisation.
+Applications do not expose a public HTTP `PATCH` route. Application data changes must go through synchronization tasks.
 
-Variables utiles :
+Useful variables:
 
-- `APPLICATION_SYNC_TICK_SECONDS` : fréquence du dispatcher de sync applications.
-- `APPLICATION_SYNC_WINDOW_DAYS` : fenêtre maximale entre deux synchronisations, par défaut 5 jours.
-- `APPLICATION_SYNC_BATCH_SIZE` : si `0`, le batch est calculé automatiquement pour étaler toutes les applications sur la fenêtre.
-- `APPLICATION_SYNC_RETRY_AFTER_SECONDS` : délai avant de replanifier une ligne déjà programmée mais pas encore synchronisée.
+- `APPLICATION_SYNC_TICK_SECONDS`: frequency of the application sync dispatcher.
+- `APPLICATION_SYNC_WINDOW_DAYS`: maximum window between synchronizations, default `5` days.
+- `APPLICATION_SYNC_BATCH_SIZE`: if `0`, the batch size is computed automatically to spread all applications across the window.
+- `APPLICATION_SYNC_RETRY_AFTER_SECONDS`: delay before rescheduling a row that was already queued but not yet synchronized.
 
-## Connecteurs MVP
+## MVP Connectors
 
-Deux connecteurs stub historiques sont disponibles :
+Two historical stub connectors are available:
 
-- `mock_inventory` pour découvrir des machines
-- `mock_metric` pour générer des samples CPU/RAM/Disk
+- `mock_inventory` to discover machines
+- `mock_metric` to generate CPU/RAM/Disk samples
 
-Les nouvelles intégrations typées exposées par l'API sont :
+The new typed integrations exposed by the API are:
 
-- Provisioners : `capsule`, `dynatrace`
-- Providers : `prometheus`, `dynatrace`
+- Provisioners: `capsule`, `dynatrace`
+- Providers: `prometheus`, `dynatrace`
 
-Exemple de config interne `mock_inventory` :
+Example internal `mock_inventory` config:
 
 ```json
 {
@@ -242,7 +242,7 @@ Exemple de config interne `mock_inventory` :
 }
 ```
 
-Exemple de config interne `mock_metric` :
+Example internal `mock_metric` config:
 
 ```json
 {
@@ -250,7 +250,7 @@ Exemple de config interne `mock_metric` :
 }
 ```
 
-## Développement
+## Development
 
 ```bash
 uv python install 3.13
@@ -258,15 +258,15 @@ uv sync --group dev
 uv run pytest
 ```
 
-Pour appliquer les migrations contre Postgres :
+To apply migrations against Postgres:
 
 ```bash
 uv run alembic upgrade head
 ```
 
-Le projet cible Python 3.13. La clé `INTEGRATION_CONFIG_ENCRYPTION_KEY` doit être présente au runtime API, worker, beat et lors des migrations Alembic.
+The project targets Python 3.13. The `INTEGRATION_CONFIG_ENCRYPTION_KEY` key must be present at runtime for the API, worker, beat, and during Alembic migrations.
 
-Lancer les runtimes manuellement :
+Run runtimes manually:
 
 ```bash
 uv run uvicorn app.api.main:app --reload
