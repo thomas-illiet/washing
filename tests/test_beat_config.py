@@ -12,3 +12,8 @@ def test_beat_uses_in_memory_scheduler() -> None:
 def test_beat_loads_expected_schedule() -> None:
     """Ensure Beat keeps using the application schedule builder."""
     assert celery_app.conf.beat_schedule == build_beat_schedule()
+
+
+def test_beat_schedules_application_metric_syncs() -> None:
+    """Application metrics syncs should be scheduled from Beat."""
+    assert "dispatch-due-application-metrics-syncs" in build_beat_schedule()

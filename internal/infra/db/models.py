@@ -124,16 +124,16 @@ class MachineProvisioner(TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("platform_id", "name", name="uq_machine_provisioners_platform_name"),)
 
     @validates("providers")
-    def validate_provider_type_uniqueness(self, _key: str, provider: "MachineProvider") -> "MachineProvider":
-        """Reject attaching multiple providers of the same type."""
-        conflict = find_provider_type_conflict(
+    def validate_provider_scope_uniqueness(self, _key: str, provider: "MachineProvider") -> "MachineProvider":
+        """Reject attaching multiple providers for the same metric scope."""
+        conflict = find_provider_scope_conflict(
             self,
-            provider.type,
+            provider.scope,
             provider_id=provider.id,
             candidate_provider=provider,
         )
         if conflict is not None:
-            raise ValueError(PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL)
+            raise ValueError(PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL)
         return provider
 
 
@@ -166,20 +166,20 @@ class MachineProvider(TimestampMixin, Base):
         return [provisioner.id for provisioner in self.provisioners]
 
     @validates("provisioners")
-    def validate_provisioner_provider_type_uniqueness(
+    def validate_provisioner_provider_scope_uniqueness(
         self,
         _key: str,
         provisioner: MachineProvisioner,
     ) -> MachineProvisioner:
-        """Reject attaching this provider to a provisioner that already has its type."""
-        conflict = find_provider_type_conflict(
+        """Reject attaching this provider to a provisioner that already has its scope."""
+        conflict = find_provider_scope_conflict(
             provisioner,
-            self.type,
+            self.scope,
             provider_id=self.id,
             candidate_provider=self,
         )
         if conflict is not None:
-            raise ValueError(PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL)
+            raise ValueError(PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL)
         return provisioner
 
 
@@ -284,12 +284,12 @@ class MachineDiskMetric(MachineMetricMixin, Base):
     )
 
 
-PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL = "provisioner cannot have more than one provider of the same type"
+PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL = "provisioner cannot have more than one provider for the same scope"
 
 
-def find_provider_type_conflict(
+def find_provider_scope_conflict(
     provisioner: MachineProvisioner,
-    provider_type: str,
+    provider_scope: str,
     provider_id: int | None = None,
     candidate_provider: MachineProvider | None = None,
 ) -> MachineProvider | None:
@@ -299,6 +299,6 @@ def find_provider_type_conflict(
             continue
         if provider_id is not None and provider.id == provider_id:
             continue
-        if provider.type == provider_type:
+        if provider.scope == provider_scope:
             return provider
     return None

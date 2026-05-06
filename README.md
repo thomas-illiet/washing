@@ -43,7 +43,7 @@ Update these variables before exposing monitoring:
 - `GRAFANA_ADMIN_PASSWORD`
 - `INTEGRATION_CONFIG_ENCRYPTION_KEY`
 
-Use `APP_ENV=dev` only when you want development-only routes such as the typed `mock` provisioner to appear in Swagger.
+Use `APP_ENV=dev` only when you want development-only routes such as the typed `mock` provisioner and `mock` provider to appear in Swagger.
 
 Then create a local `docker-compose.yml` from the example:
 
@@ -143,10 +143,10 @@ Typed sub-routes for integrations:
 - Provisioners: `POST /v1/machines/provisioners/capsule`, `GET/PATCH /v1/machines/provisioners/{id}/capsule`, `POST /v1/machines/provisioners/dynatrace`, `GET/PATCH /v1/machines/provisioners/{id}/dynatrace`
 - Providers: `POST /v1/machines/providers/prometheus`, `GET/PATCH /v1/machines/providers/{id}/prometheus`, `POST /v1/machines/providers/dynatrace`, `GET/PATCH /v1/machines/providers/{id}/dynatrace`
 
-When `APP_ENV=dev`, Swagger also exposes `POST /v1/machines/provisioners/mock` and `GET/PATCH /v1/machines/provisioners/{id}/mock`. This development-only provisioner loads fake machines from repository JSON presets.
+When `APP_ENV=dev`, Swagger also exposes `POST /v1/machines/provisioners/mock`, `GET/PATCH /v1/machines/provisioners/{id}/mock`, `POST /v1/machines/providers/mock`, and `GET/PATCH /v1/machines/providers/{id}/mock`. These development-only integrations load fake machines from repository JSON presets and create random fake metric samples through `mock_metric`.
 
 Generic `/v1/machines/providers` and `/v1/machines/provisioners` responses never expose the `config` field. Secrets are stored encrypted in the database and tokens are never returned by the API.
-One provisioner can be linked to only one provider of a given `type`.
+One provisioner can be linked to only one provider per metric scope (`cpu`, `ram`, or `disk`).
 Providers and provisioners are created disabled by default and must be enabled through their dedicated endpoints.
 Machines are discovered and synchronized through provisioners; the public API does not expose `POST` or `PATCH` on `/v1/machines`.
 
@@ -207,15 +207,19 @@ Each table follows the same business shape: `machine_id`, `provider_id`, `date`,
 
 The `GET /v1/machines/{machine_id}/metrics` and `GET /v1/machines/metrics` endpoints require `type=cpu|ram|disk`, support `start` and `end` in `YYYY-MM-DD` format, as well as `offset` and `limit`, and return the `{items, offset, limit, total}` envelope. Collections perform a daily upsert: rerunning a collection on the same day updates the existing row.
 
+Machine metric collection is primarily dispatched from the application sync pipeline. Each application batch expands internally into one task per `provider_id` / `machine_id` pair so work can be distributed across Celery workers.
+
+`POST /v1/machines/providers/sync` remains available as a manual global trigger across all enabled providers.
+
 ## Applications
 
 The `applications` table is now a projection derived from `machines`, with one row per application code, environment, and region.
 Machines store the business code directly in `application`, normalized in uppercase.
 
-Two independent sync pipelines exist:
+Two application sync pipelines are active:
 
 - `inventory_discovery`: rebuilds the `applications` projection from grouped machine rows.
-- `metrics`: dispatches applications whose metrics sync is missing or too old.
+- `metrics`: selects due applications, then dispatches one machine-metrics task per visible `provider_id` / `machine_id` pair for that application batch.
 
 The manual entrypoint is `POST /v1/applications/sync?type=inventory_discovery|metrics`.
 
@@ -224,8 +228,8 @@ Applications are exposed as read-only HTTP resources. The public API does not ex
 Useful variables:
 
 - `APPLICATION_INVENTORY_SYNC_TICK_SECONDS`: frequency of the projection rebuild.
-- `APPLICATION_METRICS_SYNC_TICK_SECONDS`: frequency of the metrics-sync dispatcher.
-- `APPLICATION_METRICS_SYNC_WINDOW_DAYS`: maximum window between metrics syncs, default `5` days.
+- `APPLICATION_METRICS_SYNC_TICK_SECONDS`: frequency of the due-application metrics dispatcher.
+- `APPLICATION_METRICS_SYNC_WINDOW_DAYS`: maximum window between two application metrics dispatches, default `5` days.
 - `APPLICATION_METRICS_SYNC_BATCH_SIZE`: if `0`, the batch size is computed automatically to spread all applications across the window.
 - `APPLICATION_METRICS_SYNC_RETRY_AFTER_SECONDS`: delay before rescheduling an application already queued for metrics sync.
 
@@ -311,6 +315,8 @@ Example internal `mock_metric` config:
 ```
 
 If `value` is omitted, `mock_metric` falls back to a random integer percentage between `0` and `100` for the provider scope on each machine. `values_by_hostname` overrides both the random fallback and the shared `value` for the matching hostnames.
+
+One provisioner can be linked to only one provider per metric scope (`cpu`, `ram`, or `disk`).
 
 ## Development
 

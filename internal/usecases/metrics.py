@@ -1,6 +1,8 @@
 """Provider metric collection use cases."""
 
-from sqlalchemy.orm import Session, selectinload
+from collections.abc import Callable
+
+from sqlalchemy.orm import Query, Session, selectinload
 
 from internal.domain import normalize_external_id, normalize_hostname
 from internal.infra.connectors.base import MetricRecord
@@ -24,13 +26,33 @@ def metric_model_for_code(code: str):
         raise ValueError(f"unsupported metric type table for code: {code}") from exc
 
 
-def _scoped_machines(db: Session, provider: MachineProvider) -> list[Machine]:
-    """Return the machines visible to the provider scope."""
+def _load_provider(db: Session, provider_id: int) -> MachineProvider | None:
+    """Load one provider together with its provisioner attachments."""
+    return (
+        db.query(MachineProvider)
+        .options(selectinload(MachineProvider.provisioners))
+        .filter(MachineProvider.id == provider_id)
+        .one_or_none()
+    )
+
+
+def _scoped_machine_query(db: Session, provider: MachineProvider) -> Query[Machine]:
+    """Build the machine query visible to one provider scope."""
     query = db.query(Machine).filter(Machine.platform_id == provider.platform_id)
     provisioner_ids = [provisioner.id for provisioner in provider.provisioners]
     if provisioner_ids:
         query = query.filter(Machine.source_provisioner_id.in_(provisioner_ids))
-    return query.all()
+    return query
+
+
+def _scoped_machines(db: Session, provider: MachineProvider) -> list[Machine]:
+    """Return the machines visible to the provider scope."""
+    return _scoped_machine_query(db, provider).order_by(Machine.id.asc()).all()
+
+
+def _scoped_machine(db: Session, provider: MachineProvider, machine_id: int) -> Machine | None:
+    """Return one machine only when it is visible to the provider scope."""
+    return _scoped_machine_query(db, provider).filter(Machine.id == machine_id).one_or_none()
 
 
 def _resolve_machine_id(record: MetricRecord, machines: list[Machine]) -> int | None:
@@ -81,49 +103,92 @@ def _upsert_daily_metric(db: Session, provider: MachineProvider, record: MetricR
     return "updated"
 
 
-def run_provider_collection(db: Session, provider_id: int) -> dict[str, int]:
-    """Run one provider collection and upsert its daily metric samples."""
-    provider = (
-        db.query(MachineProvider)
-        .options(selectinload(MachineProvider.provisioners))
-        .filter(MachineProvider.id == provider_id)
-        .one_or_none()
-    )
+def dispatch_enabled_provider_syncs(
+    db: Session,
+    enqueue_provider: Callable[[int], str],
+) -> dict[str, list[int]]:
+    """Enqueue one provider dispatcher task per enabled provider."""
+    provider_ids = [
+        provider_id
+        for provider_id, in (
+            db.query(MachineProvider.id)
+            .filter(MachineProvider.enabled.is_(True))
+            .order_by(MachineProvider.id.asc())
+            .all()
+        )
+    ]
+    for provider_id in provider_ids:
+        enqueue_provider(provider_id)
+    return {"providers": provider_ids}
+
+
+def dispatch_provider_machine_syncs(
+    db: Session,
+    provider_id: int,
+    enqueue_machine_sync: Callable[[int, int], str],
+) -> dict[str, int | list[int] | str]:
+    """Enqueue one metric collection task per machine visible to a provider."""
+    provider = _load_provider(db, provider_id)
     if provider is None:
-        raise ValueError(f"provider {provider_id} not found")
+        return {"provider_id": provider_id, "machines": [], "status": "provider_not_found"}
 
     now = utcnow()
     provider.last_run_at = now
     provider.last_error = None
     db.commit()
-    provider = (
-        db.query(MachineProvider)
-        .options(selectinload(MachineProvider.provisioners))
-        .filter(MachineProvider.id == provider_id)
-        .one()
-    )
+    provider = _load_provider(db, provider_id)
+    if provider is None:
+        return {"provider_id": provider_id, "machines": [], "status": "provider_not_found"}
+
+    machine_ids = [machine.id for machine in _scoped_machines(db, provider)]
+    for machine_id in machine_ids:
+        enqueue_machine_sync(provider.id, machine_id)
+    return {"provider_id": provider.id, "machines": machine_ids}
+
+
+def run_provider_machine_collection(db: Session, provider_id: int, machine_id: int) -> dict[str, int | str]:
+    """Run one provider collection for a single machine/provider pair."""
+    provider = _load_provider(db, provider_id)
+    if provider is None:
+        return {
+            "provider_id": provider_id,
+            "machine_id": machine_id,
+            "created": 0,
+            "updated": 0,
+            "skipped": 1,
+            "status": "provider_not_found",
+        }
+
+    machine = _scoped_machine(db, provider, machine_id)
+    if machine is None:
+        status = "machine_not_found" if db.get(Machine, machine_id) is None else "machine_out_of_scope"
+        return {
+            "provider_id": provider.id,
+            "machine_id": machine_id,
+            "created": 0,
+            "updated": 0,
+            "skipped": 1,
+            "status": status,
+        }
 
     try:
-        machines = _scoped_machines(db, provider)
         connector = get_metric_collector(provider.type)
-        records = connector.collect(provider, machines)
-        created = 0
-        updated = 0
-        skipped = 0
+        records = connector.collect(provider, [machine])
+        result = "skipped"
+        if records:
+            # One task is responsible for one provider/machine pair, so we persist
+            # at most the first returned daily sample for that pair.
+            result = _upsert_daily_metric(db, provider, records[0], [machine])
 
-        for record in records:
-            result = _upsert_daily_metric(db, provider, record, machines)
-            if result == "created":
-                created += 1
-            elif result == "updated":
-                updated += 1
-            else:
-                skipped += 1
-
-        provider.last_success_at = now
-        provider.last_error = None
+        provider.last_success_at = utcnow()
         db.commit()
-        return {"created": created, "updated": updated, "skipped": skipped}
+        return {
+            "provider_id": provider.id,
+            "machine_id": machine.id,
+            "created": 1 if result == "created" else 0,
+            "updated": 1 if result == "updated" else 0,
+            "skipped": 1 if result == "skipped" else 0,
+        }
     except Exception as exc:
         db.rollback()
         provider = db.get(MachineProvider, provider_id)

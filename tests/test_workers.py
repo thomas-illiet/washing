@@ -24,12 +24,15 @@ from internal.infra.db.models import (
     Platform,
 )
 from internal.usecases.applications import (
-    APPLICATION_METRICS_NOT_IMPLEMENTED,
     rebuild_applications_from_machines,
     run_application_metrics_sync,
 )
 from internal.usecases.inventory import PROVISIONER_DISABLED_DETAIL, run_provisioner_inventory
-from internal.usecases.metrics import run_provider_collection
+from internal.usecases.metrics import (
+    dispatch_enabled_provider_syncs,
+    dispatch_provider_machine_syncs,
+    run_provider_machine_collection,
+)
 
 
 def test_inventory_tracks_initial_and_changed_flavor_snapshots(db_session: Session) -> None:
@@ -178,8 +181,87 @@ def test_inventory_discovery_rebuild_groups_machine_applications_and_prunes_orph
     ]
 
 
-def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
-    """Provider collection should upsert CPU metrics by day."""
+def test_dispatch_enabled_provider_syncs_enqueues_enabled_providers_only(db_session: Session) -> None:
+    """Global provider dispatch should only enqueue enabled providers in id order."""
+    platform = Platform(name="Enabled Provider Dispatch")
+    providers = [
+        MachineProvider(
+            platform=platform,
+            name="disabled cpu",
+            type="prometheus",
+            scope="cpu",
+            config={"url": "https://prometheus.example", "query": "avg(up)"},
+        ),
+        MachineProvider(
+            platform=platform,
+            name="enabled ram",
+            type="dynatrace",
+            scope="ram",
+            enabled=True,
+            config={"url": "https://dynatrace.example", "token": "provider-secret"},
+        ),
+        MachineProvider(
+            platform=platform,
+            name="enabled disk",
+            type="mock_metric",
+            scope="disk",
+            enabled=True,
+            config={"value": 61},
+        ),
+    ]
+    db_session.add_all([platform, *providers])
+    db_session.commit()
+
+    enqueued: list[int] = []
+    result = dispatch_enabled_provider_syncs(
+        db_session,
+        enqueue_provider=lambda provider_id: enqueued.append(provider_id) or f"provider-{provider_id}",
+    )
+
+    expected_ids = [providers[1].id, providers[2].id]
+    assert result == {"providers": expected_ids}
+    assert enqueued == expected_ids
+
+
+def test_dispatch_provider_machine_syncs_enqueues_visible_machines(db_session: Session) -> None:
+    """Provider dispatch should enqueue one child task per visible machine."""
+    platform = Platform(name="Provider Machine Dispatch")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    other_provisioner = MachineProvisioner(platform=platform, name="other", type="mock_inventory", cron="* * * * *")
+    machines = [
+        Machine(platform=platform, source_provisioner=provisioner, external_id="vm-1", hostname="vm-1"),
+        Machine(platform=platform, source_provisioner=provisioner, external_id="vm-2", hostname="vm-2"),
+        Machine(platform=platform, source_provisioner=other_provisioner, external_id="vm-3", hostname="vm-3"),
+    ]
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu mock",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 44},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([*machines, provider])
+    db_session.commit()
+
+    enqueued: list[tuple[int, int]] = []
+    result = dispatch_provider_machine_syncs(
+        db_session,
+        provider.id,
+        enqueue_machine_sync=lambda provider_id, machine_id: enqueued.append((provider_id, machine_id))
+        or f"{provider_id}-{machine_id}",
+    )
+
+    db_session.refresh(provider)
+    assert result == {"provider_id": provider.id, "machines": [machines[0].id, machines[1].id]}
+    assert enqueued == [(provider.id, machines[0].id), (provider.id, machines[1].id)]
+    assert provider.last_run_at is not None
+    assert provider.last_error is None
+
+
+def test_provider_machine_collection_writes_cpu_metric(db_session: Session) -> None:
+    """One provider/machine task should upsert a CPU metric by day."""
     platform = Platform(name="Entity B")
     provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
     machine = Machine(
@@ -202,11 +284,17 @@ def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
     db_session.add_all([machine, provider])
     db_session.commit()
 
-    result = run_provider_collection(db_session, provider.id)
-    assert result == {"created": 1, "updated": 0, "skipped": 0}
+    result = run_provider_machine_collection(db_session, provider.id, machine.id)
+    assert result == {"provider_id": provider.id, "machine_id": machine.id, "created": 1, "updated": 0, "skipped": 0}
 
-    second_result = run_provider_collection(db_session, provider.id)
-    assert second_result == {"created": 0, "updated": 1, "skipped": 0}
+    second_result = run_provider_machine_collection(db_session, provider.id, machine.id)
+    assert second_result == {
+        "provider_id": provider.id,
+        "machine_id": machine.id,
+        "created": 0,
+        "updated": 1,
+        "skipped": 0,
+    }
 
     sample = db_session.query(MachineCPUMetric).one()
     assert sample.provider_id == provider.id
@@ -215,8 +303,8 @@ def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
     assert sample.date is not None
 
 
-def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session) -> None:
-    """Provider collection should upsert daily disk usage metrics."""
+def test_provider_machine_collection_writes_daily_disk_usage_metric(db_session: Session) -> None:
+    """One provider/machine task should upsert a disk metric."""
     platform = Platform(name="Entity C")
     provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
     machine = Machine(
@@ -239,8 +327,8 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
     db_session.add_all([machine, provider])
     db_session.commit()
 
-    result = run_provider_collection(db_session, provider.id)
-    assert result == {"created": 1, "updated": 0, "skipped": 0}
+    result = run_provider_machine_collection(db_session, provider.id, machine.id)
+    assert result == {"provider_id": provider.id, "machine_id": machine.id, "created": 1, "updated": 0, "skipped": 0}
 
     sample = db_session.query(MachineDiskMetric).one()
     assert sample.provider_id == provider.id
@@ -257,12 +345,12 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
         ("disk", MachineDiskMetric),
     ],
 )
-def test_provider_collection_generates_random_metric_in_scope(
+def test_provider_machine_collection_generates_random_metric_in_scope(
     db_session: Session,
     scope: str,
     metric_model: type[MachineCPUMetric | MachineRAMMetric | MachineDiskMetric],
 ) -> None:
-    """Mock providers should generate one bounded random sample for their scope."""
+    """Mock providers should generate one bounded random sample per machine task."""
     platform = Platform(name=f"Random {scope.upper()} Metrics")
     provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
     machine = Machine(
@@ -282,9 +370,9 @@ def test_provider_collection_generates_random_metric_in_scope(
     db_session.add_all([machine, provider])
     db_session.commit()
 
-    result = run_provider_collection(db_session, provider.id)
+    result = run_provider_machine_collection(db_session, provider.id, machine.id)
 
-    assert result == {"created": 1, "updated": 0, "skipped": 0}
+    assert result == {"provider_id": provider.id, "machine_id": machine.id, "created": 1, "updated": 0, "skipped": 0}
     sample = db_session.query(metric_model).one()
     assert sample.provider_id == provider.id
     assert sample.machine_id == machine.id
@@ -301,11 +389,11 @@ def test_provider_collection_generates_random_metric_in_scope(
         assert count == expected_count
 
 
-def test_provider_collection_draws_one_random_value_per_machine(
+def test_provider_machine_collection_draws_one_random_value_per_machine(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Mock providers should draw a fallback random value for each machine independently."""
+    """Running one child task per machine should distribute random fallback draws."""
     calls: list[tuple[int, int]] = []
 
     def fake_randint(lower_bound: int, upper_bound: int) -> int:
@@ -331,18 +419,32 @@ def test_provider_collection_draws_one_random_value_per_machine(
     db_session.add_all([*machines, provider])
     db_session.commit()
 
-    result = run_provider_collection(db_session, provider.id)
+    first_result = run_provider_machine_collection(db_session, provider.id, machines[0].id)
+    second_result = run_provider_machine_collection(db_session, provider.id, machines[1].id)
 
-    assert result == {"created": 2, "updated": 0, "skipped": 0}
+    assert first_result == {
+        "provider_id": provider.id,
+        "machine_id": machines[0].id,
+        "created": 1,
+        "updated": 0,
+        "skipped": 0,
+    }
+    assert second_result == {
+        "provider_id": provider.id,
+        "machine_id": machines[1].id,
+        "created": 1,
+        "updated": 0,
+        "skipped": 0,
+    }
     assert calls == [(0, 100), (0, 100)]
     assert [sample.value for sample in db_session.query(MachineCPUMetric).order_by(MachineCPUMetric.id.asc()).all()] == [50, 50]
 
 
-def test_provider_collection_values_by_hostname_override_random(
+def test_provider_machine_collection_values_by_hostname_override_random(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Hostname-specific values should win over the random fallback."""
+    """Hostname-specific overrides should still apply with one task per machine."""
     monkeypatch.setattr(mock_metrics.random, "randint", lambda _lower_bound, _upper_bound: 12)
 
     platform = Platform(name="Hostname Override Metrics")
@@ -362,9 +464,11 @@ def test_provider_collection_values_by_hostname_override_random(
     db_session.add_all([*machines, provider])
     db_session.commit()
 
-    result = run_provider_collection(db_session, provider.id)
+    first_result = run_provider_machine_collection(db_session, provider.id, machines[0].id)
+    second_result = run_provider_machine_collection(db_session, provider.id, machines[1].id)
 
-    assert result == {"created": 2, "updated": 0, "skipped": 0}
+    assert first_result["created"] == 1
+    assert second_result["created"] == 1
     values_by_machine = {
         sample.machine_id: sample.value
         for sample in db_session.query(MachineCPUMetric).order_by(MachineCPUMetric.machine_id.asc()).all()
@@ -373,7 +477,7 @@ def test_provider_collection_values_by_hostname_override_random(
     assert values_by_machine[machines[1].id] == 12
 
 
-def test_provider_collection_value_overrides_random(
+def test_provider_machine_collection_value_overrides_random(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -398,10 +502,55 @@ def test_provider_collection_value_overrides_random(
     db_session.add_all([machine, provider])
     db_session.commit()
 
-    result = run_provider_collection(db_session, provider.id)
+    result = run_provider_machine_collection(db_session, provider.id, machine.id)
 
-    assert result == {"created": 1, "updated": 0, "skipped": 0}
+    assert result == {"provider_id": provider.id, "machine_id": machine.id, "created": 1, "updated": 0, "skipped": 0}
     assert db_session.query(MachineCPUMetric).one().value == 73
+
+
+def test_provider_machine_collection_skips_missing_or_out_of_scope_machine(db_session: Session) -> None:
+    """Missing or out-of-scope machines should end as skipped, not failures."""
+    platform = Platform(name="Skipped Metrics")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    other_provisioner = MachineProvisioner(platform=platform, name="other", type="mock_inventory", cron="* * * * *")
+    scoped_machine = Machine(platform=platform, source_provisioner=provisioner, external_id="vm-1", hostname="vm-1")
+    out_of_scope_machine = Machine(
+        platform=platform,
+        source_provisioner=other_provisioner,
+        external_id="vm-2",
+        hostname="vm-2",
+    )
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu scoped",
+        type="mock_metric",
+        scope="cpu",
+        config={"value": 41},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([scoped_machine, out_of_scope_machine, provider])
+    db_session.commit()
+
+    missing_result = run_provider_machine_collection(db_session, provider.id, 9999)
+    out_of_scope_result = run_provider_machine_collection(db_session, provider.id, out_of_scope_machine.id)
+
+    assert missing_result == {
+        "provider_id": provider.id,
+        "machine_id": 9999,
+        "created": 0,
+        "updated": 0,
+        "skipped": 1,
+        "status": "machine_not_found",
+    }
+    assert out_of_scope_result == {
+        "provider_id": provider.id,
+        "machine_id": out_of_scope_machine.id,
+        "created": 0,
+        "updated": 0,
+        "skipped": 1,
+        "status": "machine_out_of_scope",
+    }
+    assert db_session.query(MachineCPUMetric).count() == 0
 
 
 def test_mock_preset_inventory_creates_machines_from_repository_json(db_session: Session) -> None:
@@ -506,6 +655,7 @@ def test_placeholder_provider_run_is_no_op(
 ) -> None:
     """Placeholder providers should succeed without writing metrics."""
     platform = Platform(name="Placeholder Metrics")
+    machine = Machine(platform=platform, external_id="vm-1", hostname="vm-1")
     provider = MachineProvider(
         platform=platform,
         name=f"{connector_type} {scope}",
@@ -513,12 +663,20 @@ def test_placeholder_provider_run_is_no_op(
         scope=scope,
         config=config,
     )
-    db_session.add(provider)
+    db_session.add_all([machine, provider])
     db_session.commit()
 
     assert isinstance(get_metric_collector(connector_type), EmptyMetricCollector)
-    result = run_provider_collection(db_session, provider.id)
-    assert result == {"created": 0, "updated": 0, "skipped": 0}
+    result = run_provider_machine_collection(db_session, provider.id, machine.id)
+    assert result == {
+        "provider_id": provider.id,
+        "machine_id": machine.id,
+        "created": 0,
+        "updated": 0,
+        "skipped": 1,
+    }
+    db_session.refresh(provider)
+    assert provider.last_success_at is not None
     assert db_session.query(MachineCPUMetric).count() == 0
     assert db_session.query(MachineRAMMetric).count() == 0
     assert db_session.query(MachineDiskMetric).count() == 0
@@ -565,17 +723,109 @@ def test_config_is_encrypted_at_rest(db_session: Session) -> None:
     assert db_session.get(MachineProvider, provider.id).config["token"] == "provider-secret"
 
 
-def test_application_metrics_sync_marks_not_implemented(db_session: Session) -> None:
-    """Application metrics sync should record its controlled placeholder failure."""
+def test_application_metrics_sync_dispatches_machine_provider_pairs(db_session: Session) -> None:
+    """Application metrics sync should batch by application and dispatch provider/machine child tasks."""
+    platform = Platform(name="Application Metrics Dispatch")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    other_platform = Platform(name="Other Application Metrics Dispatch")
+    db_session.add_all(
+        [
+            platform,
+            other_platform,
+            Machine(
+                platform=platform,
+                source_provisioner=provisioner,
+                application="catalog",
+                environment="staging",
+                region="eu",
+                external_id="vm-1",
+                hostname="catalog-1",
+            ),
+            Machine(
+                platform=platform,
+                source_provisioner=provisioner,
+                application="catalog",
+                environment="staging",
+                region="eu",
+                external_id="vm-2",
+                hostname="catalog-2",
+            ),
+            Machine(
+                platform=platform,
+                source_provisioner=provisioner,
+                application="payments",
+                environment="staging",
+                region="eu",
+                external_id="vm-3",
+                hostname="payments-1",
+            ),
+        ]
+    )
+    db_session.commit()
     application = Application(name="catalog", environment="staging", region="eu")
     application.sync_scheduled_at = application.created_at if application.created_at else None
-    db_session.add(application)
+    provider_cpu = MachineProvider(
+        platform=platform,
+        name="catalog cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 70},
+        provisioners=[provisioner],
+    )
+    provider_ram = MachineProvider(
+        platform=platform,
+        name="catalog ram",
+        type="mock_metric",
+        scope="ram",
+        enabled=True,
+        config={"value": 55},
+    )
+    provider_disabled = MachineProvider(
+        platform=platform,
+        name="catalog disk disabled",
+        type="mock_metric",
+        scope="disk",
+        config={"value": 40},
+    )
+    provider_other_platform = MachineProvider(
+        platform=other_platform,
+        name="other platform cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 90},
+    )
+    db_session.add_all([application, provider_cpu, provider_ram, provider_disabled, provider_other_platform])
     db_session.commit()
 
-    result = run_application_metrics_sync(db_session, application.id)
+    enqueued: list[tuple[int, int]] = []
+    result = run_application_metrics_sync(
+        db_session,
+        application.id,
+        enqueue_machine_sync=lambda provider_id, machine_id: enqueued.append((provider_id, machine_id))
+        or f"{provider_id}-{machine_id}",
+    )
 
+    expected_pairs = [
+        (provider_cpu.id, machine.id)
+        for machine in db_session.query(Machine)
+        .filter(Machine.application == "CATALOG")
+        .order_by(Machine.id.asc())
+        .all()
+    ] + [
+        (provider_ram.id, machine.id)
+        for machine in db_session.query(Machine)
+        .filter(Machine.application == "CATALOG")
+        .order_by(Machine.id.asc())
+        .all()
+    ]
     db_session.refresh(application)
-    assert result == {"synced": 0, "status": "not_implemented"}
-    assert application.sync_at is None
+    assert result == {"application_id": application.id, "machines": 2, "synced": 4, "status": "dispatched"}
+    assert enqueued == [(provider_id, machine_id) for provider_id, machine_id in sorted(expected_pairs, key=lambda item: (item[1], item[0]))]
+    assert application.sync_at is not None
     assert application.sync_scheduled_at is None
-    assert application.sync_error == APPLICATION_METRICS_NOT_IMPLEMENTED
+    assert application.sync_error is None
+    assert application.extra["last_metrics_sync"]["status"] == "dispatched"
+    assert application.extra["last_metrics_sync"]["machines"] == 2
+    assert application.extra["last_metrics_sync"]["tasks"] == 4

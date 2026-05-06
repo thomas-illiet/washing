@@ -1,6 +1,7 @@
 """End-to-end API tests for the FastAPI surface."""
 
 from datetime import date
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -120,6 +121,9 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "MockProvisionerCreate" not in schemas
     assert "MockProvisionerUpdate" not in schemas
     assert "MockProvisionerRead" not in schemas
+    assert "MockProviderCreate" not in schemas
+    assert "MockProviderUpdate" not in schemas
+    assert "MockProviderRead" not in schemas
     assert "enabled" not in schemas["PrometheusProviderCreate"]["properties"]
     assert "provisioner_ids" not in schemas["PrometheusProviderUpdate"]["properties"]
     assert "enabled" not in schemas["PrometheusProviderUpdate"]["properties"]
@@ -140,9 +144,12 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/{machine_id}" in paths
     assert "/v1/machines/providers" in paths
     assert "/v1/machines/providers/{provider_id}" in paths
+    assert "/v1/machines/providers/sync" in paths
     assert "/v1/machines/providers/{provider_id}/enable" in paths
     assert "/v1/machines/providers/{provider_id}/disable" in paths
     assert "/v1/machines/providers/{provider_id}/provisioners" in paths
+    assert "/v1/machines/providers/mock" not in paths
+    assert "/v1/machines/providers/{provider_id}/mock" not in paths
     assert "/v1/machines/provisioners" in paths
     assert "/v1/machines/provisioners/{provisioner_id}" in paths
     assert "/v1/machines/provisioners/mock" not in paths
@@ -167,6 +174,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/metrics"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/providers"]["get"]["tags"] == ["Machine Providers"]
+    assert paths["/v1/machines/providers/sync"]["post"]["tags"] == ["Machine Providers"]
     assert paths["/v1/machines/providers/{provider_id}/enable"]["post"]["tags"] == ["Machine Providers"]
     assert paths["/v1/machines/providers/{provider_id}/prometheus"]["get"]["tags"] == ["Machine Providers"]
     assert paths["/v1/machines/providers/{provider_id}/provisioners"]["get"]["tags"] == ["Machine Providers"]
@@ -282,7 +290,7 @@ def test_named_fields_reject_blank_strings(client: TestClient) -> None:
 
 
 def test_application_routes_are_read_only_and_sync_type_is_validated(client: TestClient) -> None:
-    """Application writes should stay disabled while manual sync accepts only known types."""
+    """Application writes should stay disabled while sync inputs stay constrained."""
     create_response = client.post(
         "/v1/applications",
         json={"name": "billing", "environment": "prod", "region": "eu-west-1"},
@@ -293,7 +301,7 @@ def test_application_routes_are_read_only_and_sync_type_is_validated(client: Tes
     assert invalid_sync_response.status_code == 422
 
 
-def test_typed_integration_routes_require_existing_platforms(client: TestClient) -> None:
+def test_typed_integration_routes_require_existing_platforms(client: TestClient, dev_client: TestClient) -> None:
     """Typed provider and provisioner routes should 404 on missing platforms."""
     provisioner_response = client.post(
         "/v1/machines/provisioners/capsule",
@@ -314,6 +322,13 @@ def test_typed_integration_routes_require_existing_platforms(client: TestClient)
     )
     assert provider_response.status_code == 404
     assert provider_response.json()["detail"] == "platform not found"
+
+    mock_provider_response = dev_client.post(
+        "/v1/machines/providers/mock",
+        json={"platform_id": 999, "name": "mock cpu", "scope": "cpu"},
+    )
+    assert mock_provider_response.status_code == 404
+    assert mock_provider_response.json()["detail"] == "platform not found"
 
 
 def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
@@ -376,6 +391,16 @@ def test_mock_provisioner_routes_are_absent_outside_dev(client: TestClient) -> N
     assert response.status_code == 405
 
 
+def test_mock_provider_routes_are_absent_outside_dev(client: TestClient) -> None:
+    """Production mode should not register the typed mock provider routes."""
+    platform = client.post("/v1/platforms", json={"name": "Prod Mock Provider Hidden"}).json()
+    response = client.post(
+        "/v1/machines/providers/mock",
+        json={"platform_id": platform["id"], "name": "mock cpu", "scope": "cpu"},
+    )
+    assert response.status_code == 405
+
+
 def test_dev_openapi_includes_mock_provisioner_routes(dev_client: TestClient) -> None:
     """Development mode should expose the mock typed provisioner in OpenAPI."""
     response = dev_client.get("/v1/openapi.json")
@@ -391,6 +416,34 @@ def test_dev_openapi_includes_mock_provisioner_routes(dev_client: TestClient) ->
     assert "/v1/machines/provisioners/mock" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/mock" in paths
     assert paths["/v1/machines/provisioners/mock"]["post"]["tags"] == ["Machine Provisioners"]
+
+
+def test_dev_openapi_includes_mock_provider_routes(dev_client: TestClient) -> None:
+    """Development mode should expose the mock typed provider in OpenAPI."""
+    response = dev_client.get("/v1/openapi.json")
+
+    assert response.status_code == 200
+    body = response.json()
+    schemas = body["components"]["schemas"]
+    paths = body["paths"]
+
+    assert "MockProviderCreate" in schemas
+    assert "MockProviderUpdate" in schemas
+    assert "MockProviderRead" in schemas
+    assert "enabled" not in schemas["MockProviderCreate"]["properties"]
+    assert "provisioner_ids" not in schemas["MockProviderUpdate"]["properties"]
+    assert "enabled" not in schemas["MockProviderUpdate"]["properties"]
+    assert "provisioner_ids" not in schemas["MockProviderCreate"]["properties"]
+    assert "value" not in schemas["MockProviderCreate"]["properties"]
+    assert "values_by_hostname" not in schemas["MockProviderCreate"]["properties"]
+    assert "value" not in schemas["MockProviderUpdate"]["properties"]
+    assert "values_by_hostname" not in schemas["MockProviderUpdate"]["properties"]
+    assert "provisioner_ids" not in schemas["MockProviderRead"]["properties"]
+    assert "value" not in schemas["MockProviderRead"]["properties"]
+    assert "values_by_hostname" not in schemas["MockProviderRead"]["properties"]
+    assert "/v1/machines/providers/mock" in paths
+    assert "/v1/machines/providers/{provider_id}/mock" in paths
+    assert paths["/v1/machines/providers/mock"]["post"]["tags"] == ["Machine Providers"]
 
 
 def test_dev_mock_provisioner_routes_use_json_presets(dev_client: TestClient) -> None:
@@ -424,6 +477,46 @@ def test_dev_mock_provisioner_routes_use_json_presets(dev_client: TestClient) ->
     assert patched.status_code == 200
     assert patched.json()["name"] == "mock inventory v2"
     assert patched.json()["preset"] == "small-fleet"
+
+
+def test_dev_mock_provider_routes_expose_mock_metric_config(dev_client: TestClient) -> None:
+    """Development mode should expose a typed mock provider backed by mock_metric config."""
+    platform = dev_client.post("/v1/platforms", json={"name": "Mock Metrics Platform"}).json()
+
+    created = dev_client.post(
+        "/v1/machines/providers/mock",
+        json={
+            "platform_id": platform["id"],
+            "name": "mock cpu",
+            "scope": "cpu",
+        },
+    )
+    assert created.status_code == 201
+    created_body = created.json()
+    assert created_body["type"] == "mock_metric"
+    assert created_body["scope"] == "cpu"
+    assert created_body["enabled"] is False
+    assert "config" not in created_body
+    assert "provisioner_ids" not in created_body
+    assert "value" not in created_body
+    assert "values_by_hostname" not in created_body
+
+    fetched = dev_client.get(f"/v1/machines/providers/{created_body['id']}/mock")
+    assert fetched.status_code == 200
+    assert "provisioner_ids" not in fetched.json()
+    assert "value" not in fetched.json()
+    assert "values_by_hostname" not in fetched.json()
+
+    patched = dev_client.patch(
+        f"/v1/machines/providers/{created_body['id']}/mock",
+        json={"scope": "ram", "name": "mock ram"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["scope"] == "ram"
+    assert patched.json()["name"] == "mock ram"
+    assert "provisioner_ids" not in patched.json()
+    assert "value" not in patched.json()
+    assert "values_by_hostname" not in patched.json()
 
 
 def test_dev_mock_provisioner_routes_reject_unknown_preset(dev_client: TestClient) -> None:
@@ -802,8 +895,56 @@ def test_manual_provisioner_run_rejects_disabled_provisioners(client: TestClient
     assert response.json()["detail"] == "provisioner must be enabled before it can run"
 
 
-def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: TestClient) -> None:
-    """A provisioner should not accept two attached providers of the same type."""
+def test_manual_provider_sync_rejects_when_no_provider_is_enabled(client: TestClient) -> None:
+    """Global provider sync should fail fast when nothing can run."""
+    platform = client.post("/v1/platforms", json={"name": "Manual Provider Sync Guard"}).json()
+    client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+        },
+    )
+
+    response = client.post("/v1/machines/providers/sync")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "at least one enabled provider is required before syncing machine metrics"
+
+
+def test_manual_provider_sync_enqueues_global_dispatch(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    """Global provider sync should enqueue the provider dispatcher task."""
+    platform = client.post("/v1/platforms", json={"name": "Manual Provider Sync"}).json()
+    provider = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+        },
+    ).json()
+    enabled = client.post(f"/v1/machines/providers/{provider['id']}/enable")
+    assert enabled.status_code == 200
+
+    monkeypatch.setattr(
+        "internal.infra.queue.enqueue.celery_app.send_task",
+        lambda *args, **kwargs: SimpleNamespace(id="provider-sync-dispatch"),
+    )
+
+    response = client.post("/v1/machines/providers/sync")
+    assert response.status_code == 202
+    assert response.json() == {"task_id": "provider-sync-dispatch"}
+
+
+def test_provider_creation_rejects_duplicate_scope_for_same_provisioner(client: TestClient) -> None:
+    """A provisioner should not accept two attached providers for the same metric scope."""
     platform = client.post("/v1/platforms", json={"name": "Constraint Platform"}).json()
     provisioner = client.post(
         "/v1/machines/provisioners/capsule",
@@ -828,7 +969,7 @@ def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: T
     )
     assert first_provider.status_code == 201
 
-    duplicate_type = client.post(
+    second_scope = client.post(
         "/v1/machines/providers/prometheus",
         json={
             "platform_id": platform["id"],
@@ -839,14 +980,13 @@ def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: T
             "provisioner_ids": [provisioner["id"]],
         },
     )
-    assert duplicate_type.status_code == 409
-    assert duplicate_type.json()["detail"] == "provisioner cannot have more than one provider of the same type"
+    assert second_scope.status_code == 201
 
     providers = client.get("/v1/machines/providers", params={"platform_id": platform["id"]}).json()
-    assert providers["total"] == 1
-    assert [provider["name"] for provider in providers["items"]] == ["prom cpu"]
+    assert providers["total"] == 2
+    assert [provider["name"] for provider in providers["items"]] == ["prom cpu", "prom ram"]
 
-    other_type = client.post(
+    duplicate_scope = client.post(
         "/v1/machines/providers/dynatrace",
         json={
             "platform_id": platform["id"],
@@ -857,11 +997,12 @@ def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: T
             "provisioner_ids": [provisioner["id"]],
         },
     )
-    assert other_type.status_code == 201
+    assert duplicate_scope.status_code == 409
+    assert duplicate_scope.json()["detail"] == "provisioner cannot have more than one provider for the same scope"
 
 
-def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: TestClient) -> None:
-    """Attaching a second provider of the same type should fail with a conflict."""
+def test_provider_attach_rejects_duplicate_scope_for_same_provisioner(client: TestClient) -> None:
+    """Attaching a second provider for the same metric scope should fail with a conflict."""
     platform = client.post("/v1/platforms", json={"name": "Attach Constraint Platform"}).json()
     provisioner = client.post(
         "/v1/machines/provisioners/capsule",
@@ -893,16 +1034,80 @@ def test_provider_attach_rejects_duplicate_type_for_same_provisioner(client: Tes
             "query": "avg(node_memory_MemAvailable_bytes)",
         },
     ).json()
+    third_provider = client.post(
+        "/v1/machines/providers/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "dynatrace cpu",
+            "scope": "cpu",
+            "url": "https://dynatrace.example",
+            "token": "provider-secret",
+        },
+    ).json()
 
     first_attach = client.post(f"/v1/machines/providers/{first_provider['id']}/provisioners/{provisioner['id']}")
     assert first_attach.status_code == 200
 
     second_attach = client.post(f"/v1/machines/providers/{second_provider['id']}/provisioners/{provisioner['id']}")
-    assert second_attach.status_code == 409
-    assert second_attach.json()["detail"] == "provisioner cannot have more than one provider of the same type"
+    assert second_attach.status_code == 200
 
-    detached_provider = client.get(f"/v1/machines/providers/{second_provider['id']}").json()
+    third_attach = client.post(f"/v1/machines/providers/{third_provider['id']}/provisioners/{provisioner['id']}")
+    assert third_attach.status_code == 409
+    assert third_attach.json()["detail"] == "provisioner cannot have more than one provider for the same scope"
+
+    detached_provider = client.get(f"/v1/machines/providers/{third_provider['id']}").json()
     assert detached_provider["provisioner_ids"] == []
+
+
+def test_provider_update_rejects_duplicate_scope_for_attached_provisioner(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    """Updating a provider scope should fail when the target scope is already attached."""
+    platform = client.post("/v1/platforms", json={"name": "Update Constraint Platform"}).json()
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "inventory",
+            "token": "capsule-secret",
+            "cron": "* * * * *",
+        },
+    ).json()
+
+    cpu_provider = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    ).json()
+    ram_provider = client.post(
+        "/v1/machines/providers/dynatrace",
+        json={
+            "platform_id": platform["id"],
+            "name": "dynatrace ram",
+            "scope": "ram",
+            "url": "https://dynatrace.example",
+            "token": "provider-secret",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    ).json()
+
+    response = client.patch(
+        f"/v1/machines/providers/{ram_provider['id']}/dynatrace",
+        json={"scope": "cpu"},
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == "provisioner cannot have more than one provider for the same scope"
+
+    provider_row = db_session.get(MachineProvider, ram_provider["id"])
+    assert provider_row is not None
+    assert provider_row.scope == "ram"
 
 
 def test_application_projection_and_machine_application_field(client: TestClient, db_session: Session) -> None:

@@ -8,26 +8,30 @@ from app.api.routes.common import apply_patch, commit_or_409, get_or_404, pagina
 from internal.contracts.http.resources import (
     DynatraceProviderCreate,
     DynatraceProviderRead,
-    PaginatedResponse,
     DynatraceProviderUpdate,
+    PaginatedResponse,
     PrometheusProviderCreate,
     PrometheusProviderRead,
     PrometheusProviderUpdate,
     ProviderRead,
     ProvisionerRead,
     Scope,
+    TaskEnqueueResponse,
 )
 from internal.infra.db.models import (
-    PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL,
+    PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL,
     MachineProvider,
     MachineProviderProvisioner,
     MachineProvisioner,
     Platform,
-    find_provider_type_conflict,
+    find_provider_scope_conflict,
 )
+from internal.infra.queue.enqueue import enqueue_celery_task
+from internal.infra.queue.task_names import DISPATCH_ENABLED_PROVIDER_SYNCS_TASK
 
 
 router = APIRouter(prefix="/machines/providers", tags=["Machine Providers"])
+ENABLED_PROVIDER_SYNC_REQUIRED_DETAIL = "at least one enabled provider is required before syncing machine metrics"
 
 
 def _load_provider(db: Session, provider_id: int) -> MachineProvider:
@@ -55,7 +59,7 @@ def _load_provisioners_for_provider(
     db: Session,
     provisioner_ids: list[int],
     platform_id: int,
-    provider_type: str,
+    provider_scope: str,
     provider_id: int | None = None,
 ) -> list[MachineProvisioner]:
     """Resolve attached provisioners and validate their platform ownership."""
@@ -64,8 +68,8 @@ def _load_provisioners_for_provider(
         provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
         if provisioner.platform_id != platform_id:
             raise HTTPException(status_code=400, detail="provider and provisioners must belong to the same platform")
-        if find_provider_type_conflict(provisioner, provider_type, provider_id=provider_id) is not None:
-            raise HTTPException(status_code=409, detail=PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL)
+        if find_provider_scope_conflict(provisioner, provider_scope, provider_id=provider_id) is not None:
+            raise HTTPException(status_code=409, detail=PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL)
         provisioners.append(provisioner)
     return provisioners
 
@@ -75,6 +79,13 @@ def _ensure_provider_platform_matches_provisioners(provider: MachineProvider, pl
     for provisioner in provider.provisioners:
         if provisioner.platform_id != platform_id:
             raise HTTPException(status_code=400, detail="provider and provisioners must belong to the same platform")
+
+
+def _ensure_provider_scope_matches_provisioners(provider: MachineProvider, scope: str) -> None:
+    """Prevent changing a provider scope to one already attached on its provisioners."""
+    for provisioner in provider.provisioners:
+        if find_provider_scope_conflict(provisioner, scope, provider_id=provider.id) is not None:
+            raise HTTPException(status_code=409, detail=PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL)
 
 
 def _prometheus_read_model(provider: MachineProvider) -> PrometheusProviderRead:
@@ -106,7 +117,7 @@ def create_prometheus_provider(
         db,
         payload.provisioner_ids,
         payload.platform_id,
-        provider_type="prometheus",
+        provider_scope=payload.scope,
     )
     provider = MachineProvider(
         platform_id=payload.platform_id,
@@ -133,7 +144,7 @@ def create_dynatrace_provider(
         db,
         payload.provisioner_ids,
         payload.platform_id,
-        provider_type="dynatrace",
+        provider_scope=payload.scope,
     )
     provider = MachineProvider(
         platform_id=payload.platform_id,
@@ -170,6 +181,22 @@ def list_providers(
     if enabled is not None:
         query = query.filter(MachineProvider.enabled.is_(enabled))
     return paginate_query(query, ProviderRead, pagination, MachineProvider.name.asc(), MachineProvider.id.asc())
+
+
+@router.post("/sync", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+def enqueue_provider_sync(db: Session = Depends(get_db)) -> TaskEnqueueResponse:
+    """Enqueue the global machine-metrics sync across enabled providers."""
+    has_enabled_provider = (
+        db.query(MachineProvider.id)
+        .filter(MachineProvider.enabled.is_(True))
+        .order_by(MachineProvider.id.asc())
+        .first()
+    )
+    if has_enabled_provider is None:
+        raise HTTPException(status_code=409, detail=ENABLED_PROVIDER_SYNC_REQUIRED_DETAIL)
+
+    task = enqueue_celery_task(DISPATCH_ENABLED_PROVIDER_SYNCS_TASK)
+    return TaskEnqueueResponse(task_id=task.id)
 
 
 @router.get("/{provider_id}", response_model=ProviderRead)
@@ -224,6 +251,7 @@ def update_prometheus_provider(
     target_platform_id = values.get("platform_id", provider.platform_id)
 
     if payload.scope is not None:
+        _ensure_provider_scope_matches_provisioners(provider, payload.scope)
         provider.scope = payload.scope
 
     if "platform_id" in values:
@@ -260,6 +288,7 @@ def update_dynatrace_provider(
     target_platform_id = values.get("platform_id", provider.platform_id)
 
     if payload.scope is not None:
+        _ensure_provider_scope_matches_provisioners(provider, payload.scope)
         provider.scope = payload.scope
 
     if "platform_id" in values:
@@ -326,8 +355,8 @@ def attach_provider_provisioner(
     if provisioner.platform_id != provider.platform_id:
         raise HTTPException(status_code=400, detail="provider and provisioner must belong to the same platform")
     if provisioner not in provider.provisioners:
-        if find_provider_type_conflict(provisioner, provider.type, provider_id=provider.id) is not None:
-            raise HTTPException(status_code=409, detail=PROVISIONER_PROVIDER_TYPE_CONFLICT_DETAIL)
+        if find_provider_scope_conflict(provisioner, provider.scope, provider_id=provider.id) is not None:
+            raise HTTPException(status_code=409, detail=PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL)
         provider.provisioners.append(provisioner)
     commit_or_409(db, "provider/provisioner association already exists")
     return _load_provider(db, provider_id)

@@ -1,6 +1,8 @@
 """Canonical Celery task names used across the runtimes."""
 
+DISPATCH_ENABLED_PROVIDER_SYNCS_TASK = "providers.dispatch_enabled_syncs"
 RUN_PROVIDER_TASK = "providers.run"
+RUN_PROVIDER_MACHINE_TASK = "providers.run_machine"
 RUN_PROVISIONER_TASK = "provisioners.run"
 SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK = "applications.sync_inventory_discovery"
 DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK = "applications.dispatch_due_metrics_syncs"

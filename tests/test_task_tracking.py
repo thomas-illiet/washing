@@ -9,10 +9,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from internal.infra.db.models import Application, CeleryTaskExecution, MachineProvisioner, Platform
+from internal.infra.db.models import Application, CeleryTaskExecution, MachineProvider, MachineProvisioner, Platform
 from internal.infra.queue import task_tracking
 from internal.infra.queue.task_names import (
+    DISPATCH_ENABLED_PROVIDER_SYNCS_TASK,
     DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
+    RUN_PROVIDER_MACHINE_TASK,
     RUN_PROVISIONER_TASK,
     SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
     SYNC_APPLICATION_METRICS_TASK,
@@ -118,6 +120,36 @@ def test_task_tracking_signals_record_publish_start_success(
     assert execution.duration_seconds >= 0
     assert execution.result == {"created": 1, "updated": 0}
     assert execution.error is None
+
+
+def test_provider_machine_tasks_track_provider_resource_and_machine_result(
+    db_session: Session,
+    tracking_session_factory,
+) -> None:
+    """Machine-level provider tasks should stay grouped under their provider resource."""
+    task = _fake_task(RUN_PROVIDER_MACHINE_TASK, args=[12, 34])
+
+    task_prerun.send(sender=task, task_id="provider-machine-success", task=task, args=[12, 34], kwargs={})
+    task_postrun.send(
+        sender=task,
+        task_id="provider-machine-success",
+        task=task,
+        args=[12, 34],
+        kwargs={},
+        state="SUCCESS",
+        retval={"provider_id": 12, "machine_id": 34, "created": 1, "updated": 0, "skipped": 0},
+    )
+
+    db_session.expire_all()
+    execution = (
+        db_session.query(CeleryTaskExecution)
+        .filter(CeleryTaskExecution.task_id == "provider-machine-success")
+        .one()
+    )
+    assert execution.status == "SUCCESS"
+    assert execution.resource_type == "provider"
+    assert execution.resource_id == 12
+    assert execution.result == {"provider_id": 12, "machine_id": 34, "created": 1, "updated": 0, "skipped": 0}
 
 
 def test_task_tracking_signals_record_failure_and_prerun_fallback(
@@ -259,13 +291,22 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
         cron="* * * * *",
         config={"token": "secret"},
     )
-    db_session.add_all([application, provisioner])
+    provider = MachineProvider(
+        platform=platform,
+        name="tracked provider",
+        type="prometheus",
+        scope="cpu",
+        enabled=True,
+        config={"url": "https://prometheus.example", "query": "avg(up)"},
+    )
+    db_session.add_all([application, provisioner, provider])
     db_session.commit()
 
     task_ids = iter(
         [
             "manual-application-inventory-sync",
             "manual-application-metrics-dispatch",
+            "manual-provider-sync-dispatch",
             "manual-provisioner-run",
         ]
     )
@@ -286,12 +327,15 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
 
     inventory_sync_response = client.post("/v1/applications/sync", params={"type": "inventory_discovery"})
     metrics_sync_response = client.post("/v1/applications/sync", params={"type": "metrics"})
+    provider_sync_response = client.post("/v1/machines/providers/sync")
     provisioner_response = client.post(f"/v1/machines/provisioners/{provisioner.id}/run")
 
     assert inventory_sync_response.status_code == 202
     assert inventory_sync_response.json() == {"task_id": "manual-application-inventory-sync"}
     assert metrics_sync_response.status_code == 202
     assert metrics_sync_response.json() == {"task_id": "manual-application-metrics-dispatch"}
+    assert provider_sync_response.status_code == 202
+    assert provider_sync_response.json() == {"task_id": "manual-provider-sync-dispatch"}
     assert provisioner_response.status_code == 202
     assert provisioner_response.json() == {"task_id": "manual-provisioner-run"}
 
@@ -312,6 +356,13 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
         (
             "manual-application-metrics-dispatch",
             DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
+            "PENDING",
+            None,
+            None,
+        ),
+        (
+            "manual-provider-sync-dispatch",
+            DISPATCH_ENABLED_PROVIDER_SYNCS_TASK,
             "PENDING",
             None,
             None,

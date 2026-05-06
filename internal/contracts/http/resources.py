@@ -205,6 +205,35 @@ class DynatraceProviderRead(ProviderRead):
     has_token: bool
 
 
+class MockProviderCreate(ApiModel):
+    """Create payload for a development-only mock metric provider."""
+    platform_id: int
+    name: NonEmptyStr
+    scope: Scope
+
+
+class MockProviderUpdate(ApiModel):
+    """Patch payload for a development-only mock metric provider."""
+    platform_id: int | None = None
+    name: NonEmptyStr | None = None
+    scope: Scope | None = None
+
+
+class MockProviderRead(ApiModel):
+    """Mock provider view exposing only shared random-provider metadata."""
+    id: int
+    platform_id: int
+    name: str
+    type: str
+    scope: Scope
+    enabled: bool
+    last_run_at: datetime | None = None
+    last_success_at: datetime | None = None
+    last_error: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
 class MachineCreate(ApiModel):
     """Payload used to create a machine."""
     platform_id: int

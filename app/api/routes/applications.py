@@ -53,7 +53,11 @@ def list_applications(
     )
 
 
-@router.post("/sync", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/sync",
+    response_model=TaskEnqueueResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 def enqueue_application_sync(
     sync_type: ApplicationSyncType = Query(alias="type"),
 ) -> TaskEnqueueResponse:

@@ -17,6 +17,7 @@ flowchart TD
     APIProv["POST /v1/machines/provisioners/{provisioner_id}/run"] --> Enqueue
     APIAppInv["POST /v1/applications/sync?type=inventory_discovery"] --> Enqueue
     APIAppMet["POST /v1/applications/sync?type=metrics"] --> Enqueue
+    APIProviderSync["POST /v1/machines/providers/sync"] --> Enqueue
 
     Beat["Celery Beat\napp/beat/celery.py"] --> SchedProv["schedule: scheduler.dispatch_due_machine_provisioner_jobs"]
     Beat --> SchedInv["schedule: applications.sync_inventory_discovery"]
@@ -33,12 +34,16 @@ flowchart TD
     Worker --> RunProv["provisioners.run(provisioner_id)"]
     Worker --> SyncInv["applications.sync_inventory_discovery()"]
     Worker --> DispatchMet["applications.dispatch_due_metrics_syncs()"]
-    Worker --> SyncMet["applications.sync_metrics(application_id)"]
+    Worker --> DispatchProviders["providers.dispatch_enabled_syncs()"]
     Worker --> RunProvider["providers.run(provider_id)"]
+    Worker --> RunProviderMachine["providers.run_machine(provider_id, machine_id)"]
+    Worker --> SyncMet["applications.sync_metrics(application_id)"]
 
     DispatchProv -->|"enqueues one task per due provisioner"| Enqueue
     DispatchMet -->|"enqueues one task per due application"| Enqueue
-    RunProvider -.->|registered task, but no active API or Beat entrypoint found| Orphan["orphan entrypoint"]
+    DispatchProviders -->|"enqueues one task per enabled provider"| Enqueue
+    RunProvider -->|"enqueues one task per visible machine"| Enqueue
+    SyncMet -->|"enqueues one task per provider/machine pair for the application batch"| Enqueue
 ```
 
 ## Task inventory
@@ -49,8 +54,10 @@ flowchart TD
 | `provisioners.run` | `run_provisioner_task` | `POST /v1/machines/provisioners/{provisioner_id}/run`, plus the scheduler dispatcher above | Runs one inventory sync for a provisioner. |
 | `applications.sync_inventory_discovery` | `sync_application_inventory_discovery_task` | Beat schedule, `POST /v1/applications/sync?type=inventory_discovery` | Rebuilds the `applications` projection from current machine inventory. |
 | `applications.dispatch_due_metrics_syncs` | `dispatch_due_application_metrics_syncs_task` | Beat schedule, `POST /v1/applications/sync?type=metrics` | Selects due applications, then enqueues `applications.sync_metrics` in batches. |
-| `applications.sync_metrics` | `sync_application_metrics_task` | Application metrics dispatcher only | Runs one application metrics sync. |
-| `providers.run` | `run_provider_task` | No caller found in API routes or Beat schedule | Registered in the worker, but currently appears disconnected from an active entrypoint. |
+| `applications.sync_metrics` | `sync_application_metrics_task` | Application metrics dispatcher only | Resolves the machines/providers for one application batch, then enqueues `providers.run_machine` once per visible pair. |
+| `providers.dispatch_enabled_syncs` | `dispatch_enabled_provider_syncs_task` | `POST /v1/machines/providers/sync` | Selects enabled providers, then enqueues `providers.run` once per provider. |
+| `providers.run` | `run_provider_task` | Provider dispatcher only | Resolves the provider scope, then enqueues `providers.run_machine` once per visible machine. |
+| `providers.run_machine` | `run_provider_machine_task` | Provider dispatcher only | Collects one machine metric sample for one `provider_id` / `machine_id` pair and upserts the daily metric row. |
 
 ## Code locations
 
@@ -62,6 +69,7 @@ flowchart TD
 - Generic enqueue helper: `internal/infra/queue/enqueue.py`
 - Manual API triggers:
   - `app/api/routes/machines/provisioners.py`
+  - `app/api/routes/machines/providers.py`
   - `app/api/routes/applications.py`
 - Task tracking and persisted execution history: `internal/infra/queue/task_tracking.py`
 
@@ -74,5 +82,6 @@ flowchart TD
 ## Notes
 
 - All task dispatches pass through `enqueue_celery_task()`, which attaches tracking headers before calling `celery_app.send_task(...)`.
-- `scheduler.dispatch_due_machine_provisioner_jobs` and `applications.dispatch_due_metrics_syncs` are dispatcher tasks, not terminal business tasks.
-- `providers.run` may be intended for a future manual or scheduled entrypoint, but no active caller was found in the current codebase.
+- `scheduler.dispatch_due_machine_provisioner_jobs`, `applications.dispatch_due_metrics_syncs`, `providers.dispatch_enabled_syncs`, and `providers.run` are dispatcher tasks, not terminal business tasks.
+- `providers.run_machine` is the terminal execution task for distributed machine metric collection.
+- `applications.sync_metrics` is the application-batch pivot: batching cadence is tracked on `applications`, while execution fan-out happens on `provider/machine` child tasks.
