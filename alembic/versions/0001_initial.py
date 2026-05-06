@@ -210,8 +210,8 @@ def upgrade() -> None:
         sa.Column("region", sa.String(length=128), nullable=True),
         sa.Column("environment", sa.String(length=128), nullable=True),
         sa.Column("cpu", sa.Float(), nullable=True),
-        sa.Column("ram_gb", sa.Float(), nullable=True),
-        sa.Column("disk_gb", sa.Float(), nullable=True),
+        sa.Column("ram_mb", sa.Float(), nullable=True),
+        sa.Column("disk_mb", sa.Float(), nullable=True),
         sa.Column("extra", _json_type(), nullable=False),
         *_timestamps(),
         sa.ForeignKeyConstraint(

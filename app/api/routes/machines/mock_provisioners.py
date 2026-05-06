@@ -15,7 +15,7 @@ from internal.contracts.http.resources import (
     MockProvisionerUpdate,
     ProvisionerRead,
 )
-from internal.infra.connectors.mock import DEFAULT_MOCK_PRESET, resolve_mock_preset_path
+from internal.infra.connectors.provisioners.mock import DEFAULT_MOCK_PRESET, resolve_mock_preset_path
 from internal.infra.db.models import MachineProvisioner, Platform
 
 

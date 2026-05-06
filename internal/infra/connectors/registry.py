@@ -1,11 +1,10 @@
 """Connector registry lookups."""
 
 from internal.infra.connectors.base import MachineProvisionerConnector, MetricCollectorConnector
-from internal.infra.connectors.mock import (
+from internal.infra.connectors.providers import EmptyMetricCollector, MockMetricCollector
+from internal.infra.connectors.provisioners import (
     EmptyInventoryProvisioner,
-    EmptyMetricCollector,
     MockInventoryProvisioner,
-    MockMetricCollector,
 )
 
 

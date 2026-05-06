@@ -49,7 +49,7 @@ def rebuild_applications_from_machines(db: Session) -> dict[str, int]:
         for application, environment, region in grouped_rows
         if normalize_application_code(application) is not None
     }
-    snapshot.discard((None, "unknown", "unknown"))
+    snapshot.discard((None, "UNKNOWN", "UNKNOWN"))
 
     existing = db.query(Application).all()
     existing_by_key = {(item.name, item.environment, item.region): item for item in existing}

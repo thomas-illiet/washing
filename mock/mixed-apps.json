@@ -2,305 +2,297 @@
   "machines": [
     {
       "external_id": "mix-billing-1",
-      "hostname": "mix-billing-1",
+      "hostname": "MIX-BILLING-1",
       "application": "billing",
-      "region": "eu-west-1",
-      "environment": "prod",
+      "region": "EU-WEST-1",
+      "environment": "PROD",
       "cpu": 4,
-      "ram_gb": 16,
-      "disk_gb": 160,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 16384,
+      "disk_mb": 163840
     },
     {
       "external_id": "mix-billing-2",
-      "hostname": "mix-billing-2",
+      "hostname": "MIX-BILLING-2",
       "application": "billing",
-      "region": "eu-west-1",
-      "environment": "staging",
+      "region": "EU-WEST-1",
+      "environment": "STAGING",
       "cpu": 2,
-      "ram_gb": 8,
-      "disk_gb": 120,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 122880
     },
     {
       "external_id": "mix-billing-3",
-      "hostname": "mix-billing-3",
+      "hostname": "MIX-BILLING-3",
       "application": "billing",
-      "region": "us-east-1",
-      "environment": "dev",
+      "region": "US-EAST-1",
+      "environment": "DEV",
       "cpu": 1,
-      "ram_gb": 4,
-      "disk_gb": 60,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 4096,
+      "disk_mb": 61440
     },
-
     {
       "external_id": "mix-catalog-1",
-      "hostname": "mix-catalog-1",
+      "hostname": "MIX-CATALOG-1",
       "application": "catalog",
-      "region": "eu-central-1",
-      "environment": "staging",
+      "region": "EU-CENTRAL-1",
+      "environment": "STAGING",
       "cpu": 2,
-      "ram_gb": 8,
-      "disk_gb": 80,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 81920
     },
     {
       "external_id": "mix-catalog-2",
-      "hostname": "mix-catalog-2",
+      "hostname": "MIX-CATALOG-2",
       "application": "catalog",
-      "region": "eu-central-1",
-      "environment": "prod",
+      "region": "EU-CENTRAL-1",
+      "environment": "PROD",
       "cpu": 4,
-      "ram_gb": 16,
-      "disk_gb": 150,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 16384,
+      "disk_mb": 153600
     },
     {
       "external_id": "mix-catalog-3",
-      "hostname": "mix-catalog-3",
+      "hostname": "MIX-CATALOG-3",
       "application": "catalog",
-      "region": "ap-southeast-1",
-      "environment": "dev",
+      "region": "AP-SOUTHEAST-1",
+      "environment": "DEV",
       "cpu": 2,
-      "ram_gb": 4,
-      "disk_gb": 70,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 4096,
+      "disk_mb": 71680
     },
-
     {
       "external_id": "mix-search-1",
-      "hostname": "mix-search-1",
+      "hostname": "MIX-SEARCH-1",
       "application": "search",
-      "region": "us-east-1",
-      "environment": "dev",
+      "region": "US-EAST-1",
+      "environment": "DEV",
       "cpu": 8,
-      "ram_gb": 32,
-      "disk_gb": 200,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 32768,
+      "disk_mb": 204800
     },
     {
       "external_id": "mix-search-2",
-      "hostname": "mix-search-2",
+      "hostname": "MIX-SEARCH-2",
       "application": "search",
-      "region": "us-east-1",
-      "environment": "prod",
+      "region": "US-EAST-1",
+      "environment": "PROD",
       "cpu": 16,
-      "ram_gb": 64,
-      "disk_gb": 500,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 65536,
+      "disk_mb": 512000
     },
     {
       "external_id": "mix-search-3",
-      "hostname": "mix-search-3",
+      "hostname": "MIX-SEARCH-3",
       "application": "search",
-      "region": "eu-west-1",
-      "environment": "staging",
+      "region": "EU-WEST-1",
+      "environment": "STAGING",
       "cpu": 8,
-      "ram_gb": 24,
-      "disk_gb": 250,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 24576,
+      "disk_mb": 256000
     },
-
     {
       "external_id": "mix-auth-1",
-      "hostname": "mix-auth-1",
+      "hostname": "MIX-AUTH-1",
       "application": "auth",
-      "region": "eu-west-1",
-      "environment": "prod",
+      "region": "EU-WEST-1",
+      "environment": "PROD",
       "cpu": 4,
-      "ram_gb": 8,
-      "disk_gb": 100,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 102400
     },
     {
       "external_id": "mix-auth-2",
-      "hostname": "mix-auth-2",
+      "hostname": "MIX-AUTH-2",
       "application": "auth",
-      "region": "us-west-2",
-      "environment": "staging",
+      "region": "US-WEST-2",
+      "environment": "STAGING",
       "cpu": 2,
-      "ram_gb": 4,
-      "disk_gb": 80,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 4096,
+      "disk_mb": 81920
     },
-
     {
       "external_id": "mix-orders-1",
-      "hostname": "mix-orders-1",
+      "hostname": "MIX-ORDERS-1",
       "application": "orders",
-      "region": "eu-central-1",
-      "environment": "prod",
+      "region": "EU-CENTRAL-1",
+      "environment": "PROD",
       "cpu": 8,
-      "ram_gb": 16,
-      "disk_gb": 220,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 16384,
+      "disk_mb": 225280
     },
     {
       "external_id": "mix-orders-2",
-      "hostname": "mix-orders-2",
+      "hostname": "MIX-ORDERS-2",
       "application": "orders",
-      "region": "us-east-2",
-      "environment": "staging",
+      "region": "US-EAST-2",
+      "environment": "STAGING",
       "cpu": 4,
-      "ram_gb": 8,
-      "disk_gb": 140,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 143360
     },
-
     {
       "external_id": "mix-notify-1",
-      "hostname": "mix-notify-1",
+      "hostname": "MIX-NOTIFY-1",
       "application": "notification",
-      "region": "eu-west-3",
-      "environment": "prod",
+      "region": "EU-WEST-3",
+      "environment": "PROD",
       "cpu": 2,
-      "ram_gb": 4,
-      "disk_gb": 60,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 4096,
+      "disk_mb": 61440
     },
     {
       "external_id": "mix-notify-2",
-      "hostname": "mix-notify-2",
+      "hostname": "MIX-NOTIFY-2",
       "application": "notification",
-      "region": "ap-northeast-1",
-      "environment": "dev",
+      "region": "AP-NORTHEAST-1",
+      "environment": "DEV",
       "cpu": 1,
-      "ram_gb": 2,
-      "disk_gb": 40,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 2048,
+      "disk_mb": 40960
     },
-
     {
       "external_id": "mix-analytics-1",
-      "hostname": "mix-analytics-1",
+      "hostname": "MIX-ANALYTICS-1",
       "application": "analytics",
-      "region": "us-central-1",
-      "environment": "prod",
+      "region": "US-CENTRAL-1",
+      "environment": "PROD",
       "cpu": 32,
-      "ram_gb": 128,
-      "disk_gb": 1000,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 131072,
+      "disk_mb": 1024000
     },
     {
       "external_id": "mix-analytics-2",
-      "hostname": "mix-analytics-2",
+      "hostname": "MIX-ANALYTICS-2",
       "application": "analytics",
-      "region": "eu-north-1",
-      "environment": "staging",
+      "region": "EU-NORTH-1",
+      "environment": "STAGING",
       "cpu": 16,
-      "ram_gb": 64,
-      "disk_gb": 600,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 65536,
+      "disk_mb": 614400
     },
-
     {
       "external_id": "mix-cache-1",
-      "hostname": "mix-cache-1",
+      "hostname": "MIX-CACHE-1",
       "application": "cache",
-      "region": "eu-west-1",
-      "environment": "prod",
+      "region": "EU-WEST-1",
+      "environment": "PROD",
       "cpu": 2,
-      "ram_gb": 16,
-      "disk_gb": 50,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 16384,
+      "disk_mb": 51200
     },
     {
       "external_id": "mix-cache-2",
-      "hostname": "mix-cache-2",
+      "hostname": "MIX-CACHE-2",
       "application": "cache",
-      "region": "us-east-1",
-      "environment": "staging",
+      "region": "US-EAST-1",
+      "environment": "STAGING",
       "cpu": 2,
-      "ram_gb": 8,
-      "disk_gb": 40,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 40960
     },
-
     {
       "external_id": "mix-gateway-1",
-      "hostname": "mix-gateway-1",
+      "hostname": "MIX-GATEWAY-1",
       "application": "gateway",
-      "region": "eu-west-1",
-      "environment": "prod",
+      "region": "EU-WEST-1",
+      "environment": "PROD",
       "cpu": 4,
-      "ram_gb": 8,
-      "disk_gb": 90,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 92160
     },
     {
       "external_id": "mix-gateway-2",
-      "hostname": "mix-gateway-2",
+      "hostname": "MIX-GATEWAY-2",
       "application": "gateway",
-      "region": "us-west-1",
-      "environment": "dev",
+      "region": "US-WEST-1",
+      "environment": "DEV",
       "cpu": 2,
-      "ram_gb": 4,
-      "disk_gb": 70,
       "extra": {
         "source": "mock",
         "preset": "mixed-apps"
-      }
+      },
+      "ram_mb": 4096,
+      "disk_mb": 71680
     }
   ]
 }

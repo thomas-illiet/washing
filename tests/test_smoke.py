@@ -92,10 +92,12 @@ def test_reset_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
 
         assert "application" in machine_columns
         assert "application_id" not in machine_columns
+        assert {"ram_mb", "disk_mb"} <= set(machine_columns)
+        assert {column for column in machine_columns if column.startswith(("ram_", "disk_"))} == {"ram_mb", "disk_mb"}
         assert "scope" in provider_columns
         assert "metric_type_id" not in provider_columns
         assert {"cpu", "ram_mb", "disk_mb"} <= set(flavor_columns)
-        assert {"previous_cpu", "new_cpu", "previous_ram_gb", "new_ram_gb"} & set(flavor_columns) == set()
+        assert not any(column.startswith(("previous_", "new_")) for column in flavor_columns)
     finally:
         connection.close()
 

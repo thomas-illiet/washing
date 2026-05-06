@@ -287,13 +287,13 @@ Example internal `mock_inventory` config:
   "machines": [
     {
       "external_id": "vm-1",
-      "hostname": "vm-1",
+      "hostname": "VM-1",
       "application": "billing",
-      "region": "eu-west-1",
-      "environment": "dev",
+      "region": "EU-WEST-1",
+      "environment": "DEV",
       "cpu": 2,
-      "ram_gb": 8,
-      "disk_gb": 80
+      "ram_mb": 8192,
+      "disk_mb": 81920
     }
   ]
 }

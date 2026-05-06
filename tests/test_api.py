@@ -17,6 +17,7 @@ from internal.infra.db.models import (
     MachineProvisioner,
     Platform,
 )
+from internal.usecases.inventory import run_provisioner_inventory
 from internal.usecases.applications import rebuild_applications_from_machines
 
 EXPECTED_OPENAPI_DESCRIPTION = (
@@ -784,6 +785,23 @@ def test_provisioner_enable_disable_routes_are_idempotent(client: TestClient) ->
     assert client.post("/v1/machines/provisioners/9999/disable").status_code == 404
 
 
+def test_manual_provisioner_run_rejects_disabled_provisioners(client: TestClient) -> None:
+    """Manual run should require the provisioner to be enabled first."""
+    platform = client.post("/v1/platforms", json={"name": "Manual Run Guard Platform"}).json()
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "inventory",
+            "token": "capsule-secret",
+        },
+    ).json()
+
+    response = client.post(f"/v1/machines/provisioners/{provisioner['id']}/run")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "provisioner must be enabled before it can run"
+
+
 def test_provider_creation_rejects_duplicate_type_for_same_provisioner(client: TestClient) -> None:
     """A provisioner should not accept two attached providers of the same type."""
     platform = client.post("/v1/platforms", json={"name": "Constraint Platform"}).json()
@@ -910,7 +928,7 @@ def test_application_projection_and_machine_application_field(client: TestClient
     assert listed["items"][0]["name"] == "BILLING"
 
     fetched = client.get(f"/v1/applications/{listed['items'][0]['id']}").json()
-    assert fetched["region"] == "eu-west-1"
+    assert fetched["region"] == "EU-WEST-1"
 
 
 def test_machine_write_endpoints_are_disabled(client: TestClient, db_session: Session) -> None:
@@ -992,7 +1010,7 @@ def test_machine_list_filters_are_paginated(client: TestClient, db_session: Sess
     )
     assert first_page.status_code == 200
     assert first_page.json()["total"] == 2
-    assert [item["hostname"] for item in first_page.json()["items"]] == ["checkout-01"]
+    assert [item["hostname"] for item in first_page.json()["items"]] == ["CHECKOUT-01"]
 
     second_page = client.get(
         "/v1/machines",
@@ -1007,7 +1025,7 @@ def test_machine_list_filters_are_paginated(client: TestClient, db_session: Sess
         },
     )
     assert second_page.status_code == 200
-    assert [item["hostname"] for item in second_page.json()["items"]] == ["checkout-02"]
+    assert [item["hostname"] for item in second_page.json()["items"]] == ["CHECKOUT-02"]
 
 
 def test_provisioner_list_filters_are_paginated(client: TestClient) -> None:
@@ -1089,13 +1107,13 @@ def test_machine_read_delete_and_flavor_history_endpoint(client: TestClient, db_
         region="eu",
         environment="dev",
         cpu=2,
-        ram_gb=8,
-        disk_gb=80,
+        ram_mb=8 * 1024,
+        disk_mb=80 * 1024,
     )
 
     fetched = client.get(f"/v1/machines/{machine.id}")
     assert fetched.status_code == 200
-    assert fetched.json()["environment"] == "dev"
+    assert fetched.json()["environment"] == "DEV"
 
     history = client.get(f"/v1/machines/{machine.id}/flavor-history").json()
     assert history == {"items": [], "offset": 0, "limit": 100, "total": 0}
@@ -1118,8 +1136,8 @@ def test_machine_flavor_history_returns_changed_state_only(client: TestClient, d
         source_provisioner=provisioner,
         hostname="node-01",
         cpu=2,
-        ram_gb=8,
-        disk_gb=80,
+        ram_mb=8 * 1024,
+        disk_mb=80 * 1024,
     )
     db_session.add_all([platform, provisioner, machine])
     db_session.commit()
@@ -1143,12 +1161,72 @@ def test_machine_flavor_history_returns_changed_state_only(client: TestClient, d
     assert history.json()["items"][0]["cpu"] == 4
     assert history.json()["items"][0]["ram_mb"] == 16384
     assert history.json()["items"][0]["disk_mb"] == 122880
-    assert "previous_cpu" not in history.json()["items"][0]
-    assert "previous_ram_gb" not in history.json()["items"][0]
-    assert "previous_disk_gb" not in history.json()["items"][0]
-    assert "new_cpu" not in history.json()["items"][0]
-    assert "new_ram_gb" not in history.json()["items"][0]
-    assert "new_disk_gb" not in history.json()["items"][0]
+    history_item_keys = set(history.json()["items"][0])
+    assert history_item_keys == {
+        "id",
+        "machine_id",
+        "source_provisioner_id",
+        "cpu",
+        "ram_mb",
+        "disk_mb",
+        "changed_at",
+    }
+
+
+def test_machine_flavor_history_lists_initial_and_changed_inventory_snapshots(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    """Flavor history should expose inventory snapshots from creation to later changes."""
+    platform = Platform(name="Inventory Flavor Timeline")
+    provisioner = MachineProvisioner(
+        platform=platform,
+        name="inventory",
+        type="mock_inventory",
+        enabled=True,
+        cron="* * * * *",
+        config={
+            "machines": [
+                {
+                    "external_id": "node-01",
+                    "hostname": "node-01",
+                    "cpu": 2,
+                    "ram_mb": 8 * 1024,
+                    "disk_mb": 80 * 1024,
+                }
+            ]
+        },
+    )
+    db_session.add_all([platform, provisioner])
+    db_session.commit()
+
+    assert run_provisioner_inventory(db_session, provisioner.id) == {"created": 1, "updated": 0, "flavor_changes": 0}
+
+    provisioner.config = {
+        "machines": [
+            {
+                "external_id": "node-01",
+                "hostname": "node-01",
+                "cpu": 4,
+                "ram_mb": 16 * 1024,
+                "disk_mb": 120 * 1024,
+            }
+        ]
+    }
+    db_session.commit()
+
+    assert run_provisioner_inventory(db_session, provisioner.id) == {"created": 0, "updated": 1, "flavor_changes": 1}
+
+    machine = db_session.query(Machine).filter(Machine.source_provisioner_id == provisioner.id).one()
+    history = client.get(f"/v1/machines/{machine.id}/flavor-history")
+    assert history.status_code == 200
+    assert history.json()["total"] == 2
+    assert history.json()["items"][0]["cpu"] == 4
+    assert history.json()["items"][0]["ram_mb"] == 16 * 1024
+    assert history.json()["items"][0]["disk_mb"] == 120 * 1024
+    assert history.json()["items"][1]["cpu"] == 2
+    assert history.json()["items"][1]["ram_mb"] == 8 * 1024
+    assert history.json()["items"][1]["disk_mb"] == 80 * 1024
 
 
 def test_provider_provisioner_list_is_paginated_and_missing_provider_returns_404(client: TestClient) -> None:

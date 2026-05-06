@@ -2,17 +2,17 @@
   "machines": [
     {
       "external_id": "single-vm-1",
-      "hostname": "single-vm-1",
+      "hostname": "SINGLE-VM-1",
       "application": "billing",
-      "region": "eu-west-1",
-      "environment": "dev",
+      "region": "EU-WEST-1",
+      "environment": "DEV",
       "cpu": 2,
-      "ram_gb": 8,
-      "disk_gb": 80,
       "extra": {
         "source": "mock",
         "preset": "single-vm"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 81920
     }
   ]
 }

@@ -20,9 +20,9 @@ def normalize_application_code(value: str | None) -> str | None:
 
 def normalize_dimension(value: str | None) -> str | None:
     """Return the canonical dimension form used for region and environment."""
-    return _normalize_optional(value, str.lower)
+    return _normalize_optional(value, str.upper)
 
 
-def coalesce_dimension(value: str | None, default: str = "unknown") -> str:
+def coalesce_dimension(value: str | None, default: str = "UNKNOWN") -> str:
     """Return a non-empty canonical dimension value."""
     return normalize_dimension(value) or default

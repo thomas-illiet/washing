@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from internal.infra.connectors import mock as mock_connectors
+from internal.infra.connectors.provisioners import mock as mock_provisioners
 from internal.infra.db.models import (
     Application,
     Machine,
@@ -23,17 +23,18 @@ from internal.usecases.applications import (
     rebuild_applications_from_machines,
     run_application_metrics_sync,
 )
-from internal.usecases.inventory import run_provisioner_inventory
+from internal.usecases.inventory import PROVISIONER_DISABLED_DETAIL, run_provisioner_inventory
 from internal.usecases.metrics import run_provider_collection
 
 
-def test_inventory_creates_machine_and_records_flavor_change(db_session: Session) -> None:
-    """Inventory sync should create machines and capture flavor changes."""
+def test_inventory_tracks_initial_and_changed_flavor_snapshots(db_session: Session) -> None:
+    """Inventory sync should persist the initial flavor and later changes."""
     platform = Platform(name="Entity A")
     provisioner = MachineProvisioner(
         platform=platform,
         name="mock inventory",
         type="mock_inventory",
+        enabled=True,
         cron="* * * * *",
         config={
             "machines": [
@@ -42,8 +43,8 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
                     "hostname": "vm-1",
                     "application": "checkout",
                     "cpu": 2,
-                    "ram_gb": 8,
-                    "disk_gb": 80,
+                    "ram_mb": 8 * 1024,
+                    "disk_mb": 80 * 1024,
                 }
             ]
         },
@@ -54,6 +55,22 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
     result = run_provisioner_inventory(db_session, provisioner.id)
     assert result == {"created": 1, "updated": 0, "flavor_changes": 0}
 
+    machine = db_session.query(Machine).filter(Machine.hostname == "VM-1").one()
+    history = (
+        db_session.query(MachineFlavorHistory)
+        .filter(MachineFlavorHistory.machine_id == machine.id)
+        .order_by(MachineFlavorHistory.changed_at.asc(), MachineFlavorHistory.id.asc())
+        .all()
+    )
+    assert len(history) == 1
+    assert history[0].cpu == 2
+    assert history[0].ram_mb == 8 * 1024
+    assert history[0].disk_mb == 80 * 1024
+
+    result = run_provisioner_inventory(db_session, provisioner.id)
+    assert result == {"created": 0, "updated": 1, "flavor_changes": 0}
+    assert db_session.query(MachineFlavorHistory).count() == 1
+
     provisioner.config = {
         "machines": [
             {
@@ -61,8 +78,8 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
                 "hostname": "vm-1",
                 "application": "checkout",
                 "cpu": 4,
-                "ram_gb": 16,
-                "disk_gb": 120,
+                "ram_mb": 16 * 1024,
+                "disk_mb": 120 * 1024,
             }
         ]
     }
@@ -71,21 +88,48 @@ def test_inventory_creates_machine_and_records_flavor_change(db_session: Session
     result = run_provisioner_inventory(db_session, provisioner.id)
     assert result == {"created": 0, "updated": 1, "flavor_changes": 1}
 
-    machine = db_session.query(Machine).filter(Machine.hostname == "vm-1").one()
+    machine = db_session.query(Machine).filter(Machine.hostname == "VM-1").one()
     assert machine.cpu == 4
     assert machine.application == "CHECKOUT"
     assert db_session.query(Application).count() == 0
-    assert db_session.query(MachineFlavorHistory).count() == 1
-    history = db_session.query(MachineFlavorHistory).one()
-    assert history.cpu == 4
-    assert history.ram_mb == 16 * 1024
-    assert history.disk_mb == 120 * 1024
+    history = (
+        db_session.query(MachineFlavorHistory)
+        .filter(MachineFlavorHistory.machine_id == machine.id)
+        .order_by(MachineFlavorHistory.changed_at.asc(), MachineFlavorHistory.id.asc())
+        .all()
+    )
+    assert len(history) == 2
+    assert history[1].cpu == 4
+    assert history[1].ram_mb == 16 * 1024
+    assert history[1].disk_mb == 120 * 1024
+
+
+def test_disabled_provisioner_run_is_rejected(db_session: Session) -> None:
+    """Disabled provisioners should fail fast instead of syncing inventory."""
+    platform = Platform(name="Disabled Inventory")
+    provisioner = MachineProvisioner(
+        platform=platform,
+        name="disabled inventory",
+        type="mock_inventory",
+        cron="* * * * *",
+        config={"machines": [{"external_id": "vm-1", "hostname": "vm-1"}]},
+    )
+    db_session.add(provisioner)
+    db_session.commit()
+
+    with pytest.raises(ValueError, match=PROVISIONER_DISABLED_DETAIL):
+        run_provisioner_inventory(db_session, provisioner.id)
+
+    db_session.refresh(provisioner)
+    assert provisioner.last_error == PROVISIONER_DISABLED_DETAIL
+    assert provisioner.last_run_at is not None
+    assert db_session.query(Machine).count() == 0
 
 
 def test_inventory_discovery_rebuild_groups_machine_applications_and_prunes_orphans(db_session: Session) -> None:
     """The application projection should be rebuilt from machine groups only."""
     platform = Platform(name="Projection Platform")
-    orphan = Application(name="ORPHAN", environment="prod", region="eu-west-1")
+    orphan = Application(name="ORPHAN", environment="PROD", region="EU-WEST-1")
     db_session.add_all(
         [
             platform,
@@ -124,8 +168,8 @@ def test_inventory_discovery_rebuild_groups_machine_applications_and_prunes_orph
     )
     assert result == {"created": 2, "deleted": 1, "total": 2}
     assert [(item.name, item.environment, item.region) for item in applications] == [
-        ("BILLING", "prod", "eu-west-1"),
-        ("CATALOG", "staging", "eu-central-1"),
+        ("BILLING", "PROD", "EU-WEST-1"),
+        ("CATALOG", "STAGING", "EU-CENTRAL-1"),
     ]
 
 
@@ -139,8 +183,8 @@ def test_provider_collection_writes_cpu_metric(db_session: Session) -> None:
         external_id="vm-1",
         hostname="vm-1",
         cpu=2,
-        ram_gb=8,
-        disk_gb=80,
+        ram_mb=8 * 1024,
+        disk_mb=80 * 1024,
     )
     provider = MachineProvider(
         platform=platform,
@@ -176,8 +220,8 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
         external_id="vm-2",
         hostname="vm-2",
         cpu=2,
-        ram_gb=8,
-        disk_gb=80,
+        ram_mb=8 * 1024,
+        disk_mb=80 * 1024,
     )
     provider = MachineProvider(
         platform=platform,
@@ -207,6 +251,7 @@ def test_mock_preset_inventory_creates_machines_from_repository_json(db_session:
         platform=platform,
         name="mock preset inventory",
         type="mock",
+        enabled=True,
         cron="* * * * *",
         config={"preset": "small-fleet"},
     )
@@ -217,7 +262,7 @@ def test_mock_preset_inventory_creates_machines_from_repository_json(db_session:
     assert result == {"created": 3, "updated": 0, "flavor_changes": 0}
 
     machines = db_session.query(Machine).order_by(Machine.hostname.asc()).all()
-    assert [machine.hostname for machine in machines] == ["fleet-app-1", "fleet-app-2", "fleet-worker-1"]
+    assert [machine.hostname for machine in machines] == ["FLEET-APP-1", "FLEET-APP-2", "FLEET-WORKER-1"]
     assert [machine.application for machine in machines] == ["CHECKOUT", "CHECKOUT", "PAYMENTS"]
 
 
@@ -230,13 +275,14 @@ def test_mock_preset_invalid_json_sets_last_error(
     preset_dir = tmp_path / "mock"
     preset_dir.mkdir()
     (preset_dir / "single-vm.json").write_text("{invalid json", encoding="utf-8")
-    monkeypatch.setattr(mock_connectors, "get_mock_presets_dir", lambda: preset_dir)
+    monkeypatch.setattr(mock_provisioners, "get_mock_presets_dir", lambda: preset_dir)
 
     platform = Platform(name="Broken Mock Preset")
     provisioner = MachineProvisioner(
         platform=platform,
         name="broken mock preset",
         type="mock",
+        enabled=True,
         cron="* * * * *",
         config={"preset": "single-vm"},
     )
@@ -257,6 +303,7 @@ def test_placeholder_provisioner_run_is_no_op(db_session: Session) -> None:
         platform=platform,
         name="capsule inventory",
         type="capsule",
+        enabled=True,
         cron="* * * * *",
         config={"token": "capsule-secret"},
     )

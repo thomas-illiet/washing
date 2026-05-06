@@ -16,8 +16,8 @@ class MachineRecord:
     region: str | None = None
     environment: str | None = None
     cpu: float | None = None
-    ram_gb: float | None = None
-    disk_gb: float | None = None
+    ram_mb: float | None = None
+    disk_mb: float | None = None
     extra: dict = field(default_factory=dict)
 
 

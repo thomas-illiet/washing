@@ -215,8 +215,8 @@ class MachineCreate(ApiModel):
     region: NonEmptyStr | None = None
     environment: NonEmptyStr | None = None
     cpu: float | None = None
-    ram_gb: float | None = None
-    disk_gb: float | None = None
+    ram_mb: float | None = None
+    disk_mb: float | None = None
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -230,8 +230,8 @@ class MachineUpdate(ApiModel):
     region: NonEmptyStr | None = None
     environment: NonEmptyStr | None = None
     cpu: float | None = None
-    ram_gb: float | None = None
-    disk_gb: float | None = None
+    ram_mb: float | None = None
+    disk_mb: float | None = None
     extra: dict[str, Any] | None = None
 
 

@@ -1,19 +1,26 @@
-"""Stub connectors used for tests and placeholder integrations."""
+"""Mock machine provisioner connectors."""
 
 import json
 import re
 from pathlib import Path
 
-from internal.infra.connectors.base import MachineRecord, MetricRecord
-from internal.infra.db.models import Machine, MachineProvider, MachineProvisioner
+from internal.domain import (
+    normalize_application_code,
+    normalize_dimension,
+    normalize_external_id,
+    normalize_hostname,
+)
+from internal.infra.connectors.base import MachineRecord
+from internal.infra.db.models import MachineProvisioner
 
 DEFAULT_MOCK_PRESET = "single-vm"
 _MOCK_PRESET_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_MACHINE_RECORD_FIELDS = frozenset(MachineRecord.__dataclass_fields__)
 
 
 def get_mock_presets_dir() -> Path:
     """Return the repository directory that stores mock inventory presets."""
-    return Path(__file__).resolve().parents[3] / "mock"
+    return Path(__file__).resolve().parents[4] / "mock"
 
 
 def validate_mock_preset_name(preset: str) -> str:
@@ -51,8 +58,13 @@ def _machine_records_from_configured_machines(configured: list[dict]) -> list[Ma
         payload = dict(machine)
         if "application" not in payload and "application_name" in payload:
             payload["application"] = payload.pop("application_name")
+        payload["external_id"] = normalize_external_id(payload.get("external_id"))
+        payload["hostname"] = normalize_hostname(payload.get("hostname")) or payload.get("hostname")
+        payload["application"] = normalize_application_code(payload.get("application"))
+        payload["region"] = normalize_dimension(payload.get("region"))
+        payload["environment"] = normalize_dimension(payload.get("environment"))
         payload.setdefault("extra", {})
-        records.append(MachineRecord(**payload))
+        records.append(MachineRecord(**{key: value for key, value in payload.items() if key in _MACHINE_RECORD_FIELDS}))
     return records
 
 
@@ -71,6 +83,7 @@ def load_mock_preset_records(preset: str) -> list[MachineRecord]:
 
 class MockInventoryProvisioner:
     """Inventory connector that emits deterministic fake machines."""
+
     def discover(self, provisioner: MachineProvisioner) -> list[MachineRecord]:
         """Return mock inventory records from config or a deterministic fallback."""
         preset = provisioner.config.get("preset")
@@ -84,53 +97,20 @@ class MockInventoryProvisioner:
             return _machine_records_from_configured_machines(configured)
 
         prefix = provisioner.config.get("hostname_prefix", f"platform-{provisioner.platform_id}")
+        ram_mb = provisioner.config.get("ram_mb", 8 * 1024)
+        disk_mb = provisioner.config.get("disk_mb", 80 * 1024)
         return [
             MachineRecord(
-                external_id=f"{provisioner.id}-vm-1",
-                hostname=f"{prefix}-vm-1",
-                application=provisioner.config.get("application") or provisioner.config.get("application_name"),
-                region=provisioner.config.get("region", "eu-west-1"),
-                environment=provisioner.config.get("environment", "dev"),
+                external_id=normalize_external_id(f"{provisioner.id}-vm-1"),
+                hostname=normalize_hostname(f"{prefix}-vm-1") or f"{prefix}-vm-1",
+                application=normalize_application_code(
+                    provisioner.config.get("application") or provisioner.config.get("application_name")
+                ),
+                region=normalize_dimension(provisioner.config.get("region", "EU-WEST-1")),
+                environment=normalize_dimension(provisioner.config.get("environment", "DEV")),
                 cpu=float(provisioner.config.get("cpu", 2)),
-                ram_gb=float(provisioner.config.get("ram_gb", 8)),
-                disk_gb=float(provisioner.config.get("disk_gb", 80)),
+                ram_mb=float(ram_mb) if ram_mb is not None else None,
+                disk_mb=float(disk_mb) if disk_mb is not None else None,
                 extra={"source": "mock_inventory"},
             )
         ]
-
-
-class EmptyInventoryProvisioner:
-    """Placeholder inventory connector that returns no machines."""
-    def discover(self, provisioner: MachineProvisioner) -> list[MachineRecord]:
-        """Return no inventory records for placeholder integrations."""
-        return []
-
-
-class MockMetricCollector:
-    """Metric connector that emits deterministic fake metric samples."""
-    def collect(self, provider: MachineProvider, machines: list[Machine]) -> list[MetricRecord]:
-        """Produce deterministic mock metrics for the scoped machines."""
-        metric_code = provider.scope.lower()
-        default_values = {"cpu": 42.0, "ram": 6.5, "disk": 55.0}
-        value = float(provider.config.get("value", default_values.get(metric_code, 1.0)))
-
-        if not machines:
-            return []
-
-        samples: list[MetricRecord] = []
-        for machine in machines:
-            machine_value = provider.config.get("values_by_hostname", {}).get(machine.hostname, value)
-            samples.append(
-                MetricRecord(
-                    value=float(machine_value),
-                    machine_id=machine.id,
-                )
-            )
-        return samples
-
-
-class EmptyMetricCollector:
-    """Placeholder metric connector that returns no samples."""
-    def collect(self, provider: MachineProvider, machines: list[Machine]) -> list[MetricRecord]:
-        """Return no metrics for placeholder integrations."""
-        return []

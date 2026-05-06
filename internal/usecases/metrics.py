@@ -2,6 +2,7 @@
 
 from sqlalchemy.orm import Session, selectinload
 
+from internal.domain import normalize_external_id, normalize_hostname
 from internal.infra.connectors.base import MetricRecord
 from internal.infra.connectors.registry import get_metric_collector
 from internal.infra.db.base import utcnow
@@ -34,15 +35,17 @@ def _scoped_machines(db: Session, provider: MachineProvider) -> list[Machine]:
 
 def _resolve_machine_id(record: MetricRecord, machines: list[Machine]) -> int | None:
     """Resolve a metric record to a stored machine id."""
+    machine_external_id = normalize_external_id(record.machine_external_id)
+    hostname = normalize_hostname(record.hostname)
     if record.machine_id is not None:
         return record.machine_id
-    if record.machine_external_id is not None:
+    if machine_external_id is not None:
         for machine in machines:
-            if machine.external_id == record.machine_external_id:
+            if machine.external_id == machine_external_id:
                 return machine.id
-    if record.hostname is not None:
+    if hostname is not None:
         for machine in machines:
-            if machine.hostname == record.hostname:
+            if machine.hostname == hostname:
                 return machine.id
     return None
 

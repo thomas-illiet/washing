@@ -20,6 +20,8 @@ from internal.infra.db.models import MachineProvisioner, Platform
 from internal.infra.queue.enqueue import enqueue_celery_task
 from internal.infra.queue.task_names import RUN_PROVISIONER_TASK
 
+PROVISIONER_DISABLED_DETAIL = "provisioner must be enabled before it can run"
+
 
 router = APIRouter(prefix="/machines/provisioners", tags=["Machine Provisioners"])
 
@@ -41,6 +43,12 @@ def _ensure_provisioner_platform_can_change(provisioner: MachineProvisioner, pla
     for provider in provisioner.providers:
         if provider.platform_id != platform_id:
             raise HTTPException(status_code=400, detail="provider and provisioner must belong to the same platform")
+
+
+def _ensure_provisioner_is_enabled(provisioner: MachineProvisioner) -> None:
+    """Reject manual runs for disabled provisioners."""
+    if not provisioner.enabled:
+        raise HTTPException(status_code=409, detail=PROVISIONER_DISABLED_DETAIL)
 
 
 def _capsule_read_model(provisioner: MachineProvisioner) -> CapsuleProvisionerRead:
@@ -238,6 +246,7 @@ def delete_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> Re
 @router.post("/{provisioner_id}/run", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
 def enqueue_provisioner_run(provisioner_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
     """Enqueue a manual provisioner run through Celery."""
-    get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+    provisioner = get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+    _ensure_provisioner_is_enabled(provisioner)
     task = enqueue_celery_task(RUN_PROVISIONER_TASK, args=[provisioner_id])
     return TaskEnqueueResponse(task_id=task.id)

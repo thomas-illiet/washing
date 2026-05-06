@@ -2,48 +2,48 @@
   "machines": [
     {
       "external_id": "fleet-app-1",
-      "hostname": "fleet-app-1",
+      "hostname": "FLEET-APP-1",
       "application": "checkout",
-      "region": "eu-west-1",
-      "environment": "dev",
+      "region": "EU-WEST-1",
+      "environment": "DEV",
       "cpu": 2,
-      "ram_gb": 8,
-      "disk_gb": 80,
       "extra": {
         "source": "mock",
         "preset": "small-fleet",
         "role": "app"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 81920
     },
     {
       "external_id": "fleet-app-2",
-      "hostname": "fleet-app-2",
+      "hostname": "FLEET-APP-2",
       "application": "checkout",
-      "region": "eu-west-1",
-      "environment": "dev",
+      "region": "EU-WEST-1",
+      "environment": "DEV",
       "cpu": 4,
-      "ram_gb": 16,
-      "disk_gb": 120,
       "extra": {
         "source": "mock",
         "preset": "small-fleet",
         "role": "app"
-      }
+      },
+      "ram_mb": 16384,
+      "disk_mb": 122880
     },
     {
       "external_id": "fleet-worker-1",
-      "hostname": "fleet-worker-1",
+      "hostname": "FLEET-WORKER-1",
       "application": "payments",
-      "region": "eu-central-1",
-      "environment": "staging",
+      "region": "EU-CENTRAL-1",
+      "environment": "STAGING",
       "cpu": 2,
-      "ram_gb": 8,
-      "disk_gb": 100,
       "extra": {
         "source": "mock",
         "preset": "small-fleet",
         "role": "worker"
-      }
+      },
+      "ram_mb": 8192,
+      "disk_mb": 102400
     }
   ]
 }

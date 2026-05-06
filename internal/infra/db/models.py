@@ -5,7 +5,13 @@ from datetime import date as date_value, datetime
 from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
-from internal.domain import coalesce_dimension, normalize_application_code, normalize_dimension
+from internal.domain import (
+    coalesce_dimension,
+    normalize_application_code,
+    normalize_dimension,
+    normalize_external_id,
+    normalize_hostname,
+)
 from internal.infra.db.base import Base, EncryptedJSONType, JSONType, JsonDict, TimestampMixin, utcnow
 
 
@@ -49,7 +55,7 @@ class Application(TimestampMixin, Base):
 
     @validates("environment", "region")
     def validate_dimension(self, key: str, value: str) -> str:
-        """Persist application grouping dimensions in canonical lowercase form."""
+        """Persist application grouping dimensions in canonical uppercase form."""
         return coalesce_dimension(value)
 
 
@@ -194,8 +200,8 @@ class Machine(TimestampMixin, Base):
     region: Mapped[str | None] = mapped_column(String(128), index=True)
     environment: Mapped[str | None] = mapped_column(String(128), index=True)
     cpu: Mapped[float | None] = mapped_column(Float)
-    ram_gb: Mapped[float | None] = mapped_column(Float)
-    disk_gb: Mapped[float | None] = mapped_column(Float)
+    ram_mb: Mapped[float | None] = mapped_column(Float)
+    disk_mb: Mapped[float | None] = mapped_column(Float)
     extra: Mapped[JsonDict] = mapped_column(JSONType, default=dict, nullable=False)
 
     platform: Mapped["Platform"] = relationship(back_populates="machines")
@@ -210,9 +216,19 @@ class Machine(TimestampMixin, Base):
         """Persist machine application codes in canonical uppercase form."""
         return normalize_application_code(value)
 
+    @validates("external_id")
+    def validate_external_id(self, _key: str, value: str | None) -> str | None:
+        """Persist machine external ids in canonical lowercase form."""
+        return normalize_external_id(value)
+
+    @validates("hostname")
+    def validate_hostname(self, _key: str, value: str) -> str:
+        """Persist machine hostnames in canonical uppercase form."""
+        return normalize_hostname(value) or value
+
     @validates("environment", "region")
     def validate_machine_dimension(self, key: str, value: str | None) -> str | None:
-        """Persist machine grouping dimensions in canonical lowercase form."""
+        """Persist machine grouping dimensions in canonical uppercase form."""
         return normalize_dimension(value)
 
 

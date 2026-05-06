@@ -255,6 +255,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
         platform=platform,
         name="tracked inventory",
         type="capsule",
+        enabled=True,
         cron="* * * * *",
         config={"token": "secret"},
     )
