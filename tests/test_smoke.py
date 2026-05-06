@@ -18,6 +18,7 @@ def _clean_env(**overrides: str) -> dict[str, str]:
     env = os.environ.copy()
     env.pop("DATABASE_URL", None)
     env["APP_NAME"] = "Metrics Collector"
+    env["APP_ENV"] = "prod"
     env["INTEGRATION_CONFIG_ENCRYPTION_KEY"] = TEST_ENCRYPTION_KEY
     env.update(overrides)
     return env
@@ -38,6 +39,22 @@ def test_api_import_smoke_in_clean_subprocess() -> None:
     assert result.stdout.strip() == "Metrics Collector"
 
 
+def test_mcp_import_smoke_in_clean_subprocess() -> None:
+    """A clean Python subprocess should be able to import the MCP entrypoint."""
+
+    result = subprocess.run(
+        [sys.executable, "-c", "from app.mcp.main import app; print(app.title)"],
+        cwd=PROJECT_ROOT,
+        env=_clean_env(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "Metrics Collector MCP"
+
+
 def test_alembic_upgrade_head_smoke_on_sqlite(tmp_path: Path) -> None:
     """Alembic should upgrade a fresh SQLite database all the way to head."""
     database_path = tmp_path / "smoke.db"
@@ -54,59 +71,10 @@ def test_alembic_upgrade_head_smoke_on_sqlite(tmp_path: Path) -> None:
     assert database_path.exists()
 
 
-def test_application_projection_migration_backfills_machine_application_on_sqlite(tmp_path: Path) -> None:
-    """The projection migration should backfill machine.application and prune orphan applications."""
-    database_path = tmp_path / "projection.db"
-    upgrade_0007 = subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", "0007_celery_task_tracking"],
-        cwd=PROJECT_ROOT,
-        env=_clean_env(DATABASE_URL=f"sqlite:///{database_path}"),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert upgrade_0007.returncode == 0, upgrade_0007.stderr
-
-    connection = sqlite3.connect(database_path)
-    try:
-        connection.execute("PRAGMA foreign_keys=ON")
-        connection.execute("INSERT INTO platforms (id, name, description, extra) VALUES (1, 'Legacy', NULL, '{}')")
-        connection.execute(
-            """
-            INSERT INTO applications (id, name, environment, region, sync_at, sync_scheduled_at, sync_error, extra)
-            VALUES (1, 'billing', 'PROD', 'EU-WEST-1', NULL, NULL, NULL, '{}')
-            """
-        )
-        connection.execute(
-            """
-            INSERT INTO applications (id, name, environment, region, sync_at, sync_scheduled_at, sync_error, extra)
-            VALUES (2, 'orphan', 'prod', 'eu-west-1', NULL, NULL, NULL, '{}')
-            """
-        )
-        connection.execute(
-            """
-            INSERT INTO machines (
-                id,
-                platform_id,
-                application_id,
-                source_provisioner_id,
-                external_id,
-                hostname,
-                region,
-                environment,
-                cpu,
-                ram_gb,
-                disk_gb,
-                extra
-            )
-            VALUES (1, 1, 1, NULL, NULL, 'billing-01', 'EU-WEST-1', 'PROD', NULL, NULL, NULL, '{}')
-            """
-        )
-        connection.commit()
-    finally:
-        connection.close()
-
-    upgrade_head = subprocess.run(
+def test_reset_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path) -> None:
+    """The reset initial migration should create the current machine/application schema directly."""
+    database_path = tmp_path / "reset-initial.db"
+    result = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
         cwd=PROJECT_ROOT,
         env=_clean_env(DATABASE_URL=f"sqlite:///{database_path}"),
@@ -114,23 +82,20 @@ def test_application_projection_migration_backfills_machine_application_on_sqlit
         text=True,
         check=False,
     )
-    assert upgrade_head.returncode == 0, upgrade_head.stderr
+    assert result.returncode == 0, result.stderr
 
     connection = sqlite3.connect(database_path)
     try:
         machine_columns = [row[1] for row in connection.execute("PRAGMA table_info(machines)")]
+        provider_columns = [row[1] for row in connection.execute("PRAGMA table_info(machine_providers)")]
+        flavor_columns = [row[1] for row in connection.execute("PRAGMA table_info(machine_flavor_history)")]
+
         assert "application" in machine_columns
         assert "application_id" not in machine_columns
-
-        machine_row = connection.execute(
-            "SELECT application, environment, region FROM machines WHERE id = 1"
-        ).fetchone()
-        assert machine_row == ("BILLING", "prod", "eu-west-1")
-
-        applications = connection.execute(
-            "SELECT name, environment, region FROM applications ORDER BY name ASC"
-        ).fetchall()
-        assert applications == [("BILLING", "prod", "eu-west-1")]
+        assert "scope" in provider_columns
+        assert "metric_type_id" not in provider_columns
+        assert {"cpu", "ram_mb", "disk_mb"} <= set(flavor_columns)
+        assert {"previous_cpu", "new_cpu", "previous_ram_gb", "new_ram_gb"} & set(flavor_columns) == set()
     finally:
         connection.close()
 

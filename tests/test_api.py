@@ -116,6 +116,9 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "enabled" not in schemas["CapsuleProvisionerUpdate"]["properties"]
     assert "enabled" not in schemas["DynatraceProvisionerCreate"]["properties"]
     assert "enabled" not in schemas["DynatraceProvisionerUpdate"]["properties"]
+    assert "MockProvisionerCreate" not in schemas
+    assert "MockProvisionerUpdate" not in schemas
+    assert "MockProvisionerRead" not in schemas
     assert "enabled" not in schemas["PrometheusProviderCreate"]["properties"]
     assert "provisioner_ids" not in schemas["PrometheusProviderUpdate"]["properties"]
     assert "enabled" not in schemas["PrometheusProviderUpdate"]["properties"]
@@ -141,6 +144,8 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/providers/{provider_id}/provisioners" in paths
     assert "/v1/machines/provisioners" in paths
     assert "/v1/machines/provisioners/{provisioner_id}" in paths
+    assert "/v1/machines/provisioners/mock" not in paths
+    assert "/v1/machines/provisioners/{provisioner_id}/mock" not in paths
     assert "/v1/machines/provisioners/{provisioner_id}/enable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/disable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/run" in paths
@@ -358,6 +363,85 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
 
     wrong_route = client.get(f"/v1/machines/provisioners/{capsule['id']}/dynatrace")
     assert wrong_route.status_code == 404
+
+
+def test_mock_provisioner_routes_are_absent_outside_dev(client: TestClient) -> None:
+    """Production mode should not register the typed mock provisioner routes."""
+    platform = client.post("/v1/platforms", json={"name": "Prod Mock Hidden"}).json()
+    response = client.post(
+        "/v1/machines/provisioners/mock",
+        json={"platform_id": platform["id"], "name": "mock inventory"},
+    )
+    assert response.status_code == 405
+
+
+def test_dev_openapi_includes_mock_provisioner_routes(dev_client: TestClient) -> None:
+    """Development mode should expose the mock typed provisioner in OpenAPI."""
+    response = dev_client.get("/v1/openapi.json")
+
+    assert response.status_code == 200
+    body = response.json()
+    schemas = body["components"]["schemas"]
+    paths = body["paths"]
+
+    assert "MockProvisionerCreate" in schemas
+    assert "MockProvisionerUpdate" in schemas
+    assert "MockProvisionerRead" in schemas
+    assert "/v1/machines/provisioners/mock" in paths
+    assert "/v1/machines/provisioners/{provisioner_id}/mock" in paths
+    assert paths["/v1/machines/provisioners/mock"]["post"]["tags"] == ["Machine Provisioners"]
+
+
+def test_dev_mock_provisioner_routes_use_json_presets(dev_client: TestClient) -> None:
+    """Development mode should expose a typed mock provisioner backed by presets."""
+    platform = dev_client.post("/v1/platforms", json={"name": "Mock Platform"}).json()
+
+    created = dev_client.post(
+        "/v1/machines/provisioners/mock",
+        json={
+            "platform_id": platform["id"],
+            "name": "mock inventory",
+            "cron": "*/15 * * * *",
+        },
+    )
+    assert created.status_code == 201
+    created_body = created.json()
+    assert created_body["type"] == "mock"
+    assert created_body["preset"] == "single-vm"
+    assert created_body["cron"] == "*/15 * * * *"
+    assert created_body["enabled"] is False
+    assert "config" not in created_body
+
+    fetched = dev_client.get(f"/v1/machines/provisioners/{created_body['id']}/mock")
+    assert fetched.status_code == 200
+    assert fetched.json()["preset"] == "single-vm"
+
+    patched = dev_client.patch(
+        f"/v1/machines/provisioners/{created_body['id']}/mock",
+        json={"name": "mock inventory v2", "preset": "small-fleet"},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["name"] == "mock inventory v2"
+    assert patched.json()["preset"] == "small-fleet"
+
+
+def test_dev_mock_provisioner_routes_reject_unknown_preset(dev_client: TestClient) -> None:
+    """Development mode should reject invalid or unknown mock presets."""
+    platform = dev_client.post("/v1/platforms", json={"name": "Mock Validation"}).json()
+
+    invalid_name = dev_client.post(
+        "/v1/machines/provisioners/mock",
+        json={"platform_id": platform["id"], "name": "mock inventory", "preset": "../escape"},
+    )
+    assert invalid_name.status_code == 400
+    assert invalid_name.json()["detail"] == "invalid mock preset: ../escape"
+
+    unknown = dev_client.post(
+        "/v1/machines/provisioners/mock",
+        json={"platform_id": platform["id"], "name": "mock inventory", "preset": "does-not-exist"},
+    )
+    assert unknown.status_code == 400
+    assert unknown.json()["detail"] == "unknown mock preset: does-not-exist"
 
 
 def test_typed_provisioner_routes_accept_valid_cron_on_create_and_update(client: TestClient) -> None:

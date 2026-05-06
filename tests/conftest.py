@@ -11,9 +11,11 @@ from sqlalchemy.pool import StaticPool
 from tests.constants import TEST_ENCRYPTION_KEY
 
 os.environ.setdefault("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+os.environ.setdefault("APP_ENV", "prod")
 
 from app.api.deps import get_db
-from app.api.main import app
+from app.api.main import create_app
+from internal.infra.config.settings import get_settings
 from internal.infra.db.base import Base
 
 
@@ -46,9 +48,11 @@ def db_session() -> Session:
         engine.dispose()
 
 
-@pytest.fixture()
-def client(db_session: Session) -> TestClient:
-    """Provide a TestClient wired to the in-memory database fixture."""
+def _build_client(db_session: Session) -> TestClient:
+    """Build a TestClient wired to the fixture-backed in-memory database."""
+    get_settings.cache_clear()
+    app = create_app()
+
     def override_get_db():
         """Reuse the fixture-backed database session inside FastAPI dependencies."""
         try:
@@ -57,7 +61,28 @@ def client(db_session: Session) -> TestClient:
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    return TestClient(app)
+
+
+@pytest.fixture()
+def client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """Provide a deterministic production-mode TestClient."""
+    monkeypatch.setenv("APP_ENV", "prod")
+    test_client = _build_client(db_session)
     try:
-        yield TestClient(app)
+        yield test_client
     finally:
-        app.dependency_overrides.clear()
+        test_client.app.dependency_overrides.clear()
+        get_settings.cache_clear()
+
+
+@pytest.fixture()
+def dev_client(db_session: Session, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    """Provide a development-mode TestClient with dev-only routes enabled."""
+    monkeypatch.setenv("APP_ENV", "dev")
+    test_client = _build_client(db_session)
+    try:
+        yield test_client
+    finally:
+        test_client.app.dependency_overrides.clear()
+        get_settings.cache_clear()

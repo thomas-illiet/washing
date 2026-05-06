@@ -1,0 +1,49 @@
+{
+  "machines": [
+    {
+      "external_id": "fleet-app-1",
+      "hostname": "fleet-app-1",
+      "application": "checkout",
+      "region": "eu-west-1",
+      "environment": "dev",
+      "cpu": 2,
+      "ram_gb": 8,
+      "disk_gb": 80,
+      "extra": {
+        "source": "mock",
+        "preset": "small-fleet",
+        "role": "app"
+      }
+    },
+    {
+      "external_id": "fleet-app-2",
+      "hostname": "fleet-app-2",
+      "application": "checkout",
+      "region": "eu-west-1",
+      "environment": "dev",
+      "cpu": 4,
+      "ram_gb": 16,
+      "disk_gb": 120,
+      "extra": {
+        "source": "mock",
+        "preset": "small-fleet",
+        "role": "app"
+      }
+    },
+    {
+      "external_id": "fleet-worker-1",
+      "hostname": "fleet-worker-1",
+      "application": "payments",
+      "region": "eu-central-1",
+      "environment": "staging",
+      "cpu": 2,
+      "ram_gb": 8,
+      "disk_gb": 100,
+      "extra": {
+        "source": "mock",
+        "preset": "small-fleet",
+        "role": "worker"
+      }
+    }
+  ]
+}

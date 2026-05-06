@@ -5,6 +5,7 @@ Python backend for collecting machine inventory and metrics from external produc
 The stack includes:
 
 - FastAPI for the REST API
+- FastMCP for the read-only MCP gateway
 - Celery worker for collection jobs
 - Celery Beat for scheduling
 - Flower for Celery control and real-time supervision
@@ -42,6 +43,8 @@ Update these variables before exposing monitoring:
 - `GRAFANA_ADMIN_PASSWORD`
 - `INTEGRATION_CONFIG_ENCRYPTION_KEY`
 
+Use `APP_ENV=dev` only when you want development-only routes such as the typed `mock` provisioner to appear in Swagger.
+
 Then create a local `docker-compose.yml` from the example:
 
 ```bash
@@ -60,13 +63,15 @@ Apply migrations in the dedicated container:
 docker compose run --rm migrate
 ```
 
+If you already have an older Postgres volume, rerun this step after pulling new changes before restarting `api`, `worker`, or `beat`.
+
 Then start the application runtimes:
 
 ```bash
-docker compose up -d api worker beat flower prometheus grafana
+docker compose up -d api mcp worker beat flower prometheus grafana
 ```
 
-The `api`, `worker`, `beat`, and `flower` services run with a security posture close to restricted OpenShift:
+The `api`, `mcp`, `worker`, `beat`, and `flower` services run with a security posture close to restricted OpenShift:
 
 - non-root user `1000:1000`
 - `cap_drop: ["ALL"]`
@@ -78,6 +83,8 @@ Celery Beat is now fully stateless and always uses the in-memory scheduler `cele
 Available interfaces:
 
 - API: `http://localhost:8000`
+- MCP: `http://localhost:8001/mcp`
+- MCP health: `http://localhost:8001/health`
 - Flower: `http://localhost:5555`
 - Grafana: `http://localhost:3000`
 
@@ -93,18 +100,22 @@ The codebase is split by runtime, in a layout inspired by Go projects:
 
 - `app/` contains only executable applications.
 - `app/api`: FastAPI entrypoint, HTTP dependencies, and routes.
+- `app/mcp`: FastMCP read-only gateway that talks to the product API over HTTP only.
 - `app/worker`: Celery worker runtime and all executable tasks, organized in `app/worker/tasks/{scheduler,applications,inventory,metrics}`.
 - `app/beat`: Celery Beat runtime and schedule definitions only, with no task implementation.
 - `internal/usecases`: business logic shared by the API, beat, and workers.
 - `internal/domain`: reserved place for pure domain rules when they need stronger isolation.
 - `internal/infra`: configuration, database, Celery broker, connectors, and observability.
 - `internal/contracts/http`: HTTP input and output schemas.
+- `mock/`: repository-backed JSON presets used by the development-only `mock` provisioner.
 
 Useful endpoints:
 
 - `GET /health`
 - `GET /`: Swagger documentation
 - OpenAPI JSON: `GET /v1/openapi.json`
+- MCP transport: `POST /mcp`
+- MCP health: `GET /health` on the dedicated MCP service
 - Management: `/v1/platforms`, `/v1/applications`, `GET /v1/machines`, `GET/DELETE /v1/machines/{id}`, `/v1/machines/providers`, `/v1/machines/provisioners`
 - Association: `POST /v1/machines/providers/{provider_id}/provisioners/{provisioner_id}`
 - Activation: `POST /v1/machines/providers/{id}/enable|disable`, `POST /v1/machines/provisioners/{id}/enable|disable`
@@ -131,6 +142,8 @@ Typed sub-routes for integrations:
 
 - Provisioners: `POST /v1/machines/provisioners/capsule`, `GET/PATCH /v1/machines/provisioners/{id}/capsule`, `POST /v1/machines/provisioners/dynatrace`, `GET/PATCH /v1/machines/provisioners/{id}/dynatrace`
 - Providers: `POST /v1/machines/providers/prometheus`, `GET/PATCH /v1/machines/providers/{id}/prometheus`, `POST /v1/machines/providers/dynatrace`, `GET/PATCH /v1/machines/providers/{id}/dynatrace`
+
+When `APP_ENV=dev`, Swagger also exposes `POST /v1/machines/provisioners/mock` and `GET/PATCH /v1/machines/provisioners/{id}/mock`. This development-only provisioner loads fake machines from repository JSON presets.
 
 Generic `/v1/machines/providers` and `/v1/machines/provisioners` responses never expose the `config` field. Secrets are stored encrypted in the database and tokens are never returned by the API.
 One provisioner can be linked to only one provider of a given `type`.
@@ -216,6 +229,37 @@ Useful variables:
 - `APPLICATION_METRICS_SYNC_BATCH_SIZE`: if `0`, the batch size is computed automatically to spread all applications across the window.
 - `APPLICATION_METRICS_SYNC_RETRY_AFTER_SECONDS`: delay before rescheduling an application already queued for metrics sync.
 
+## MCP Gateway
+
+The MCP service is a dedicated read-only runtime that never imports the product business code directly. It proxies the product API over HTTP and exposes only:
+
+- applications
+- machines
+- machine metrics
+
+The gateway does not expose mutations, sync triggers, providers, provisioners, platforms, or worker tasks.
+
+Authorization behavior:
+
+- only the incoming `Authorization` header is forwarded to the product API
+- no other client headers are relayed in V1
+- if `Authorization` is absent, the downstream API call is sent without auth
+
+Useful MCP resource templates:
+
+- `metrics-collector://applications{?name,environment,region,offset,limit}`
+- `metrics-collector://applications/{application_id}`
+- `metrics-collector://machines{?platform_id,application,source_provisioner_id,environment,region,offset,limit}`
+- `metrics-collector://machines/{machine_id}`
+- `metrics-collector://machine-metrics/{type}{?platform_id,provider_id,provisioner_id,machine_id,start,end,offset,limit}`
+- `metrics-collector://machines/{machine_id}/metrics/{type}{?provider_id,start,end,offset,limit}`
+
+Runtime variables:
+
+- `APP_ENV`: application environment. Supported values are `dev`, `test`, and `prod`. Development-only typed routes are exposed only when this is set to `dev`.
+- `MCP_PRODUCT_API_BASE_URL`: product API base URL used by the MCP proxy. In Docker Compose, use `http://api:8000`.
+- `MCP_PRODUCT_API_TIMEOUT_SECONDS`: timeout applied to downstream product API requests.
+
 ## MVP Connectors
 
 Two historical stub connectors are available:
@@ -227,6 +271,14 @@ The new typed integrations exposed by the API are:
 
 - Provisioners: `capsule`, `dynatrace`
 - Providers: `prometheus`, `dynatrace`
+
+In development mode only (`APP_ENV=dev`), an extra typed provisioner `mock` is available. It stores a preset name in the database and reads the corresponding JSON file from `mock/`.
+
+Available mock presets:
+
+- `single-vm`
+- `small-fleet`
+- `mixed-apps`
 
 Example internal `mock_inventory` config:
 
@@ -275,6 +327,7 @@ Run runtimes manually:
 
 ```bash
 uv run uvicorn app.api.main:app --reload
+MCP_PRODUCT_API_BASE_URL=http://localhost:8000 uv run uvicorn app.mcp.main:app --reload --port 8001
 uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
 uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
 uv run celery -A app.worker.celery.celery_app flower

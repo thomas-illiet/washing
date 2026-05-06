@@ -1,6 +1,7 @@
 """Application settings loaded from environment variables."""
 
 from functools import lru_cache
+from typing import Literal
 
 from cryptography.fernet import Fernet
 from pydantic import field_validator
@@ -10,6 +11,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     """Typed runtime settings for API, workers, and beat."""
     app_name: str = "Metrics Collector"
+    app_env: Literal["dev", "test", "prod"] = "prod"
     database_url: str = "postgresql+psycopg://postgres:postgres@db:5432/metrics_collector"
     celery_broker_url: str = "redis://redis:6379/0"
     celery_result_backend: str = "redis://redis:6379/1"
@@ -33,6 +35,11 @@ class Settings(BaseSettings):
         """Fail fast when the configured encryption key is missing or invalid."""
         Fernet(value.encode("utf-8"))
         return value
+
+    @property
+    def is_dev(self) -> bool:
+        """Return whether development-only features should be exposed."""
+        return self.app_env == "dev"
 
 
 @lru_cache

@@ -118,6 +118,27 @@ class DynatraceProvisionerRead(ProvisionerRead):
     has_token: bool
 
 
+class MockProvisionerCreate(CronModel):
+    """Create payload for a development-only mock provisioner."""
+    platform_id: int
+    name: NonEmptyStr
+    cron: str = "*/5 * * * *"
+    preset: NonEmptyStr = "single-vm"
+
+
+class MockProvisionerUpdate(CronModel):
+    """Patch payload for a development-only mock provisioner."""
+    platform_id: int | None = None
+    name: NonEmptyStr | None = None
+    cron: str | None = None
+    preset: NonEmptyStr | None = None
+
+
+class MockProvisionerRead(ProvisionerRead):
+    """Mock provisioner view exposing the selected fake-data preset."""
+    preset: str
+
+
 class ProviderRead(ApiModel):
     """Generic provider view without exposing raw config storage."""
     id: int

@@ -21,6 +21,7 @@ RUN uv sync --frozen --no-install-project --no-dev
 
 COPY app ./app
 COPY internal ./internal
+COPY mock ./mock
 RUN uv sync --frozen --no-dev
 
 COPY alembic ./alembic

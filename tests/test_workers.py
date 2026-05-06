@@ -1,8 +1,13 @@
 """Tests covering worker-facing use cases."""
 
+import json
+from pathlib import Path
+
+import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from internal.infra.connectors import mock as mock_connectors
 from internal.infra.db.models import (
     Application,
     Machine,
@@ -193,6 +198,56 @@ def test_provider_collection_writes_daily_disk_usage_metric(db_session: Session)
     assert sample.machine_id == machine.id
     assert sample.value == 64
     assert sample.date is not None
+
+
+def test_mock_preset_inventory_creates_machines_from_repository_json(db_session: Session) -> None:
+    """Mock presets should create inventory rows from the repository JSON payloads."""
+    platform = Platform(name="Mock Preset Inventory")
+    provisioner = MachineProvisioner(
+        platform=platform,
+        name="mock preset inventory",
+        type="mock",
+        cron="* * * * *",
+        config={"preset": "small-fleet"},
+    )
+    db_session.add(provisioner)
+    db_session.commit()
+
+    result = run_provisioner_inventory(db_session, provisioner.id)
+    assert result == {"created": 3, "updated": 0, "flavor_changes": 0}
+
+    machines = db_session.query(Machine).order_by(Machine.hostname.asc()).all()
+    assert [machine.hostname for machine in machines] == ["fleet-app-1", "fleet-app-2", "fleet-worker-1"]
+    assert [machine.application for machine in machines] == ["CHECKOUT", "CHECKOUT", "PAYMENTS"]
+
+
+def test_mock_preset_invalid_json_sets_last_error(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Invalid preset files should fail the run and be recorded on the provisioner."""
+    preset_dir = tmp_path / "mock"
+    preset_dir.mkdir()
+    (preset_dir / "single-vm.json").write_text("{invalid json", encoding="utf-8")
+    monkeypatch.setattr(mock_connectors, "get_mock_presets_dir", lambda: preset_dir)
+
+    platform = Platform(name="Broken Mock Preset")
+    provisioner = MachineProvisioner(
+        platform=platform,
+        name="broken mock preset",
+        type="mock",
+        cron="* * * * *",
+        config={"preset": "single-vm"},
+    )
+    db_session.add(provisioner)
+    db_session.commit()
+
+    with pytest.raises(json.JSONDecodeError) as exc_info:
+        run_provisioner_inventory(db_session, provisioner.id)
+
+    db_session.refresh(provisioner)
+    assert provisioner.last_error == str(exc_info.value)
 
 
 def test_placeholder_provisioner_run_is_no_op(db_session: Session) -> None:

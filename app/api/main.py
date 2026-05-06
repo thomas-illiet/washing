@@ -7,6 +7,7 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import applications, health, machines, platforms, tasks
+from app.api.routes.machines import mock_provisioners
 from internal.infra.config.settings import get_settings
 from internal.infra.observability.prometheus import prometheus_http_middleware, prometheus_response
 
@@ -50,6 +51,8 @@ def create_app() -> FastAPI:
     app.include_router(platforms.router, prefix=API_V1_PREFIX)
     app.include_router(applications.router, prefix=API_V1_PREFIX)
     app.include_router(machines.router, prefix=API_V1_PREFIX)
+    if settings.is_dev:
+        app.include_router(mock_provisioners.router, prefix=API_V1_PREFIX)
     app.include_router(tasks.router, prefix=API_V1_PREFIX)
 
     @app.get("/", include_in_schema=False)

@@ -24,10 +24,38 @@ services:
     ports:
       - "8000:8000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
         condition: service_started
+
+  mcp:
+    build: .
+    user: "1000:1000"
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    env_file: .env
+    command: ["uvicorn", "app.mcp.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    depends_on:
+      api:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8001/health').read()",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
   worker:
     build: .
@@ -41,6 +69,8 @@ services:
     ports:
       - "9101:9101"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
@@ -56,6 +86,8 @@ services:
     env_file: .env
     command: ["celery", "-A", "app.beat.celery.celery_app", "beat", "--loglevel=INFO"]
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
       redis:
