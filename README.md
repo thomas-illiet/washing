@@ -59,6 +59,8 @@ Le Postgres local utilise une seule base `washing_machine`, avec le schéma `app
 - Flower : `http://localhost:5555`
 - Grafana : `http://localhost:3000`
 
+Grafana provisionne deux dashboards par défaut : `Celery Monitoring` sur Prometheus et `Product KPI Overview` sur Postgres.
+
 ## Comptes locaux par défaut
 
 - `reader` : `Read Only`, `reader@washing-machine.local`, reçoit le rôle `OIDC_USER_ROLE_NAME`
