@@ -91,7 +91,6 @@ def upgrade() -> None:
         sa.Column("sync_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("sync_scheduled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("sync_error", sa.Text(), nullable=True),
-        sa.Column("extra", _json_type(), nullable=False),
         *_timestamps(),
         sa.PrimaryKeyConstraint("id", name="pk_applications"),
         sa.UniqueConstraint("name", "environment", "region", name="uq_applications_name_environment_region"),

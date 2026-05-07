@@ -94,6 +94,8 @@ For local development, use one of these approaches:
 
 Use `docker compose down -v` only if you want a full local reset of every persisted service, including both the app and Keycloak data stored in Postgres.
 
+If you pull a change that squashes or resets the Alembic history, reset the local Postgres volume before rerunning migrations.
+
 ## Local Python workflow
 
 If you want to run the app processes directly on your machine while keeping infra in Docker:

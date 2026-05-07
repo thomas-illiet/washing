@@ -202,3 +202,5 @@ When changing schema:
 3. review the migration manually
 4. apply it on a local stack
 5. run tests
+
+If the migration history itself is squashed, reset local databases or stamp them intentionally before running `upgrade head`.

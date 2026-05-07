@@ -72,8 +72,8 @@ def test_alembic_upgrade_head_smoke_on_sqlite(tmp_path: Path) -> None:
     assert database_path.exists()
 
 
-def test_reset_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path) -> None:
-    """The reset initial migration should create the current machine/application schema directly."""
+def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path) -> None:
+    """The clean initial migration should create the current machine/application schema directly."""
     database_path = tmp_path / "reset-initial.db"
     result = subprocess.run(
         [sys.executable, "-m", "alembic", "upgrade", "head"],
