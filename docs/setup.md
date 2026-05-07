@@ -61,6 +61,7 @@ docker compose up -d api mcp worker beat flower prometheus grafana
 ```
 
 The Compose example automatically starts Keycloak and imports the local `washing-machine` realm from [../config/keycloak/washing-machine-realm.json](../config/keycloak/washing-machine-realm.json).
+It also initializes a shared Postgres database named `washing_machine` with separate `app` and `keycloak` schemas.
 
 ## Local URLs
 
@@ -88,10 +89,10 @@ Keycloak startup import only creates a realm when it does not already exist. If 
 For local development, use one of these approaches:
 
 - delete the `washing-machine` realm from the Keycloak admin console and restart `keycloak`
-- reset the Keycloak database volume and restart the stack
+- recreate the `keycloak` schema in the shared Postgres database, then restart `keycloak`
 - keep the realm stable and only vary secrets through `.env` placeholders
 
-Use `docker compose down -v` only if you want a full local reset of every persisted service.
+Use `docker compose down -v` only if you want a full local reset of every persisted service, including both the app and Keycloak data stored in Postgres.
 
 ## Local Python workflow
 

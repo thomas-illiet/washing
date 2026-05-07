@@ -15,7 +15,8 @@ This page documents the main environment variables used by the application and t
 | --- | --- | --- | --- |
 | `APP_NAME` | `Washing Machine` | API, MCP | Displayed in Swagger and app metadata. |
 | `APP_ENV` | `prod` | API | `dev` exposes mock connector routes. |
-| `DATABASE_URL` | `postgresql+psycopg://postgres:postgres@db:5432/metrics_collector` | API, worker, beat, migrations | Main application database. |
+| `DATABASE_URL` | `postgresql+psycopg://postgres:postgres@db:5432/washing_machine` | API, worker, beat, migrations | Shared Postgres database used by the app and local Keycloak. |
+| `DATABASE_SCHEMA` | `app` | API, worker, beat, migrations | PostgreSQL schema selected for application tables and Alembic state. |
 | `INTEGRATION_CONFIG_ENCRYPTION_KEY` | required | API, worker, beat | Fernet key used for encrypted connector config at rest. |
 | `CELERY_BROKER_URL` | `redis://redis:6379/0` | API, worker, beat | Broker for task publication and delivery. |
 | `CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | Worker, Flower | Celery result backend. |
@@ -59,6 +60,8 @@ These variables are only for the local Keycloak stack and realm import:
 | `KEYCLOAK_DEV_USER_PASSWORD` | `reader-change-me` | Keycloak import | Password for the read-only dev account. |
 | `KEYCLOAK_DEV_ADMIN_USERNAME` | `platform-admin` | Keycloak import | Default admin dev account. |
 | `KEYCLOAK_DEV_ADMIN_PASSWORD` | `platform-admin-change-me` | Keycloak import | Password for the admin dev account. |
+
+The local Compose stack points Keycloak at the same `washing_machine` PostgreSQL database and selects the `keycloak` schema through `KC_DB_SCHEMA`.
 
 ## MCP settings
 

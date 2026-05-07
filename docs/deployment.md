@@ -24,9 +24,8 @@ At runtime, the image uses binaries from `/opt/venv/bin` rather than invoking `u
 
 | Service | Stateful | Purpose |
 | --- | --- | --- |
-| `db` | yes | Main application Postgres database |
+| `db` | yes | Shared Postgres database for the app (`app` schema) and local Keycloak (`keycloak` schema) |
 | `redis` | yes | Celery broker and result backend |
-| `keycloak-db` | yes | Keycloak Postgres database |
 | `keycloak` | yes | Local OIDC provider |
 | `migrate` | no | One-shot Alembic migration job |
 | `api` | no | Public REST API |
@@ -74,7 +73,7 @@ For shared environments, either:
 | `8000` | API | Public REST API and Swagger |
 | `8001` | MCP | Read-only MCP transport |
 | `8080` | Keycloak | Local OIDC provider |
-| `5432` | Postgres | Main application database |
+| `5432` | Postgres | Shared application and Keycloak database |
 | `6379` | Redis | Celery broker |
 | `5555` | Flower | Queue and task UI |
 | `3000` | Grafana | Dashboard UI |

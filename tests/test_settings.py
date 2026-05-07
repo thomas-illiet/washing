@@ -89,6 +89,25 @@ def test_application_retention_days_must_stay_positive(monkeypatch: pytest.Monke
         Settings(_env_file=None)
 
 
+def test_database_schema_defaults_to_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The app should default to the dedicated application schema."""
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.delenv("DATABASE_SCHEMA", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.database_schema == "app"
+
+
+def test_database_schema_must_be_a_simple_identifier(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Schema names should stay safe to pass into connection settings."""
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_SCHEMA", "app-schema")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
 def test_encrypted_payloads_fail_closed_when_ciphertext_is_invalid() -> None:
     """Corrupted ciphertext should never be treated as plaintext JSON."""
     payload = encrypt_json_value({"token": "secret"})

@@ -73,7 +73,7 @@ docker compose restart mcp
 If you change [../config/keycloak/washing-machine-realm.json](../config/keycloak/washing-machine-realm.json):
 
 - the running realm will not be overwritten automatically
-- delete the realm in Keycloak or reset the Keycloak DB volume
+- delete the realm in Keycloak or recreate the `keycloak` schema in the shared Postgres database
 - restart `keycloak`
 
 ### Rotating passwords and local accounts

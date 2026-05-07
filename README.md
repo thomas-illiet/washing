@@ -47,6 +47,7 @@ docker compose up -d api mcp worker beat flower prometheus grafana
 ```
 
 La stack locale démarre aussi Keycloak et importe automatiquement le realm `washing-machine` depuis [config/keycloak/washing-machine-realm.json](/Users/thomas-illiet/Documents/New%20project%202/config/keycloak/washing-machine-realm.json).
+Le Postgres local utilise une seule base `washing_machine`, avec le schéma `app` pour l’application et `keycloak` pour Keycloak.
 
 ## URLs utiles
 
@@ -161,6 +162,7 @@ Le `README` racine sert d’accueil. Pour le reste, va directement dans [docs/RE
 ## Pièges classiques
 
 - Modifier le fichier de realm Keycloak ne met pas à jour un realm déjà importé.
+- Le reset complet `docker compose down -v` efface à la fois les données applicatives et celles de Keycloak, car elles partagent maintenant la même base Postgres.
 - Changer `INTEGRATION_CONFIG_ENCRYPTION_KEY` casse la lecture des configs déjà stockées si tu ne migres pas les données.
 - Plusieurs instances `beat` compliquent l’exploitation, même si les dispatchers réservent maintenant les lignes correctement.
 - Les fichiers `Dockerfile` et `docker-compose.yml` réels ne sont pas versionnés : le repo fournit les `*.example`.

@@ -1,5 +1,6 @@
 """Application settings loaded from environment variables."""
 
+import re
 from functools import lru_cache
 from typing import Literal
 
@@ -12,7 +13,8 @@ class Settings(BaseSettings):
     """Typed runtime settings for API, workers, and beat."""
     app_name: str = "Metrics Collector"
     app_env: Literal["dev", "test", "prod"] = "prod"
-    database_url: str = "postgresql+psycopg://postgres:postgres@db:5432/metrics_collector"
+    database_url: str = "postgresql+psycopg://postgres:postgres@db:5432/washing_machine"
+    database_schema: str = "app"
     celery_broker_url: str = "redis://redis:6379/0"
     celery_result_backend: str = "redis://redis:6379/1"
     celery_task_execution_retention_days: int = 90
@@ -49,6 +51,14 @@ class Settings(BaseSettings):
         """Require positive retention windows for maintenance cleanup tasks."""
         if value <= 0:
             raise ValueError("retention day settings must be greater than 0")
+        return value
+
+    @field_validator("database_schema")
+    @classmethod
+    def validate_database_schema(cls, value: str) -> str:
+        """Require a simple SQL identifier so schema selection stays safe."""
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+            raise ValueError("database_schema must be a simple SQL identifier")
         return value
 
     @property
