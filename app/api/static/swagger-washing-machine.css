@@ -35,11 +35,11 @@ body {
 }
 
 .swagger-ui .scheme-container {
+  /* Swagger mounts the auth dialog inside this container, so blur here traps the modal and backdrop. */
   background: rgba(255, 255, 255, 0.78);
   border-bottom: 1px solid rgba(214, 231, 238, 0.95);
   box-shadow: none;
   padding: 18px 0;
-  backdrop-filter: blur(10px);
 }
 
 .swagger-ui .information-container,

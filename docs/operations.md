@@ -80,10 +80,10 @@ If you change [../config/keycloak/washing-machine-realm.json](../config/keycloak
 
 For the local stack:
 
-- change the values in `.env`
+- change the values in `.env` for `KEYCLOAK_DEV_USER_PASSWORD` and `KEYCLOAK_DEV_ADMIN_PASSWORD`
 - restart `keycloak` if the values are only used at import time
 
-For existing imported users, changing `.env` alone does not patch an already imported realm unless the realm is recreated.
+For existing imported users, changing `.env` alone does not patch an already imported realm unless the realm is recreated. Usernames, names, and emails for the demo accounts are fixed in the realm import JSON.
 
 ### Changing role names
 

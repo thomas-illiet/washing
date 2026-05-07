@@ -54,7 +54,7 @@ def _build_client(db_session: Session) -> TestClient:
     """Build a TestClient wired to the fixture-backed in-memory database."""
     get_settings.cache_clear()
     clear_oidc_caches()
-    app = create_app()
+    app = create_app(validate_database_on_startup=False)
 
     def override_get_db():
         """Reuse the fixture-backed database session inside FastAPI dependencies."""

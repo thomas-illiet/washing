@@ -1,6 +1,8 @@
 """FastAPI application factory."""
 
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -25,6 +27,7 @@ from internal.infra.auth import (
     swagger_security_scheme,
 )
 from internal.infra.config.settings import get_settings
+from internal.infra.db.readiness import ensure_database_schema_is_current
 from internal.infra.observability import configure_uvicorn_access_log_filter
 from internal.infra.observability.prometheus import prometheus_http_middleware, prometheus_response
 
@@ -157,13 +160,20 @@ def _configure_openapi_security(app: FastAPI) -> None:
     app.openapi = custom_openapi
 
 
-def create_app() -> FastAPI:
+def create_app(*, validate_database_on_startup: bool = True) -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
     hidden_access_paths = {"/health"}
     if settings.prometheus_api_enabled:
         hidden_access_paths.add(settings.prometheus_api_path)
     configure_uvicorn_access_log_filter(hidden_access_paths)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        """Validate database readiness before serving requests."""
+        if validate_database_on_startup:
+            ensure_database_schema_is_current()
+        yield
 
     app = FastAPI(
         title=settings.app_name,
@@ -172,6 +182,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
         openapi_url=f"{API_V1_PREFIX}/openapi.json",
         openapi_tags=OPENAPI_TAGS,
+        lifespan=lifespan,
     )
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

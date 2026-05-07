@@ -56,10 +56,8 @@ These variables are only for the local Keycloak stack and realm import:
 | `KEYCLOAK_REALM` | `washing-machine` | Keycloak import | Realm name in the local stack. |
 | `KEYCLOAK_ADMIN` | `admin` | Keycloak container | Bootstrap admin username for the master realm. |
 | `KEYCLOAK_ADMIN_PASSWORD` | `change-me` | Keycloak container | Bootstrap admin password. |
-| `KEYCLOAK_DEV_USER_USERNAME` | `reader` | Keycloak import | Default read-only dev account. |
-| `KEYCLOAK_DEV_USER_PASSWORD` | `reader-change-me` | Keycloak import | Password for the read-only dev account. |
-| `KEYCLOAK_DEV_ADMIN_USERNAME` | `platform-admin` | Keycloak import | Default admin dev account. |
-| `KEYCLOAK_DEV_ADMIN_PASSWORD` | `platform-admin-change-me` | Keycloak import | Password for the admin dev account. |
+| `KEYCLOAK_DEV_USER_PASSWORD` | `reader-change-me` | Keycloak import | Password for the fixed read-only dev account `reader`. |
+| `KEYCLOAK_DEV_ADMIN_PASSWORD` | `platform-admin-change-me` | Keycloak import | Password for the fixed admin dev account `platform-admin`. |
 
 The local Compose stack points Keycloak at the same `washing_machine` PostgreSQL database and selects the `keycloak` schema through `KC_DB_SCHEMA`.
 

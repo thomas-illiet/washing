@@ -7,6 +7,11 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+from fastapi.testclient import TestClient
+
+from app.api.main import create_app
+from internal.infra.config.settings import get_settings
 from tests.constants import TEST_ENCRYPTION_KEY
 
 
@@ -101,6 +106,26 @@ def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
         assert not any(column.startswith(("previous_", "new_")) for column in flavor_columns)
     finally:
         connection.close()
+
+
+def test_api_startup_fails_fast_when_database_is_not_migrated(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The API should fail at startup with an actionable migration error."""
+    database_path = tmp_path / "startup-unmigrated.db"
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database_path}")
+    monkeypatch.setenv("APP_ENV", "prod")
+    monkeypatch.setenv("OIDC_ENABLED", "false")
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    get_settings.cache_clear()
+
+    try:
+        with pytest.raises(RuntimeError, match=r"run `alembic upgrade head` before starting the API"):
+            with TestClient(create_app()):
+                pass
+    finally:
+        get_settings.cache_clear()
 
 
 def test_beat_smoke_starts_without_local_schedule_persistence(tmp_path: Path) -> None:

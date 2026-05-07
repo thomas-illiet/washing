@@ -56,8 +56,11 @@
   ],
   "users": [
     {
-      "username": "${KEYCLOAK_DEV_USER_USERNAME}",
+      "username": "reader",
       "enabled": true,
+      "firstName": "Read",
+      "lastName": "Only",
+      "email": "reader@washing-machine.local",
       "emailVerified": true,
       "credentials": [
         {
@@ -71,8 +74,11 @@
       ]
     },
     {
-      "username": "${KEYCLOAK_DEV_ADMIN_USERNAME}",
+      "username": "platform-admin",
       "enabled": true,
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "email": "platform-admin@washing-machine.local",
       "emailVerified": true,
       "credentials": [
         {

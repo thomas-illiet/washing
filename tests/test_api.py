@@ -89,6 +89,8 @@ def test_swagger_theme_css_is_served(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
     assert "--wm-bg: #f6fbfd;" in response.text
+    scheme_container_rule = response.text.split(".swagger-ui .scheme-container {", maxsplit=1)[1].split("}", maxsplit=1)[0]
+    assert "backdrop-filter" not in scheme_container_rule
 
 
 def test_default_docs_endpoints_are_disabled(client: TestClient) -> None:

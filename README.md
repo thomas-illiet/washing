@@ -61,10 +61,10 @@ Le Postgres local utilise une seule base `washing_machine`, avec le schéma `app
 
 ## Comptes locaux par défaut
 
-- `reader` : reçoit le rôle `OIDC_USER_ROLE_NAME`
-- `platform-admin` : reçoit `OIDC_USER_ROLE_NAME` et `OIDC_ADMIN_ROLE_NAME`
+- `reader` : `Read Only`, `reader@washing-machine.local`, reçoit le rôle `OIDC_USER_ROLE_NAME`
+- `platform-admin` : `Platform Admin`, `platform-admin@washing-machine.local`, reçoit `OIDC_USER_ROLE_NAME` et `OIDC_ADMIN_ROLE_NAME`
 
-Les mots de passe viennent de `.env`.
+Les usernames, prénoms, noms et emails sont définis dans l’import Keycloak local. Les mots de passe viennent de `.env`.
 
 ## Ce qu’il faut savoir
 

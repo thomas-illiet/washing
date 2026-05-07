@@ -77,10 +77,10 @@ It also initializes a shared Postgres database named `washing_machine` with sepa
 
 The default Keycloak realm import creates:
 
-- `reader`: gets the role named by `OIDC_USER_ROLE_NAME`
-- `platform-admin`: gets the roles named by `OIDC_USER_ROLE_NAME` and `OIDC_ADMIN_ROLE_NAME`
+- `reader`: `Read Only`, `reader@washing-machine.local`, gets the role named by `OIDC_USER_ROLE_NAME`
+- `platform-admin`: `Platform Admin`, `platform-admin@washing-machine.local`, gets the roles named by `OIDC_USER_ROLE_NAME` and `OIDC_ADMIN_ROLE_NAME`
 
-The usernames and passwords are driven by `.env`.
+The usernames, names, and emails are fixed in the local realm import. Only the passwords are driven by `.env`.
 
 ## Keycloak import caveat
 
