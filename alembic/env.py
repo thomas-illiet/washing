@@ -20,6 +20,13 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def include_object(object_, name: str, type_: str, reflected: bool, compare_to) -> bool:
+    """Keep Alembic's own version table out of autogenerate diffs."""
+    if type_ == "table" and name == "alembic_version":
+        return False
+    return True
+
+
 def run_migrations_offline() -> None:
     """Run migrations in offline mode without opening a DB connection."""
     url = config.get_main_option("sqlalchemy.url")
@@ -29,6 +36,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_object=include_object,
         version_table_schema=version_table_schema,
     )
 
@@ -50,11 +58,13 @@ def run_migrations_online() -> None:
         if uses_postgresql(settings.database_url):
             schema = connection.dialect.identifier_preparer.quote(settings.database_schema)
             connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema}"))
+            connection.commit()
             version_table_schema = settings.database_schema
 
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            include_object=include_object,
             version_table_schema=version_table_schema,
         )
 
