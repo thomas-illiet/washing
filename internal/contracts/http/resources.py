@@ -102,6 +102,7 @@ class CapsuleProvisionerCreate(CronModel):
     name: NonEmptyStr
     cron: str = "*/5 * * * *"
     token: NonEmptyStr
+    parameters: dict[str, str] = Field(default_factory=dict)
 
 
 class CapsuleProvisionerUpdate(CronModel):
@@ -110,11 +111,13 @@ class CapsuleProvisionerUpdate(CronModel):
     name: NonEmptyStr | None = None
     cron: str | None = None
     token: NonEmptyStr | None = None
+    parameters: dict[str, str] | None = None
 
 
 class CapsuleProvisionerRead(ProvisionerRead):
-    """Capsule provisioner view exposing secret presence only."""
+    """Capsule provisioner view exposing editable non-secret config."""
     has_token: bool
+    parameters: dict[str, str] = Field(default_factory=dict)
 
 
 class DynatraceProvisionerCreate(CapsuleProvisionerCreate):

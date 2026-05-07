@@ -120,6 +120,9 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "application_id" not in schemas["MachineRead"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerCreate"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerUpdate"]["properties"]
+    assert "parameters" in schemas["CapsuleProvisionerCreate"]["properties"]
+    assert "parameters" in schemas["CapsuleProvisionerUpdate"]["properties"]
+    assert "parameters" in schemas["CapsuleProvisionerRead"]["properties"]
     assert "enabled" not in schemas["DynatraceProvisionerCreate"]["properties"]
     assert "enabled" not in schemas["DynatraceProvisionerUpdate"]["properties"]
     assert "MockProvisionerCreate" not in schemas
@@ -335,7 +338,7 @@ def test_typed_integration_routes_require_existing_platforms(client: TestClient,
     assert mock_provider_response.json()["detail"] == "platform not found"
 
 
-def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
+def test_typed_provisioner_routes_hide_config(client: TestClient, db_session: Session) -> None:
     """Typed provisioner routes should never expose raw config or tokens."""
     platform = client.post("/v1/platforms", json={"name": "VMWare"}).json()
 
@@ -346,17 +349,26 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
             "name": "capsule inventory",
             "token": "capsule-secret",
             "cron": "* * * * *",
+            "parameters": {"tenant": "prod", "region": "eu-west-3"},
         },
     ).json()
     assert capsule["type"] == "capsule"
     assert capsule["enabled"] is False
     assert capsule["has_token"] is True
+    assert capsule["parameters"] == {"tenant": "prod", "region": "eu-west-3"}
     assert "token" not in capsule
     assert "config" not in capsule
+
+    provisioner = db_session.get(MachineProvisioner, capsule["id"])
+    assert provisioner is not None
+    assert provisioner.config["parameters"] == {"tenant": "prod", "region": "eu-west-3"}
 
     generic = client.get(f"/v1/machines/provisioners/{capsule['id']}").json()
     assert generic["type"] == "capsule"
     assert "config" not in generic
+
+    typed_capsule = client.get(f"/v1/machines/provisioners/{capsule['id']}/capsule").json()
+    assert typed_capsule["parameters"] == {"tenant": "prod", "region": "eu-west-3"}
 
     patched_capsule = client.patch(
         f"/v1/machines/provisioners/{capsule['id']}/capsule",
@@ -364,6 +376,7 @@ def test_typed_provisioner_routes_hide_config(client: TestClient) -> None:
     ).json()
     assert patched_capsule["name"] == "capsule inventory v2"
     assert patched_capsule["has_token"] is True
+    assert patched_capsule["parameters"] == {"tenant": "prod", "region": "eu-west-3"}
 
     dynatrace = client.post(
         "/v1/machines/provisioners/dynatrace",
@@ -796,6 +809,51 @@ def test_typed_integration_write_payloads_reject_enabled_field(client: TestClien
         json={"enabled": True},
     )
     assert provider_update.status_code == 422
+
+
+def test_capsule_parameters_patch_replaces_and_clears_dict(client: TestClient, db_session: Session) -> None:
+    """Capsule parameters should be preserved, replaced, and clearable through PATCH."""
+    platform = client.post("/v1/platforms", json={"name": "Capsule Parameters"}).json()
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "capsule inventory",
+            "token": "capsule-secret",
+            "parameters": {"tenant": "prod", "region": "eu-west-3"},
+        },
+    ).json()
+
+    untouched = client.patch(
+        f"/v1/machines/provisioners/{provisioner['id']}/capsule",
+        json={"cron": "0 * * * *"},
+    )
+    assert untouched.status_code == 200
+    assert untouched.json()["parameters"] == {"tenant": "prod", "region": "eu-west-3"}
+
+    replaced = client.patch(
+        f"/v1/machines/provisioners/{provisioner['id']}/capsule",
+        json={"parameters": {"tenant": "staging"}},
+    )
+    assert replaced.status_code == 200
+    assert replaced.json()["parameters"] == {"tenant": "staging"}
+
+    db_session.expire_all()
+    persisted = db_session.get(MachineProvisioner, provisioner["id"])
+    assert persisted is not None
+    assert persisted.config["parameters"] == {"tenant": "staging"}
+
+    cleared = client.patch(
+        f"/v1/machines/provisioners/{provisioner['id']}/capsule",
+        json={"parameters": {}},
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["parameters"] == {}
+
+    db_session.expire_all()
+    persisted = db_session.get(MachineProvisioner, provisioner["id"])
+    assert persisted is not None
+    assert persisted.config["parameters"] == {}
 
 
 def test_provider_enable_disable_routes_are_idempotent(client: TestClient) -> None:

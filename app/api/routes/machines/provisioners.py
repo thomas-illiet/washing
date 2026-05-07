@@ -56,6 +56,7 @@ def _capsule_read_model(provisioner: MachineProvisioner) -> CapsuleProvisionerRe
     return CapsuleProvisionerRead(
         **ProvisionerRead.model_validate(provisioner).model_dump(),
         has_token=bool(provisioner.config.get("token")),
+        parameters=dict(provisioner.config.get("parameters", {})),
     )
 
 
@@ -83,7 +84,7 @@ def create_capsule_provisioner(
         platform_id=payload.platform_id,
         name=payload.name,
         type="capsule",
-        config={"token": payload.token},
+        config={"token": payload.token, "parameters": payload.parameters},
         cron=payload.cron,
     )
     db.add(provisioner)
@@ -184,11 +185,11 @@ def update_capsule_provisioner(
 ) -> CapsuleProvisionerRead:
     """Patch a Capsule provisioner through its typed sub-route.
 
-    Shared provisioner fields are updated directly, while the token stays
-    inside encrypted `config` and is preserved when omitted.
+    Shared provisioner fields are updated directly, while config-backed
+    fields stay inside encrypted `config` and are preserved when omitted.
     """
     provisioner = _load_provisioner_of_type(db, provisioner_id, "capsule")
-    values = payload.model_dump(exclude_unset=True, exclude={"token"})
+    values = payload.model_dump(exclude_unset=True, exclude={"token", "parameters"})
     if "platform_id" in values:
         get_or_404(db, Platform, values["platform_id"], "platform not found")
         _ensure_provisioner_platform_can_change(provisioner, values["platform_id"])
@@ -197,6 +198,8 @@ def update_capsule_provisioner(
     config = dict(provisioner.config)
     if payload.token is not None:
         config["token"] = payload.token
+    if "parameters" in payload.model_fields_set:
+        config["parameters"] = payload.parameters or {}
     provisioner.config = config
 
     commit_or_409(db, "provisioner name already exists for this platform")
