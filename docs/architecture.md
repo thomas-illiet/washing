@@ -42,7 +42,7 @@ flowchart TD
 | --- | --- |
 | `app/` | Executable runtimes only |
 | `app/api` | FastAPI app, routes, HTTP dependencies, Swagger |
-| `app/mcp` | FastMCP server and downstream product API proxy |
+| `app/mcp` | FastMCP bootstrap, config, core runtime/helpers, resources, and one-file-per-tool modules |
 | `app/worker/tasks` | Registered Celery tasks |
 | `app/beat` | Beat schedule and Celery bootstrap |
 | `internal/usecases` | Business workflows shared by the runtimes |
@@ -174,6 +174,8 @@ See [Celery Task Map](./celery-task-map.md) for the full task-level breakdown.
 
 - API bootstrap: `app/api/main.py`
 - MCP bootstrap: `app/mcp/main.py`
+- MCP core: `app/mcp/core/`
+- MCP tools: `app/mcp/tools/`
 - Use cases: `internal/usecases/`
 - ORM model: `internal/infra/db/models.py`
 - Task tracking: `internal/infra/queue/task_tracking.py`

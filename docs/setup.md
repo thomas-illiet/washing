@@ -150,7 +150,7 @@ uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
 uv run celery -A app.worker.celery.celery_app flower
 ```
 
-When using the local Python workflow, keep `MCP_PRODUCT_API_BASE_URL=http://127.0.0.1:8000` or another host-visible API URL.
+When using the local Python workflow, keep `MCP_API_BASE_URL=http://127.0.0.1:8000` or another host-visible API URL.
 
 ## Development-only mock routes
 

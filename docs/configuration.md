@@ -5,7 +5,7 @@ This page documents the main environment variables used by the application and t
 ## Configuration model
 
 - The API, worker, and beat use [../internal/infra/config/settings.py](../internal/infra/config/settings.py).
-- The MCP gateway uses [../app/mcp/settings.py](../app/mcp/settings.py).
+- The MCP gateway uses [../app/mcp/config/settings.py](../app/mcp/config/settings.py).
 - OIDC auth uses [../internal/infra/auth/settings.py](../internal/infra/auth/settings.py).
 - The local Keycloak stack consumes the same `.env` file through [../docker-compose.example.yml](../docker-compose.example.yml).
 
@@ -65,8 +65,8 @@ The local Compose stack points Keycloak at the same `washing_machine` PostgreSQL
 
 | Variable | Default | Used by | Notes |
 | --- | --- | --- | --- |
-| `MCP_PRODUCT_API_BASE_URL` | `http://api:8000` in Docker | MCP | Base URL of the product API that the MCP gateway proxies. |
-| `MCP_PRODUCT_API_TIMEOUT_SECONDS` | `30` | MCP | Timeout for downstream API calls. |
+| `MCP_API_BASE_URL` | `http://api:8000` in Docker | MCP | Base URL of the product API that the MCP gateway proxies. |
+| `MCP_API_TIMEOUT_SECONDS` | `30` | MCP | Timeout for downstream API calls. |
 
 ## Scheduler and batching settings
 

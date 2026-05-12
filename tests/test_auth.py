@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.api.main import create_app as create_api_app
 from app.mcp.main import create_app as create_mcp_app
-from app.mcp.settings import get_settings as get_mcp_settings
+from app.mcp.config import get_settings as get_mcp_settings
 from internal.infra.auth import clear_oidc_caches
 from internal.infra.config.settings import get_settings
 

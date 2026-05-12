@@ -107,7 +107,7 @@ Lancer les runtimes à la main :
 
 ```bash
 uv run uvicorn app.api.main:app --reload
-MCP_PRODUCT_API_BASE_URL=http://localhost:8000 uv run uvicorn app.mcp.main:app --reload --port 8001
+MCP_API_BASE_URL=http://localhost:8000 uv run uvicorn app.mcp.main:app --reload --port 8001
 uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
 uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
 uv run celery -A app.worker.celery.celery_app flower
@@ -140,7 +140,7 @@ docker compose down -v
 ## Vue rapide du projet
 
 - `app/api` : API FastAPI
-- `app/mcp` : gateway MCP read-only
+- `app/mcp` : gateway MCP read-only, avec le runtime dans `core` et un module par tool dans `tools`
 - `app/worker` : worker Celery et tâches exécutables
 - `app/beat` : scheduler Celery Beat
 - `internal/usecases` : logique métier partagée

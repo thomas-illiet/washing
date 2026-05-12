@@ -3,7 +3,7 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.mcp.server import mcp
+from app.mcp.core import mcp
 from internal.infra.auth import OIDCAuthenticationError, authorize_request
 from internal.infra.observability import configure_uvicorn_access_log_filter
 

@@ -16,7 +16,7 @@ from fastmcp import Client
 from fastmcp.client.transports import StreamableHttpTransport
 
 from app.mcp.main import create_app
-from app.mcp.settings import get_settings
+from app.mcp.config import get_settings
 from internal.infra.auth import clear_oidc_caches
 
 
@@ -148,7 +148,7 @@ def test_mcp_tool_forwards_authorization_and_preserves_response_shape(monkeypatc
 
     downstream = _build_downstream_app()
     with LiveServer(downstream) as downstream_server:
-        monkeypatch.setenv("MCP_PRODUCT_API_BASE_URL", downstream_server.base_url)
+        monkeypatch.setenv("MCP_API_BASE_URL", downstream_server.base_url)
         with LiveServer(create_app()) as mcp_server:
             result = asyncio.run(
                 _call_http_tool(
@@ -171,7 +171,7 @@ def test_mcp_resource_forwards_authorization_and_maps_metric_query_params(monkey
 
     downstream = _build_downstream_app()
     with LiveServer(downstream) as downstream_server:
-        monkeypatch.setenv("MCP_PRODUCT_API_BASE_URL", downstream_server.base_url)
+        monkeypatch.setenv("MCP_API_BASE_URL", downstream_server.base_url)
         with LiveServer(create_app()) as mcp_server:
             payload = asyncio.run(
                 _read_http_resource(
@@ -200,7 +200,7 @@ def test_mcp_tool_omits_authorization_when_absent(monkeypatch: pytest.MonkeyPatc
 
     downstream = _build_downstream_app()
     with LiveServer(downstream) as downstream_server:
-        monkeypatch.setenv("MCP_PRODUCT_API_BASE_URL", downstream_server.base_url)
+        monkeypatch.setenv("MCP_API_BASE_URL", downstream_server.base_url)
         with LiveServer(create_app()) as mcp_server:
             result = asyncio.run(
                 _call_http_tool(
@@ -222,7 +222,7 @@ def test_mcp_tool_surfaces_readable_downstream_http_errors(monkeypatch: pytest.M
 
     downstream = _build_downstream_app()
     with LiveServer(downstream) as downstream_server:
-        monkeypatch.setenv("MCP_PRODUCT_API_BASE_URL", downstream_server.base_url)
+        monkeypatch.setenv("MCP_API_BASE_URL", downstream_server.base_url)
         with LiveServer(create_app()) as mcp_server:
             with pytest.raises(Exception, match="product API returned 404 .* application not found"):
                 asyncio.run(
@@ -238,8 +238,8 @@ def test_mcp_tool_surfaces_readable_downstream_http_errors(monkeypatch: pytest.M
 def test_mcp_tool_surfaces_unavailable_downstream_errors(monkeypatch: pytest.MonkeyPatch) -> None:
     """Connection failures should become readable MCP tool errors."""
 
-    monkeypatch.setenv("MCP_PRODUCT_API_BASE_URL", "http://127.0.0.1:9")
-    monkeypatch.setenv("MCP_PRODUCT_API_TIMEOUT_SECONDS", "0.2")
+    monkeypatch.setenv("MCP_API_BASE_URL", "http://127.0.0.1:9")
+    monkeypatch.setenv("MCP_API_TIMEOUT_SECONDS", "0.2")
     with LiveServer(create_app()) as mcp_server:
         with pytest.raises(Exception, match="product API request failed for GET /v1/applications"):
             asyncio.run(

@@ -7,6 +7,8 @@ import httpx
 from fastmcp import Context
 from fastmcp.server.dependencies import get_http_headers
 
+from app.mcp.core.shared import MetricType
+
 
 class ProductAPIProxy:
     """Thin read-only JSON client over the product API."""
@@ -66,6 +68,125 @@ async def proxy_get_json(ctx: Context, path: str, params: Mapping[str, Any] | No
 
     proxy = get_product_api_proxy(ctx)
     return await proxy.get_json(path, params=params, headers=forwarded_authorization_headers())
+
+
+async def list_applications(
+    ctx: Context,
+    name: str | None = None,
+    environment: str | None = None,
+    region: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Read the application collection endpoint."""
+
+    return await proxy_get_json(
+        ctx,
+        "/v1/applications",
+        {
+            "name": name,
+            "environment": environment,
+            "region": region,
+            "offset": offset,
+            "limit": limit,
+        },
+    )
+
+
+async def get_application(ctx: Context, application_id: int) -> dict[str, Any]:
+    """Read one application endpoint."""
+
+    return await proxy_get_json(ctx, f"/v1/applications/{application_id}")
+
+
+async def list_machines(
+    ctx: Context,
+    platform_id: int | None = None,
+    application: str | None = None,
+    source_provisioner_id: int | None = None,
+    environment: str | None = None,
+    region: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Read the machine collection endpoint."""
+
+    return await proxy_get_json(
+        ctx,
+        "/v1/machines",
+        {
+            "platform_id": platform_id,
+            "application": application,
+            "source_provisioner_id": source_provisioner_id,
+            "environment": environment,
+            "region": region,
+            "offset": offset,
+            "limit": limit,
+        },
+    )
+
+
+async def get_machine(ctx: Context, machine_id: int) -> dict[str, Any]:
+    """Read one machine endpoint."""
+
+    return await proxy_get_json(ctx, f"/v1/machines/{machine_id}")
+
+
+async def list_machine_metrics(
+    ctx: Context,
+    metric_type: MetricType,
+    platform_id: int | None = None,
+    provider_id: int | None = None,
+    provisioner_id: int | None = None,
+    machine_id: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Read the cross-machine metrics endpoint."""
+
+    return await proxy_get_json(
+        ctx,
+        "/v1/machines/metrics",
+        {
+            "type": metric_type,
+            "platform_id": platform_id,
+            "provider_id": provider_id,
+            "provisioner_id": provisioner_id,
+            "machine_id": machine_id,
+            "start": start,
+            "end": end,
+            "offset": offset,
+            "limit": limit,
+        },
+    )
+
+
+async def list_machine_metric_history(
+    ctx: Context,
+    machine_id: int,
+    metric_type: MetricType,
+    provider_id: int | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    offset: int = 0,
+    limit: int = 100,
+) -> dict[str, Any]:
+    """Read the per-machine metrics history endpoint."""
+
+    return await proxy_get_json(
+        ctx,
+        f"/v1/machines/{machine_id}/metrics",
+        {
+            "type": metric_type,
+            "provider_id": provider_id,
+            "start": start,
+            "end": end,
+            "offset": offset,
+            "limit": limit,
+        },
+    )
 
 
 def _clean_query_params(params: Mapping[str, Any]) -> dict[str, Any]:
