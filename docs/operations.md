@@ -144,6 +144,8 @@ Manual recalculation is useful after:
 
 Changing the recommendation env settings does not trigger a global rebuild automatically. The new values only apply to future refreshes.
 
+See [Machine Recommendations](./recommendations.md) for the calculation rules and response fields.
+
 ### Task history retention
 
 Tracked Celery executions are cleaned up automatically once per day by Beat.

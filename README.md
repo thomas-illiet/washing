@@ -157,6 +157,7 @@ Le `README` racine sert d’accueil. Pour le reste, va directement dans [docs/RE
 - [Setup](./docs/setup.md) : installation locale, Docker, Python, tests, smoke checks
 - [Configuration](./docs/configuration.md) : variables d’environnement, OIDC, scheduler, observability
 - [Architecture](./docs/architecture.md) : runtimes, couches, flux métier, modèle de données
+- [Machine Recommendations](./docs/recommendations.md) : calcul des recommandations, statuts, endpoints et exploitation
 - [Deployment](./docs/deployment.md) : image, topologie, ordre de rollout, scaling, checklist
 - [Operations](./docs/operations.md) : migrations, logs, maintenance, troubleshooting
 - [Celery Task Map](./docs/celery-task-map.md) : cartographie des tâches, dispatchers et fan-out
