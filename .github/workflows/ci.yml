@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.8.11"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Run full test suite
+        run: uv run pytest -q
+
+      - name: Build package
+        run: uv build
+
+  docker-smoke:
+    name: Docker Compose smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare Docker Compose inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp Dockerfile.example Dockerfile
+          cp .env.example .env
+          python - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          env_file = Path(".env")
+          content = env_file.read_text()
+          fernet_key = base64.urlsafe_b64encode(os.urandom(32)).decode()
+          env_file.write_text(content.replace("REPLACE_ME_WITH_FERNET_KEY", fernet_key))
+          PY
+
+      - name: Validate Compose configuration
+        run: docker compose -f docker-compose.example.yml config --quiet
+
+      - name: Start product stack
+        run: docker compose -f docker-compose.example.yml up --build -d api mcp worker beat flower prometheus grafana
+
+      - name: Verify product health
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          wait_for_url() {
+            local url="$1"
+            timeout 240 bash -c 'until curl -fsS "$0" >/dev/null; do sleep 5; done' "$url"
+          }
+
+          wait_for_url "http://127.0.0.1:8000/health"
+          wait_for_url "http://127.0.0.1:8001/health"
+          wait_for_url "http://127.0.0.1:5555/healthcheck"
+          wait_for_url "http://127.0.0.1:3000/api/health"
+          docker compose -f docker-compose.example.yml exec -T prometheus wget -q -O /dev/null http://127.0.0.1:9090/-/healthy
+
+          for service in api mcp worker beat flower prometheus grafana; do
+            container_id="$(docker compose -f docker-compose.example.yml ps -q "$service")"
+            state="$(docker inspect -f '{{.State.Status}}' "$container_id")"
+            if [ "$state" != "running" ]; then
+              echo "$service is $state"
+              exit 1
+            fi
+          done
+
+      - name: Show Compose logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.example.yml logs --no-color --tail=200
+
+      - name: Stop product stack
+        if: always()
+        run: docker compose -f docker-compose.example.yml down -v
