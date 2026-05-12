@@ -30,7 +30,7 @@ cp .env.example .env
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-4. Put that value in `INTEGRATION_CONFIG_ENCRYPTION_KEY` inside `.env`.
+4. Put that value in `DATABASE_ENCRYPTION_KEY` inside `.env`.
 
 5. Review the default credentials in `.env` before exposing anything outside localhost:
 

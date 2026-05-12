@@ -26,7 +26,7 @@ cp docker-compose.example.yml docker-compose.yml
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-3. Mets cette valeur dans `INTEGRATION_CONFIG_ENCRYPTION_KEY` dans `.env`.
+3. Mets cette valeur dans `DATABASE_ENCRYPTION_KEY` dans `.env`.
 
 4. Démarre la base et Redis.
 
@@ -166,6 +166,6 @@ Le `README` racine sert d’accueil. Pour le reste, va directement dans [docs/RE
 
 - Modifier le fichier de realm Keycloak ne met pas à jour un realm déjà importé.
 - Le reset complet `docker compose down -v` efface à la fois les données applicatives et celles de Keycloak, car elles partagent maintenant la même base Postgres.
-- Changer `INTEGRATION_CONFIG_ENCRYPTION_KEY` casse la lecture des configs déjà stockées si tu ne migres pas les données.
+- Changer `DATABASE_ENCRYPTION_KEY` casse la lecture des configs déjà stockées si tu ne migres pas les données.
 - Plusieurs instances `beat` compliquent l’exploitation, même si les dispatchers réservent maintenant les lignes correctement.
 - Les fichiers `Dockerfile` et `docker-compose.yml` réels ne sont pas versionnés : le repo fournit les `*.example`.

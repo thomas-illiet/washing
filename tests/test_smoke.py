@@ -25,7 +25,7 @@ def _clean_env(**overrides: str) -> dict[str, str]:
     env["APP_NAME"] = "Metrics Collector"
     env["APP_ENV"] = "prod"
     env["OIDC_ENABLED"] = "false"
-    env["INTEGRATION_CONFIG_ENCRYPTION_KEY"] = TEST_ENCRYPTION_KEY
+    env["DATABASE_ENCRYPTION_KEY"] = TEST_ENCRYPTION_KEY
     env.update(overrides)
     return env
 
@@ -130,7 +130,7 @@ def test_api_startup_fails_fast_when_database_is_not_migrated(
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{database_path}")
     monkeypatch.setenv("APP_ENV", "prod")
     monkeypatch.setenv("OIDC_ENABLED", "false")
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     get_settings.cache_clear()
 
     try:

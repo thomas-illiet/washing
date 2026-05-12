@@ -88,7 +88,7 @@ Prometheus itself stays internal to the Compose network in the example setup.
 - Put API, MCP, and Keycloak behind TLS termination
 - Do not expose Prometheus, Flower, or the Keycloak management port broadly
 - Rotate all default passwords and secrets before any shared deployment
-- Keep `INTEGRATION_CONFIG_ENCRYPTION_KEY` in a secret manager
+- Keep `DATABASE_ENCRYPTION_KEY` in a secret manager
 - Use an external OIDC provider if Keycloak should not be part of your app deployment
 
 ## Scaling guidance
@@ -118,7 +118,7 @@ Before rollout:
 - verify `.env` or platform secrets
 - run migrations
 - confirm OIDC issuer and role names
-- confirm `INTEGRATION_CONFIG_ENCRYPTION_KEY`
+- confirm `DATABASE_ENCRYPTION_KEY`
 
 After rollout:
 

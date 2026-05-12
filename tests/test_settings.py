@@ -12,21 +12,21 @@ from tests.constants import TEST_ENCRYPTION_KEY
 def test_encryption_key_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
     """The application should fail fast when the encryption key is missing or invalid."""
     # Override any local .env value so the validation path is deterministic.
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", "")
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", "")
     get_settings.cache_clear()
 
     with pytest.raises(ValidationError):
         get_settings()
 
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     get_settings.cache_clear()
-    assert get_settings().integration_config_encryption_key == TEST_ENCRYPTION_KEY
+    assert get_settings().database_encryption_key == TEST_ENCRYPTION_KEY
 
 
 def test_app_env_defaults_to_prod_and_dev_sets_is_dev(monkeypatch: pytest.MonkeyPatch) -> None:
     """Runtime settings should expose the selected application environment."""
     monkeypatch.delenv("APP_ENV", raising=False)
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     settings = Settings(_env_file=None)
     assert settings.app_env == "prod"
     assert settings.is_dev is False
@@ -64,7 +64,7 @@ def test_oidc_role_names_are_configurable_and_must_stay_distinct(monkeypatch: py
 
 def test_task_execution_retention_days_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
     """Retention days should reject zero or negative values."""
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     monkeypatch.setenv("CELERY_TASK_EXECUTION_RETENTION_DAYS", "0")
 
     with pytest.raises(ValidationError):
@@ -73,7 +73,7 @@ def test_task_execution_retention_days_must_stay_positive(monkeypatch: pytest.Mo
 
 def test_machine_retention_days_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
     """Machine retention days should reject zero or negative values."""
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     monkeypatch.setenv("MACHINE_RETENTION_DAYS", "0")
 
     with pytest.raises(ValidationError):
@@ -82,7 +82,7 @@ def test_machine_retention_days_must_stay_positive(monkeypatch: pytest.MonkeyPat
 
 def test_application_retention_days_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
     """Application retention days should reject zero or negative values."""
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     monkeypatch.setenv("APPLICATION_RETENTION_DAYS", "0")
 
     with pytest.raises(ValidationError):
@@ -91,7 +91,7 @@ def test_application_retention_days_must_stay_positive(monkeypatch: pytest.Monke
 
 def test_flavor_recommendation_window_size_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
     """Recommendation window size should reject zero or negative values."""
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     monkeypatch.setenv("FLAVOR_RECOMMENDATION_WINDOW_SIZE", "0")
 
     with pytest.raises(ValidationError):
@@ -100,7 +100,7 @@ def test_flavor_recommendation_window_size_must_stay_positive(monkeypatch: pytes
 
 def test_flavor_recommendation_cpu_bounds_must_be_ordered(monkeypatch: pytest.MonkeyPatch) -> None:
     """CPU recommendation bounds should reject inverted minimum and maximum values."""
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     monkeypatch.setenv("FLAVOR_RECOMMENDATION_MIN_CPU", "8")
     monkeypatch.setenv("FLAVOR_RECOMMENDATION_MAX_CPU", "4")
 
@@ -110,7 +110,7 @@ def test_flavor_recommendation_cpu_bounds_must_be_ordered(monkeypatch: pytest.Mo
 
 def test_flavor_recommendation_ram_bounds_require_gib_alignment(monkeypatch: pytest.MonkeyPatch) -> None:
     """RAM recommendation bounds should stay aligned on GiB capacities."""
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     monkeypatch.setenv("FLAVOR_RECOMMENDATION_MIN_RAM_MB", "2500")
 
     with pytest.raises(ValidationError):
@@ -119,7 +119,7 @@ def test_flavor_recommendation_ram_bounds_require_gib_alignment(monkeypatch: pyt
 
 def test_database_schema_defaults_to_app(monkeypatch: pytest.MonkeyPatch) -> None:
     """The app should default to the dedicated application schema."""
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     monkeypatch.delenv("DATABASE_SCHEMA", raising=False)
 
     settings = Settings(_env_file=None)
@@ -129,7 +129,7 @@ def test_database_schema_defaults_to_app(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_database_schema_must_be_a_simple_identifier(monkeypatch: pytest.MonkeyPatch) -> None:
     """Schema names should stay safe to pass into connection settings."""
-    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
     monkeypatch.setenv("DATABASE_SCHEMA", "app-schema")
 
     with pytest.raises(ValidationError):

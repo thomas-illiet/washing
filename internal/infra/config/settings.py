@@ -35,13 +35,13 @@ class Settings(BaseSettings):
     prometheus_api_path: str = "/metrics"
     celery_prometheus_enabled: bool = True
     celery_prometheus_port: int = 9101
-    integration_config_encryption_key: str
+    database_encryption_key: str
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    @field_validator("integration_config_encryption_key")
+    @field_validator("database_encryption_key")
     @classmethod
-    def validate_integration_config_encryption_key(cls, value: str) -> str:
+    def validate_database_encryption_key(cls, value: str) -> str:
         """Fail fast when the configured encryption key is missing or invalid."""
         Fernet(value.encode("utf-8"))
         return value

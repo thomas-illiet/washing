@@ -12,7 +12,7 @@ from internal.infra.config.settings import get_settings
 @lru_cache
 def _get_fernet() -> Fernet:
     """Create and cache the Fernet instance used for config encryption."""
-    return Fernet(get_settings().integration_config_encryption_key.encode("utf-8"))
+    return Fernet(get_settings().database_encryption_key.encode("utf-8"))
 
 
 def encrypt_json_value(value: dict[str, Any]) -> str:

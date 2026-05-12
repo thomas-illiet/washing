@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from internal.infra.auth import clear_oidc_caches
 from tests.constants import TEST_ENCRYPTION_KEY
 
-os.environ.setdefault("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+os.environ.setdefault("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
 os.environ.setdefault("APP_ENV", "prod")
 os.environ.setdefault("OIDC_ENABLED", "false")
 

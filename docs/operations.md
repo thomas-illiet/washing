@@ -104,7 +104,7 @@ Connector config is stored encrypted in the database.
 
 Operational implications:
 
-- keep `INTEGRATION_CONFIG_ENCRYPTION_KEY` stable
+- keep `DATABASE_ENCRYPTION_KEY` stable
 - do not rotate it casually
 - corrupted ciphertext now fails closed
 
