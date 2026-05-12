@@ -11,6 +11,7 @@ from internal.infra.db.models import (
     MachineFlavorHistory,
     MachineProvider,
     MachineProvisioner,
+    MachineRecommendation,
     Platform,
 )
 from internal.usecases.maintenance import purge_stale_applications, purge_stale_machines
@@ -87,6 +88,24 @@ def test_purge_stale_machines_deletes_only_old_machine_rows(db_session: Session)
                 date=date(2026, 5, 1),
                 value=42,
             ),
+            MachineRecommendation(
+                machine_id=old_machine_id,
+                revision=1,
+                is_current=True,
+                current_machine_id=old_machine_id,
+                status="partial",
+                action="insufficient_data",
+                window_size=30,
+                min_cpu=1,
+                max_cpu=64,
+                min_ram_mb=2048,
+                max_ram_mb=262144,
+                computed_at=now,
+                current_cpu=2,
+                current_ram_mb=4096,
+                current_disk_mb=51200,
+                details={},
+            ),
         ]
     )
     db_session.commit()
@@ -98,6 +117,7 @@ def test_purge_stale_machines_deletes_only_old_machine_rows(db_session: Session)
     assert db_session.query(Machine).filter(Machine.id == fresh_machine_id).one_or_none() is not None
     assert db_session.query(MachineFlavorHistory).filter(MachineFlavorHistory.machine_id == old_machine_id).count() == 0
     assert db_session.query(MachineCPUMetric).filter(MachineCPUMetric.machine_id == old_machine_id).count() == 0
+    assert db_session.query(MachineRecommendation).filter(MachineRecommendation.machine_id == old_machine_id).count() == 0
     assert db_session.query(Application).count() == 2
 
 

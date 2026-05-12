@@ -12,6 +12,7 @@ from internal.usecases.metrics import (
     dispatch_provider_machine_syncs,
     run_provider_machine_collection,
 )
+from internal.usecases.recommendations import refresh_machine_recommendation
 from internal.usecases.scheduler import dispatch_due_jobs, is_due
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "dispatch_due_jobs",
     "is_due",
     "rebuild_applications_from_machines",
+    "refresh_machine_recommendation",
     "run_application_metrics_sync",
     "run_provider_machine_collection",
     "run_provisioner_inventory",

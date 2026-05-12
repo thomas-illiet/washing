@@ -2,7 +2,7 @@
 
 from datetime import date as date_value, datetime
 
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from internal.domain import (
@@ -209,6 +209,10 @@ class Machine(TimestampMixin, Base):
         back_populates="machine",
         cascade="all, delete-orphan",
     )
+    recommendations: Mapped[list["MachineRecommendation"]] = relationship(
+        back_populates="machine",
+        cascade="all, delete-orphan",
+    )
 
     @validates("application")
     def validate_application(self, _key: str, value: str | None) -> str | None:
@@ -245,6 +249,50 @@ class MachineFlavorHistory(Base):
 
     machine: Mapped["Machine"] = relationship(back_populates="flavor_history")
     source_provisioner: Mapped["MachineProvisioner | None"] = relationship()
+
+
+class MachineRecommendation(TimestampMixin, Base):
+    """Versioned recommendation snapshot for one machine."""
+    __tablename__ = "machine_recommendations"
+    __table_args__ = (
+        UniqueConstraint("machine_id", "revision", name="uq_machine_recommendations_machine_revision"),
+        UniqueConstraint("current_machine_id", name="uq_machine_recommendations_current_machine_id"),
+        CheckConstraint(
+            "current_machine_id IS NULL OR current_machine_id = machine_id",
+            name="ck_machine_recommendations_current_machine_matches_machine",
+        ),
+        CheckConstraint(
+            "(is_current AND current_machine_id IS NOT NULL AND superseded_at IS NULL) "
+            "OR ((NOT is_current) AND current_machine_id IS NULL AND superseded_at IS NOT NULL)",
+            name="ck_machine_recommendations_current_state",
+        ),
+        Index("ix_machine_recommendations_machine_current", "machine_id", "is_current"),
+        Index("ix_machine_recommendations_superseded_at", "superseded_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id", ondelete="CASCADE"), nullable=False, index=True)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_current: Mapped[bool] = mapped_column(nullable=False, default=True)
+    current_machine_id: Mapped[int | None] = mapped_column(Integer)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    window_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    min_cpu: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_cpu: Mapped[int] = mapped_column(Integer, nullable=False)
+    min_ram_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_ram_mb: Mapped[int] = mapped_column(Integer, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    current_cpu: Mapped[float | None] = mapped_column(Float)
+    current_ram_mb: Mapped[float | None] = mapped_column(Float)
+    current_disk_mb: Mapped[float | None] = mapped_column(Float)
+    target_cpu: Mapped[float | None] = mapped_column(Float)
+    target_ram_mb: Mapped[float | None] = mapped_column(Float)
+    target_disk_mb: Mapped[float | None] = mapped_column(Float)
+    details: Mapped[JsonDict] = mapped_column(JSON, default=dict, nullable=False)
+
+    machine: Mapped["Machine"] = relationship(back_populates="recommendations")
 
 
 class MachineMetricMixin(TimestampMixin):

@@ -119,6 +119,31 @@ Use cases:
 - rebuild application projection: trigger `POST /v1/applications/sync?type=inventory_discovery`
 - do not treat `applications` as the source of truth for inventory
 
+### Machine recommendation projection
+
+Machine recommendations are stored in a versioned `machine_recommendations` table.
+
+Behavior:
+
+- the current row is identified with `is_current=true`
+- older revisions stay in the same table with `is_current=false`
+- the recommendation history endpoint includes the current row as well
+- recommendation refreshes happen automatically after metric collection and after machine flavor changes detected by inventory
+
+Useful endpoints:
+
+- read current recommendation: `GET /v1/machines/{machine_id}/recommendations`
+- read recommendation history: `GET /v1/machines/{machine_id}/recommendations/history`
+- enqueue a manual recalculation: `POST /v1/machines/{machine_id}/recommendations/recalculate`
+
+Manual recalculation is useful after:
+
+- changing `FLAVOR_RECOMMENDATION_WINDOW_SIZE`
+- changing CPU or RAM min/max recommendation bounds
+- fixing provider visibility or connector configuration
+
+Changing the recommendation env settings does not trigger a global rebuild automatically. The new values only apply to future refreshes.
+
 ### Task history retention
 
 Tracked Celery executions are cleaned up automatically once per day by Beat.
@@ -140,7 +165,7 @@ Behavior:
 - the cleanup task deletes rows in `machines` whose `updated_at` is older than the retention window
 - the default retention is `15` days
 - the retention is configurable through `MACHINE_RETENTION_DAYS`
-- child machine rows such as flavor history and metric samples follow the delete through database cascades
+- child machine rows such as flavor history, metric samples, and versioned machine recommendations follow the delete through database cascades
 - the task does not clean or rebuild `applications`
 
 ### Stale application retention
@@ -198,7 +223,7 @@ When changing business behavior:
 When changing schema:
 
 1. update ORM models
-2. generate or write an Alembic migration
+2. generate an Alembic migration with `uv run alembic revision --autogenerate -m "describe_change"`
 3. review the migration manually
 4. apply it on a local stack
 5. run tests

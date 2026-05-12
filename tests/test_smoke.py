@@ -95,6 +95,7 @@ def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
         machine_columns = [row[1] for row in connection.execute("PRAGMA table_info(machines)")]
         provider_columns = [row[1] for row in connection.execute("PRAGMA table_info(machine_providers)")]
         flavor_columns = [row[1] for row in connection.execute("PRAGMA table_info(machine_flavor_history)")]
+        recommendation_columns = [row[1] for row in connection.execute("PRAGMA table_info(machine_recommendations)")]
 
         assert "application" in machine_columns
         assert "application_id" not in machine_columns
@@ -104,6 +105,18 @@ def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
         assert "metric_type_id" not in provider_columns
         assert {"cpu", "ram_mb", "disk_mb"} <= set(flavor_columns)
         assert not any(column.startswith(("previous_", "new_")) for column in flavor_columns)
+        assert {
+            "machine_id",
+            "revision",
+            "is_current",
+            "current_machine_id",
+            "window_size",
+            "min_cpu",
+            "max_cpu",
+            "min_ram_mb",
+            "max_ram_mb",
+            "details",
+        } <= set(recommendation_columns)
     finally:
         connection.close()
 

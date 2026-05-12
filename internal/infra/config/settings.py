@@ -5,7 +5,7 @@ from functools import lru_cache
 from typing import Literal
 
 from cryptography.fernet import Fernet
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     application_metrics_sync_window_days: int = 5
     application_metrics_sync_batch_size: int = 0
     application_metrics_sync_retry_after_seconds: int = 3600
+    flavor_recommendation_window_size: int = 30
+    flavor_recommendation_min_cpu: int = 1
+    flavor_recommendation_max_cpu: int = 64
+    flavor_recommendation_min_ram_mb: int = 2048
+    flavor_recommendation_max_ram_mb: int = 262144
     prometheus_api_enabled: bool = True
     prometheus_api_path: str = "/metrics"
     celery_prometheus_enabled: bool = True
@@ -53,6 +58,28 @@ class Settings(BaseSettings):
             raise ValueError("retention day settings must be greater than 0")
         return value
 
+    @field_validator(
+        "flavor_recommendation_window_size",
+        "flavor_recommendation_min_cpu",
+        "flavor_recommendation_max_cpu",
+        "flavor_recommendation_min_ram_mb",
+        "flavor_recommendation_max_ram_mb",
+    )
+    @classmethod
+    def validate_positive_recommendation_settings(cls, value: int) -> int:
+        """Require positive recommendation windows and capacity bounds."""
+        if value <= 0:
+            raise ValueError("recommendation settings must be greater than 0")
+        return value
+
+    @field_validator("flavor_recommendation_min_ram_mb", "flavor_recommendation_max_ram_mb")
+    @classmethod
+    def validate_ram_bounds_are_gib_aligned(cls, value: int) -> int:
+        """Require RAM bounds to stay aligned on GiB-sized capacities."""
+        if value % 1024 != 0:
+            raise ValueError("RAM recommendation bounds must be multiples of 1024")
+        return value
+
     @field_validator("database_schema")
     @classmethod
     def validate_database_schema(cls, value: str) -> str:
@@ -60,6 +87,17 @@ class Settings(BaseSettings):
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
             raise ValueError("database_schema must be a simple SQL identifier")
         return value
+
+    @model_validator(mode="after")
+    def validate_recommendation_bound_order(self) -> "Settings":
+        """Keep recommendation minimums below or equal to their maximums."""
+        if self.flavor_recommendation_min_cpu > self.flavor_recommendation_max_cpu:
+            raise ValueError("flavor_recommendation_min_cpu must be less than or equal to flavor_recommendation_max_cpu")
+        if self.flavor_recommendation_min_ram_mb > self.flavor_recommendation_max_ram_mb:
+            raise ValueError(
+                "flavor_recommendation_min_ram_mb must be less than or equal to flavor_recommendation_max_ram_mb"
+            )
+        return self
 
     @property
     def is_dev(self) -> bool:

@@ -16,6 +16,7 @@ from internal.infra.db.models import (
     MachineFlavorHistory,
     MachineProvider,
     MachineProvisioner,
+    MachineRecommendation,
     Platform,
 )
 from internal.usecases.inventory import run_provisioner_inventory
@@ -149,6 +150,9 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/metrics" in paths
     assert "/v1/machines/{machine_id}/metrics" in paths
     assert "/v1/machines/{machine_id}" in paths
+    assert "/v1/machines/{machine_id}/recommendations" in paths
+    assert "/v1/machines/{machine_id}/recommendations/history" in paths
+    assert "/v1/machines/{machine_id}/recommendations/recalculate" in paths
     assert "/v1/machines/providers" in paths
     assert "/v1/machines/providers/{provider_id}" in paths
     assert "/v1/machines/providers/sync" in paths
@@ -178,6 +182,9 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/{machine_id}"]["delete"]["tags"] == ["Machines"]
     assert "patch" not in paths["/v1/machines/{machine_id}"]
     assert paths["/v1/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["Machines"]
+    assert paths["/v1/machines/{machine_id}/recommendations"]["get"]["tags"] == ["Machines"]
+    assert paths["/v1/machines/{machine_id}/recommendations/history"]["get"]["tags"] == ["Machines"]
+    assert paths["/v1/machines/{machine_id}/recommendations/recalculate"]["post"]["tags"] == ["Machines"]
     assert paths["/v1/machines/metrics"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/providers"]["get"]["tags"] == ["Machine Providers"]
@@ -205,6 +212,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "/v1/applications",
         "/v1/machines",
         "/v1/machines/{machine_id}/flavor-history",
+        "/v1/machines/{machine_id}/recommendations/history",
         "/v1/machines/metrics",
         "/v1/machines/{machine_id}/metrics",
         "/v1/machines/providers",
@@ -217,6 +225,12 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert {"type", "offset", "limit"} <= {
         param["name"] for param in paths["/v1/machines/{machine_id}/metrics"]["get"]["parameters"]
     }
+    recommendation_responses = paths["/v1/machines/{machine_id}/recommendations/recalculate"]["post"]["responses"]
+    assert "202" in recommendation_responses
+    assert (
+        recommendation_responses["202"]["content"]["application/json"]["schema"]["$ref"].rpartition("/")[2]
+        == "TaskEnqueueResponse"
+    )
 
 
 def test_platform_list_is_paginated_and_stably_sorted(client: TestClient) -> None:
@@ -1496,6 +1510,138 @@ def test_machine_flavor_history_lists_initial_and_changed_inventory_snapshots(
     assert history.json()["items"][1]["cpu"] == 2
     assert history.json()["items"][1]["ram_mb"] == 8 * 1024
     assert history.json()["items"][1]["disk_mb"] == 80 * 1024
+
+
+def test_machine_recommendation_endpoints_read_current_and_history(client: TestClient, db_session: Session) -> None:
+    """Machines should expose a current recommendation endpoint and its version history."""
+    platform = Platform(name="Recommendation API")
+    machine = Machine(
+        platform=platform,
+        hostname="node-02",
+        cpu=4,
+        ram_mb=8192,
+        disk_mb=80 * 1024,
+    )
+    db_session.add_all([platform, machine])
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            MachineRecommendation(
+                machine_id=machine.id,
+                revision=1,
+                is_current=False,
+                current_machine_id=None,
+                superseded_at=machine.created_at,
+                status="partial",
+                action="insufficient_data",
+                window_size=30,
+                min_cpu=1,
+                max_cpu=64,
+                min_ram_mb=2048,
+                max_ram_mb=262144,
+                computed_at=machine.created_at,
+                current_cpu=4,
+                current_ram_mb=8192,
+                current_disk_mb=80 * 1024,
+                target_cpu=None,
+                target_ram_mb=None,
+                target_disk_mb=None,
+                details={
+                    "cpu": {
+                        "provider_id": None,
+                        "status": "missing_provider",
+                        "samples_used": 0,
+                        "last_metric_date": None,
+                        "stats": None,
+                        "current_capacity": 4,
+                        "raw_target_capacity": None,
+                        "bounded_target_capacity": None,
+                        "action": "unavailable",
+                        "reason_code": "no_provider",
+                    }
+                },
+            ),
+            MachineRecommendation(
+                machine_id=machine.id,
+                revision=2,
+                is_current=True,
+                current_machine_id=machine.id,
+                superseded_at=None,
+                status="ready",
+                action="scale_up",
+                window_size=30,
+                min_cpu=1,
+                max_cpu=64,
+                min_ram_mb=2048,
+                max_ram_mb=262144,
+                computed_at=machine.updated_at,
+                current_cpu=4,
+                current_ram_mb=8192,
+                current_disk_mb=80 * 1024,
+                target_cpu=6,
+                target_ram_mb=8192,
+                target_disk_mb=80 * 1024,
+                details={
+                    "cpu": {
+                        "provider_id": 7,
+                        "status": "ok",
+                        "samples_used": 30,
+                        "last_metric_date": "2026-05-02",
+                        "stats": {"avg": 88.0, "p95": 92.0, "max": 95.0},
+                        "current_capacity": 4,
+                        "raw_target_capacity": 5.6615384615,
+                        "bounded_target_capacity": 6,
+                        "action": "scale_up",
+                        "reason_code": "pressure_high",
+                    }
+                },
+            ),
+        ]
+    )
+    db_session.commit()
+
+    current = client.get(f"/v1/machines/{machine.id}/recommendations")
+    assert current.status_code == 200
+    assert current.json()["revision"] == 2
+    assert current.json()["is_current"] is True
+    assert current.json()["target_cpu"] == 6
+
+    history = client.get(f"/v1/machines/{machine.id}/recommendations/history")
+    assert history.status_code == 200
+    assert history.json()["total"] == 2
+    assert [item["revision"] for item in history.json()["items"]] == [2, 1]
+
+
+def test_machine_recommendation_endpoints_handle_missing_state_and_enqueue_recalculation(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    """Recommendation endpoints should report missing state and allow manual recalculation."""
+    platform = Platform(name="Recommendation Recalculate API")
+    machine = Machine(platform=platform, hostname="node-03")
+    db_session.add_all([platform, machine])
+    db_session.commit()
+
+    missing = client.get(f"/v1/machines/{machine.id}/recommendations")
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "recommendation not computed yet"
+
+    history = client.get(f"/v1/machines/{machine.id}/recommendations/history")
+    assert history.status_code == 200
+    assert history.json() == {"items": [], "offset": 0, "limit": 100, "total": 0}
+
+    monkeypatch.setattr(
+        "internal.infra.queue.enqueue.celery_app.send_task",
+        lambda *_args, **_kwargs: SimpleNamespace(id="manual-recommendation-recalc"),
+    )
+    response = client.post(f"/v1/machines/{machine.id}/recommendations/recalculate")
+    assert response.status_code == 202
+    assert response.json() == {"task_id": "manual-recommendation-recalc"}
+
+    missing_machine = client.post("/v1/machines/9999/recommendations/recalculate")
+    assert missing_machine.status_code == 404
 
 
 def test_provider_provisioner_list_is_paginated_and_missing_provider_returns_404(client: TestClient) -> None:

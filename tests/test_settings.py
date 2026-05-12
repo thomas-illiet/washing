@@ -89,6 +89,34 @@ def test_application_retention_days_must_stay_positive(monkeypatch: pytest.Monke
         Settings(_env_file=None)
 
 
+def test_flavor_recommendation_window_size_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Recommendation window size should reject zero or negative values."""
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_WINDOW_SIZE", "0")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_flavor_recommendation_cpu_bounds_must_be_ordered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CPU recommendation bounds should reject inverted minimum and maximum values."""
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MIN_CPU", "8")
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MAX_CPU", "4")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
+def test_flavor_recommendation_ram_bounds_require_gib_alignment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RAM recommendation bounds should stay aligned on GiB capacities."""
+    monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MIN_RAM_MB", "2500")
+
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
+
+
 def test_database_schema_defaults_to_app(monkeypatch: pytest.MonkeyPatch) -> None:
     """The app should default to the dedicated application schema."""
     monkeypatch.setenv("INTEGRATION_CONFIG_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)

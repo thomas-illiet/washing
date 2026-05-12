@@ -9,12 +9,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
-from internal.infra.db.models import Application, CeleryTaskExecution, MachineProvider, MachineProvisioner, Platform
+from internal.infra.db.models import Application, CeleryTaskExecution, Machine, MachineProvider, MachineProvisioner, Platform
 from internal.infra.queue import task_tracking
 from internal.infra.queue.task_names import (
     DISPATCH_ENABLED_PROVIDER_SYNCS_TASK,
     DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
     PURGE_OLD_TASK_EXECUTIONS_TASK,
+    RECALCULATE_MACHINE_RECOMMENDATIONS_TASK,
     RUN_PROVIDER_MACHINE_TASK,
     RUN_PROVISIONER_TASK,
     SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
@@ -294,6 +295,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     """Manual enqueue endpoints should keep returning task ids and seed task history."""
     application = Application(name="catalog", environment="prod", region="eu")
     platform = Platform(name="Tracked Platform")
+    machine = Machine(platform=platform, hostname="tracked-machine")
     provisioner = MachineProvisioner(
         platform=platform,
         name="tracked inventory",
@@ -310,7 +312,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
         enabled=True,
         config={"url": "https://prometheus.example", "query": "avg(up)"},
     )
-    db_session.add_all([application, provisioner, provider])
+    db_session.add_all([application, provisioner, provider, machine])
     db_session.commit()
 
     task_ids = iter(
@@ -319,6 +321,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
             "manual-application-metrics-dispatch",
             "manual-provider-sync-dispatch",
             "manual-provisioner-run",
+            "manual-machine-recommendation-recalc",
         ]
     )
 
@@ -340,6 +343,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     metrics_sync_response = client.post("/v1/applications/sync", params={"type": "metrics"})
     provider_sync_response = client.post("/v1/machines/providers/sync")
     provisioner_response = client.post(f"/v1/machines/provisioners/{provisioner.id}/run")
+    recommendation_response = client.post(f"/v1/machines/{machine.id}/recommendations/recalculate")
 
     assert inventory_sync_response.status_code == 202
     assert inventory_sync_response.json() == {"task_id": "manual-application-inventory-sync"}
@@ -349,6 +353,8 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     assert provider_sync_response.json() == {"task_id": "manual-provider-sync-dispatch"}
     assert provisioner_response.status_code == 202
     assert provisioner_response.json() == {"task_id": "manual-provisioner-run"}
+    assert recommendation_response.status_code == 202
+    assert recommendation_response.json() == {"task_id": "manual-machine-recommendation-recalc"}
 
     db_session.expire_all()
     rows = (
@@ -370,6 +376,13 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
             "PENDING",
             None,
             None,
+        ),
+        (
+            "manual-machine-recommendation-recalc",
+            RECALCULATE_MACHINE_RECOMMENDATIONS_TASK,
+            "PENDING",
+            "machine",
+            machine.id,
         ),
         (
             "manual-provider-sync-dispatch",

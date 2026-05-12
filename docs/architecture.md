@@ -61,6 +61,7 @@ flowchart TD
 | `MachineProvisioner` | Inventory connector that discovers machines |
 | `MachineProvider` | Metric connector that collects daily samples |
 | `Machine` | Persisted machine inventory record |
+| `MachineRecommendation` | Versioned recommendation projection for one machine, including the current row and its history |
 | `Application` | Projection derived from machines, grouped by name/environment/region |
 | `MachineCPUMetric` / `MachineRAMMetric` / `MachineDiskMetric` | Daily metric tables |
 | `CeleryTaskExecution` | Persisted task history used by the API |
@@ -68,8 +69,10 @@ flowchart TD
 ### Important invariants
 
 - `applications` is a projection, not the source of truth
+- `machine_recommendations` is a projection, not the source of truth
 - machine application codes are normalized in uppercase
 - one provisioner can only be associated with one provider per metric scope
+- one machine can have only one current recommendation revision at a time
 - provider and provisioner configs are stored encrypted at rest
 - placeholder connectors are accepted and may legitimately produce zero data
 
@@ -90,7 +93,8 @@ flowchart TD
 2. The selected provisioner connector lists machines from its source.
 3. The worker upserts machine records.
 4. Flavor changes are captured in `machine_flavor_history`.
-5. The `applications` projection can then be rebuilt from the current machine snapshot.
+5. Recommendation revisions are refreshed for new machines and for machines whose flavor changed.
+6. The `applications` projection can then be rebuilt from the current machine snapshot.
 
 ### Application metrics flow
 
@@ -100,6 +104,16 @@ flowchart TD
 4. The worker resolves visible machines and enabled providers for the application batch.
 5. It fans out one task per visible `provider_id` / `machine_id` pair.
 6. Metric tasks upsert one daily row per provider, machine, and date.
+7. Each machine metric refresh also recomputes the machine recommendation projection.
+
+### Machine recommendation flow
+
+1. A refresh is triggered automatically by inventory or metric collection, or manually through `POST /v1/machines/{machine_id}/recommendations/recalculate`.
+2. The worker resolves the visible enabled provider for each scope (`cpu`, `ram`, `disk`).
+3. It loads the latest configured metric window per scope.
+4. It computes scope-level and global recommendation decisions, applying configured CPU and RAM bounds.
+5. It updates the current recommendation row in place when the snapshot is unchanged.
+6. It supersedes the previous current row and inserts a new revision when the snapshot changes.
 
 See [Celery Task Map](./celery-task-map.md) for the full task-level breakdown.
 

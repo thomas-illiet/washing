@@ -1,6 +1,7 @@
 """Tests covering worker-facing use cases."""
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -21,9 +22,11 @@ from internal.infra.db.models import (
     MachineFlavorHistory,
     MachineProvider,
     MachineRAMMetric,
+    MachineRecommendation,
     MachineProvisioner,
     Platform,
 )
+from internal.infra.config.settings import get_settings
 from internal.usecases.applications import (
     rebuild_applications_from_machines,
     run_application_metrics_sync,
@@ -34,6 +37,33 @@ from internal.usecases.metrics import (
     dispatch_provider_machine_syncs,
     run_provider_machine_collection,
 )
+from internal.usecases.recommendations import refresh_machine_recommendation
+
+
+def _configure_recommendation_settings(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    window_size: int = 1,
+    min_cpu: int = 1,
+    max_cpu: int = 64,
+    min_ram_mb: int = 2048,
+    max_ram_mb: int = 262144,
+) -> None:
+    """Override recommendation settings for deterministic worker tests."""
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_WINDOW_SIZE", str(window_size))
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MIN_CPU", str(min_cpu))
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MAX_CPU", str(max_cpu))
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MIN_RAM_MB", str(min_ram_mb))
+    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MAX_RAM_MB", str(max_ram_mb))
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def clear_cached_settings_after_test():
+    """Keep cached settings isolated between worker tests."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def test_inventory_tracks_initial_and_changed_flavor_snapshots(db_session: Session) -> None:
@@ -828,3 +858,308 @@ def test_application_metrics_sync_dispatches_machine_provider_pairs(db_session: 
     assert application.sync_at is not None
     assert application.sync_scheduled_at is None
     assert application.sync_error is None
+
+
+def test_provider_machine_collection_creates_recommendation_and_keeps_single_revision_on_noop(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Automatic recommendation refreshes should create one current row and avoid duplicate revisions on no-op runs."""
+    _configure_recommendation_settings(monkeypatch, window_size=1)
+
+    platform = Platform(name="Recommendation Auto Refresh")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-1",
+        hostname="vm-1",
+        cpu=2,
+        ram_mb=4096,
+        disk_mb=80 * 1024,
+    )
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 90},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, provider])
+    db_session.commit()
+
+    first_result = run_provider_machine_collection(db_session, provider.id, machine.id)
+    second_result = run_provider_machine_collection(db_session, provider.id, machine.id)
+
+    assert first_result == {"provider_id": provider.id, "machine_id": machine.id, "created": 1, "updated": 0, "skipped": 0}
+    assert second_result == {"provider_id": provider.id, "machine_id": machine.id, "created": 0, "updated": 1, "skipped": 0}
+
+    recommendations = (
+        db_session.query(MachineRecommendation)
+        .filter(MachineRecommendation.machine_id == machine.id)
+        .order_by(MachineRecommendation.revision.asc())
+        .all()
+    )
+    assert len(recommendations) == 1
+    assert recommendations[0].is_current is True
+    assert recommendations[0].status == "partial"
+    assert recommendations[0].details["cpu"]["action"] == "scale_up"
+    assert recommendations[0].details["ram"]["status"] == "missing_provider"
+
+
+def test_refresh_machine_recommendation_creates_new_revision_when_snapshot_changes(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A changed recommendation snapshot should supersede the previous current row."""
+    _configure_recommendation_settings(monkeypatch, window_size=1)
+
+    platform = Platform(name="Recommendation Revisions")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-2",
+        hostname="vm-2",
+        cpu=4,
+        ram_mb=8192,
+        disk_mb=80 * 1024,
+    )
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 90},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, provider])
+    db_session.commit()
+
+    db_session.add(MachineCPUMetric(provider_id=provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=90))
+    refresh_machine_recommendation(db_session, machine.id)
+    db_session.commit()
+
+    sample = db_session.query(MachineCPUMetric).one()
+    sample.value = 20
+    refresh_machine_recommendation(db_session, machine.id)
+    db_session.commit()
+
+    recommendations = (
+        db_session.query(MachineRecommendation)
+        .filter(MachineRecommendation.machine_id == machine.id)
+        .order_by(MachineRecommendation.revision.asc())
+        .all()
+    )
+    assert [recommendation.revision for recommendation in recommendations] == [1, 2]
+    assert recommendations[0].is_current is False
+    assert recommendations[0].superseded_at is not None
+    assert recommendations[1].is_current is True
+    assert recommendations[1].details["cpu"]["action"] == "scale_down"
+
+
+def test_refresh_machine_recommendation_reports_insufficient_data_and_ambiguous_providers(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recommendation refreshes should surface insufficient data and provider ambiguity explicitly."""
+    _configure_recommendation_settings(monkeypatch, window_size=2)
+
+    platform = Platform(name="Recommendation Edge Cases")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-3",
+        hostname="vm-3",
+        cpu=2,
+        ram_mb=4096,
+        disk_mb=80 * 1024,
+    )
+    provider_one = MachineProvider(
+        platform=platform,
+        name="cpu one",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 85},
+        provisioners=[provisioner],
+    )
+    provider_two = MachineProvider(
+        platform=platform,
+        name="cpu two",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 83},
+    )
+    ram_provider = MachineProvider(
+        platform=platform,
+        name="ram one",
+        type="mock_metric",
+        scope="ram",
+        enabled=True,
+        config={"value": 35},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, provider_one, provider_two, ram_provider])
+    db_session.commit()
+
+    db_session.add(MachineRAMMetric(provider_id=ram_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=35))
+    refresh_machine_recommendation(db_session, machine.id)
+    db_session.commit()
+
+    recommendation = db_session.query(MachineRecommendation).filter(MachineRecommendation.machine_id == machine.id).one()
+    assert recommendation.status == "error"
+    assert recommendation.action == "unavailable"
+    assert recommendation.details["cpu"]["status"] == "ambiguous_provider"
+    assert recommendation.details["ram"]["status"] == "insufficient_data"
+    assert recommendation.details["disk"]["status"] == "missing_provider"
+
+
+def test_refresh_machine_recommendation_clamps_cpu_and_ram_targets(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CPU and RAM recommendations should respect configured minimum and maximum bounds."""
+    _configure_recommendation_settings(monkeypatch, window_size=1, min_cpu=2, max_cpu=4, min_ram_mb=4096, max_ram_mb=8192)
+
+    platform = Platform(name="Recommendation Bounds")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-4",
+        hostname="vm-4",
+        cpu=1,
+        ram_mb=16384,
+        disk_mb=80 * 1024,
+    )
+    cpu_provider = MachineProvider(
+        platform=platform,
+        name="cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 10},
+        provisioners=[provisioner],
+    )
+    ram_provider = MachineProvider(
+        platform=platform,
+        name="ram",
+        type="mock_metric",
+        scope="ram",
+        enabled=True,
+        config={"value": 99},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, cpu_provider, ram_provider])
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            MachineCPUMetric(provider_id=cpu_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=10),
+            MachineRAMMetric(provider_id=ram_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=99),
+        ]
+    )
+    refresh_machine_recommendation(db_session, machine.id)
+    db_session.commit()
+
+    recommendation = db_session.query(MachineRecommendation).filter(MachineRecommendation.machine_id == machine.id).one()
+    assert recommendation.target_cpu == 2
+    assert recommendation.details["cpu"]["reason_code"] == "raised_to_min_cpu"
+    assert recommendation.details["ram"]["reason_code"] == "capped_by_max_ram"
+    assert recommendation.details["ram"]["bounded_target_capacity"] == 8192
+
+
+def test_refresh_machine_recommendation_never_scales_disk_down(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Disk recommendations should stay at keep instead of proposing a downscale."""
+    _configure_recommendation_settings(monkeypatch, window_size=1)
+
+    platform = Platform(name="Recommendation Disk")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-5",
+        hostname="vm-5",
+        cpu=2,
+        ram_mb=4096,
+        disk_mb=120 * 1024,
+    )
+    disk_provider = MachineProvider(
+        platform=platform,
+        name="disk",
+        type="mock_metric",
+        scope="disk",
+        enabled=True,
+        config={"value": 5},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, disk_provider])
+    db_session.commit()
+
+    db_session.add(MachineDiskMetric(provider_id=disk_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=5))
+    refresh_machine_recommendation(db_session, machine.id)
+    db_session.commit()
+
+    recommendation = db_session.query(MachineRecommendation).filter(MachineRecommendation.machine_id == machine.id).one()
+    assert recommendation.details["disk"]["action"] == "keep"
+    assert recommendation.target_disk_mb == machine.disk_mb
+
+
+def test_inventory_refreshes_recommendation_when_flavor_changes(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Inventory flavor changes should create a new recommendation revision."""
+    _configure_recommendation_settings(monkeypatch, window_size=1)
+
+    platform = Platform(name="Inventory Recommendation Refresh")
+    provisioner = MachineProvisioner(
+        platform=platform,
+        name="inventory",
+        type="mock_inventory",
+        enabled=True,
+        cron="* * * * *",
+        config={"machines": [{"external_id": "vm-6", "hostname": "vm-6", "cpu": 2, "ram_mb": 4096, "disk_mb": 80 * 1024}]},
+    )
+    cpu_provider = MachineProvider(
+        platform=platform,
+        name="cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 20},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([platform, provisioner, cpu_provider])
+    db_session.commit()
+
+    assert run_provisioner_inventory(db_session, provisioner.id) == {"created": 1, "updated": 0, "flavor_changes": 0}
+    machine = db_session.query(Machine).filter(Machine.external_id == "vm-6").one()
+    db_session.add(MachineCPUMetric(provider_id=cpu_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=20))
+    refresh_machine_recommendation(db_session, machine.id)
+    db_session.commit()
+
+    provisioner.config = {
+        "machines": [{"external_id": "vm-6", "hostname": "vm-6", "cpu": 4, "ram_mb": 4096, "disk_mb": 80 * 1024}]
+    }
+    db_session.commit()
+
+    assert run_provisioner_inventory(db_session, provisioner.id) == {"created": 0, "updated": 1, "flavor_changes": 1}
+
+    recommendations = (
+        db_session.query(MachineRecommendation)
+        .filter(MachineRecommendation.machine_id == machine.id)
+        .order_by(MachineRecommendation.revision.asc())
+        .all()
+    )
+    assert len(recommendations) == 3
+    assert recommendations[-1].current_cpu == 4
