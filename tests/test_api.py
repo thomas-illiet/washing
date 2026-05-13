@@ -17,6 +17,7 @@ from internal.infra.db.models import (
     MachineFlavorHistory,
     MachineProvider,
     MachineProvisioner,
+    MachineRAMMetric,
     MachineOptimization,
     Platform,
 )
@@ -27,6 +28,7 @@ from internal.infra.queue.task_names import (
 )
 from internal.usecases.inventory import run_provisioner_inventory
 from internal.usecases.applications import rebuild_applications_from_machines
+from internal.usecases.optimizations import refresh_machine_optimization
 
 EXPECTED_OPENAPI_DESCRIPTION = (
     "Inventory and machine metrics API for platforms, applications, providers, and provisioners.\n\n"
@@ -2154,6 +2156,80 @@ def test_machine_optimization_endpoints_read_current_and_history(client: TestCli
     assert history.status_code == 200
     assert history.json()["total"] == 2
     assert [item["revision"] for item in history.json()["items"]] == [2, 1]
+
+
+def test_machine_optimization_endpoint_exposes_catalog_bound_reasons(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    """Optimization responses should expose min and above-max recommendation reasons."""
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_WINDOW_SIZE", "1")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MIN_CPU", "2")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MAX_CPU", "4")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MIN_RAM_MB", "4096")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MAX_RAM_MB", "8192")
+    get_settings.cache_clear()
+
+    platform = Platform(name="Optimization Catalog Bounds API")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        hostname="node-catalog-bounds",
+        cpu=1,
+        ram_mb=4096,
+        disk_mb=80 * 1024,
+    )
+    cpu_provider = MachineProvider(
+        platform=platform,
+        name="cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        provisioners=[provisioner],
+    )
+    ram_provider = MachineProvider(
+        platform=platform,
+        name="ram",
+        type="mock_metric",
+        scope="ram",
+        enabled=True,
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, cpu_provider, ram_provider])
+    db_session.commit()
+    db_session.add_all(
+        [
+            MachineCPUMetric(provider_id=cpu_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=10),
+            MachineRAMMetric(provider_id=ram_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=200),
+        ]
+    )
+
+    refresh_machine_optimization(db_session, machine.id)
+    db_session.commit()
+
+    response = client.get(f"/v1/machines/{machine.id}/optimizations")
+
+    assert response.status_code == 200
+    assert response.json()["resources"]["cpu"] == {
+        "status": "ok",
+        "action": "scale_up",
+        "current": 1.0,
+        "recommended": 2.0,
+        "unit": "cores",
+        "utilization_percent": 10.0,
+        "reason": "raised_to_min_cpu",
+    }
+    assert response.json()["resources"]["ram"] == {
+        "status": "ok",
+        "action": "keep",
+        "current": 4096.0,
+        "recommended": 4096.0,
+        "unit": "mb",
+        "utilization_percent": 200.0,
+        "reason": "above_max_ram",
+    }
 
 
 def test_machine_optimization_collection_filters_and_acknowledges(

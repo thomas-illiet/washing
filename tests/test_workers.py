@@ -1108,14 +1108,14 @@ def test_refresh_machine_optimization_reports_zero_samples_as_insufficient_data(
     assert optimization.details["cpu"]["reason_code"] == "no_samples"
 
 
-def test_refresh_machine_optimization_clamps_cpu_and_ram_targets(
+def test_refresh_machine_optimization_raises_cpu_and_ram_targets_to_min(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """CPU and RAM optimizations should respect configured minimum and maximum bounds."""
-    _configure_optimization_settings(monkeypatch, window_size=1, min_cpu=2, max_cpu=4, min_ram_mb=4096, max_ram_mb=8192)
+    """CPU and RAM optimizations should raise recommendations below the configured minimums."""
+    _configure_optimization_settings(monkeypatch, window_size=1, min_cpu=2, max_cpu=8, min_ram_mb=4096, max_ram_mb=32768)
 
-    platform = Platform(name="Optimization Bounds")
+    platform = Platform(name="Optimization Minimum Bounds")
     provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
     machine = Machine(
         platform=platform,
@@ -1123,7 +1123,7 @@ def test_refresh_machine_optimization_clamps_cpu_and_ram_targets(
         external_id="vm-4",
         hostname="vm-4",
         cpu=1,
-        ram_mb=16384,
+        ram_mb=2048,
         disk_mb=80 * 1024,
     )
     cpu_provider = MachineProvider(
@@ -1158,10 +1158,72 @@ def test_refresh_machine_optimization_clamps_cpu_and_ram_targets(
 
     optimization = db_session.query(MachineOptimization).filter(MachineOptimization.machine_id == machine.id).one()
     assert optimization.target_cpu == 2
+    assert optimization.target_ram_mb == 4096
+    assert optimization.details["cpu"]["action"] == "scale_up"
     assert optimization.details["cpu"]["reason_code"] == "raised_to_min_cpu"
-    assert optimization.details["ram"]["reason_code"] == "capped_by_max_ram"
-    assert optimization.details["ram"]["bounded_target_capacity"] == 8192
+    assert optimization.details["ram"]["action"] == "scale_up"
+    assert optimization.details["ram"]["reason_code"] == "raised_to_min_ram"
+    assert optimization.details["ram"]["bounded_target_capacity"] == 4096
     assert optimization.details["ram"]["bounded_target_capacity"] % 1024 == 0
+
+
+def test_refresh_machine_optimization_keeps_cpu_and_ram_targets_when_target_exceeds_max(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CPU and RAM optimizations should keep current capacity when calculated targets exceed maximums."""
+    _configure_optimization_settings(monkeypatch, window_size=1, min_cpu=1, max_cpu=4, min_ram_mb=2048, max_ram_mb=8192)
+
+    platform = Platform(name="Optimization Maximum Bounds")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-4-max",
+        hostname="vm-4-max",
+        cpu=3,
+        ram_mb=4096,
+        disk_mb=80 * 1024,
+    )
+    cpu_provider = MachineProvider(
+        platform=platform,
+        name="cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 99},
+        provisioners=[provisioner],
+    )
+    ram_provider = MachineProvider(
+        platform=platform,
+        name="ram",
+        type="mock_metric",
+        scope="ram",
+        enabled=True,
+        config={"value": 200},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, cpu_provider, ram_provider])
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            MachineCPUMetric(provider_id=cpu_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=99),
+            MachineRAMMetric(provider_id=ram_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=200),
+        ]
+    )
+    refresh_machine_optimization(db_session, machine.id)
+    db_session.commit()
+
+    optimization = db_session.query(MachineOptimization).filter(MachineOptimization.machine_id == machine.id).one()
+    assert optimization.target_cpu == 3
+    assert optimization.target_ram_mb == 4096
+    assert optimization.details["cpu"]["action"] == "keep"
+    assert optimization.details["cpu"]["reason_code"] == "above_max_cpu"
+    assert optimization.details["cpu"]["bounded_target_capacity"] is None
+    assert optimization.details["ram"]["action"] == "keep"
+    assert optimization.details["ram"]["reason_code"] == "above_max_ram"
+    assert optimization.details["ram"]["bounded_target_capacity"] is None
 
 
 def test_refresh_machine_optimization_never_scales_disk_down(

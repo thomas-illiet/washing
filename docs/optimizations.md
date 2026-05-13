@@ -22,6 +22,8 @@ The optimization engine uses:
 - up to the latest `FLAVOR_OPTIMIZATION_WINDOW_SIZE` metric samples for each scope
 - configured CPU and RAM bounds from `FLAVOR_OPTIMIZATION_MIN_*` and `FLAVOR_OPTIMIZATION_MAX_*`
 
+CPU and RAM minimum bounds are actionable: when the calculated target falls below the configured minimum, the recommendation is raised to that minimum. CPU and RAM maximum bounds are catalog guards: when the calculated target is above the configured maximum, the recommendation keeps the current capacity and reports `above_max_cpu` or `above_max_ram`.
+
 CPU and RAM samples are expected to be daily p95 utilization percentages already stored in the database. Disk samples are expected to be disk utilization percentages.
 
 A provider is visible to a machine when it belongs to the same platform and either:
@@ -67,7 +69,7 @@ Each resource exposes:
 | `recommended` | Recommended capacity, or `null` when the resource is not calculable. |
 | `unit` | `cores` for CPU, `mb` for RAM and disk. |
 | `utilization_percent` | Average utilization percent used for the recommendation. |
-| `reason` | Machine-readable explanation such as `limited_history`, `pressure_high`, `pressure_low`, `no_samples`, or `no_provider`. |
+| `reason` | Machine-readable explanation such as `limited_history`, `pressure_high`, `pressure_low`, `raised_to_min_cpu`, `above_max_ram`, `no_samples`, or `no_provider`. |
 
 With OIDC enabled, read endpoints require the read role. Acknowledgement and recalculation endpoints require the admin role.
 
@@ -107,13 +109,13 @@ For each resource:
 1. Load up to the latest configured sample window.
 2. If no sample exists, mark the resource as `insufficient_data`.
 3. If at least one sample exists, compute `utilization_percent` as the average of the available sample values.
-4. If fewer samples than `FLAVOR_OPTIMIZATION_WINDOW_SIZE` are available, still calculate and expose `limited_history` as the reason.
+4. If fewer samples than `FLAVOR_OPTIMIZATION_WINDOW_SIZE` are available, still calculate and expose `limited_history` as the reason unless a CPU/RAM catalog bound is the more specific reason.
 5. Compute `raw_target_capacity = current_capacity * utilization_percent / 65`.
 6. Round the target by capacity type:
    - CPU rounds up to whole cores.
    - RAM rounds up to `1024 MB` increments.
    - Disk rounds up to `1024 MB` increments.
-7. Apply CPU and RAM min/max bounds.
+7. Apply CPU and RAM bounds: raise targets below the minimum, and keep current capacity when targets exceed the maximum.
 8. Propose scale-up when utilization is at least `85%` and the target is more than `10%` above current capacity.
 9. Propose CPU or RAM scale-down when utilization is at most `40%` and the target is more than `20%` below current capacity.
 10. Otherwise, keep the current capacity.

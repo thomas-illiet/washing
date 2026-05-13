@@ -98,6 +98,22 @@ def test_flavor_optimization_window_size_must_stay_positive(monkeypatch: pytest.
         Settings(_env_file=None)
 
 
+def test_flavor_optimization_bounds_are_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CPU and RAM optimization bounds should be configurable from environment variables."""
+    monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MIN_CPU", "2")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MAX_CPU", "16")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MIN_RAM_MB", "4096")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MAX_RAM_MB", "65536")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.flavor_optimization_min_cpu == 2
+    assert settings.flavor_optimization_max_cpu == 16
+    assert settings.flavor_optimization_min_ram_mb == 4096
+    assert settings.flavor_optimization_max_ram_mb == 65536
+
+
 def test_flavor_optimization_cpu_bounds_must_be_ordered(monkeypatch: pytest.MonkeyPatch) -> None:
     """CPU optimization bounds should reject inverted minimum and maximum values."""
     monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)

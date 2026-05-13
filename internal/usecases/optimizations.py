@@ -198,34 +198,36 @@ def _evaluate_scope(
     pressure_low_reason = "limited_history" if has_limited_history else "pressure_low"
     details["utilization_percent"] = utilization_percent
     details["raw_target_capacity"] = raw_target
-    details["bounded_target_capacity"] = bounded_target
 
     if scope == "cpu" and min_capacity is not None and current_capacity < min_capacity:
+        details["bounded_target_capacity"] = float(min_capacity)
         details["action"] = "scale_up"
-        details["reason_code"] = "limited_history" if has_limited_history else "raised_to_min_cpu"
+        details["reason_code"] = "raised_to_min_cpu"
         return details
 
     if scope == "ram" and min_capacity is not None and current_capacity < min_capacity:
+        details["bounded_target_capacity"] = float(min_capacity)
         details["action"] = "scale_up"
-        details["reason_code"] = "limited_history" if has_limited_history else "raised_to_min_ram"
+        details["reason_code"] = "raised_to_min_ram"
         return details
 
+    details["bounded_target_capacity"] = bounded_target
     pressure_high = utilization_percent >= UPSCALE_UTILIZATION_THRESHOLD
     pressure_low = scope in {"cpu", "ram"} and utilization_percent <= DOWNSCALE_UTILIZATION_THRESHOLD
 
     if pressure_high and bounded_target is not None:
         if bounded_target > float(current_capacity) * UPSCALE_CAPACITY_MARGIN and bounded_target > float(current_capacity):
             details["action"] = "scale_up"
-            details["reason_code"] = "limited_history" if has_limited_history else bound_reason or pressure_high_reason
+            details["reason_code"] = bound_reason or pressure_high_reason
             return details
 
     if pressure_low and bounded_target is not None:
         if bounded_target < float(current_capacity) * DOWNSCALE_CAPACITY_MARGIN and bounded_target < float(current_capacity):
             details["action"] = "scale_down"
-            details["reason_code"] = "limited_history" if has_limited_history else bound_reason or pressure_low_reason
+            details["reason_code"] = bound_reason or pressure_low_reason
             return details
 
-    details["reason_code"] = "limited_history" if has_limited_history else bound_reason or default_reason
+    details["reason_code"] = bound_reason or default_reason
     return details
 
 
@@ -283,7 +285,7 @@ def _bounded_target(
     min_capacity: int | None,
     max_capacity: int | None,
 ) -> tuple[float | None, str | None]:
-    """Round and clamp a raw target capacity into the allowed range."""
+    """Round a raw target and apply catalog-bound recommendation rules."""
     rounded = _rounded_target(scope, raw_target)
     if rounded is None:
         return None, None
@@ -292,13 +294,13 @@ def _bounded_target(
         if rounded < min_capacity:
             return float(min_capacity), "raised_to_min_cpu"
         if rounded > max_capacity:
-            return float(max_capacity), "capped_by_max_cpu"
+            return None, "above_max_cpu"
     if scope == "ram":
         assert min_capacity is not None and max_capacity is not None
         if rounded < min_capacity:
             return float(min_capacity), "raised_to_min_ram"
         if rounded > max_capacity:
-            return float(max_capacity), "capped_by_max_ram"
+            return None, "above_max_ram"
     return rounded, None
 
 
