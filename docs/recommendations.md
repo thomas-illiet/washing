@@ -47,13 +47,19 @@ Manual recalculation enqueues the `machines.recalculate_recommendations` Celery 
 
 | Method | Path | Purpose |
 | --- | --- | --- |
+| `GET` | `/v1/machines/recommendations` | List recommendation revisions across machines with pagination and filters. |
+| `POST` | `/v1/machines/recommendations/{recommendation_id}/acknowledge` | Mark one recommendation revision as acknowledged. |
 | `GET` | `/v1/machines/{machine_id}/recommendations` | Read the current recommendation revision. |
 | `GET` | `/v1/machines/{machine_id}/recommendations/history` | Read all revisions, including the current one. |
 | `POST` | `/v1/machines/{machine_id}/recommendations/recalculate` | Enqueue an on-demand recalculation. |
 
-With OIDC enabled, read endpoints require the read role and the recalculation endpoint requires the admin role.
+With OIDC enabled, read endpoints require the read role. Acknowledgement and recalculation endpoints require the admin role.
 
 If a machine exists but no recommendation has been computed yet, the current recommendation endpoint returns `404` with `recommendation not computed yet`.
+
+The global list endpoint returns current recommendations by default. Pass `current_only=false` to include older revisions. It supports filters for `platform_id`, `machine_id`, `application`, `environment`, `region`, `status`, `action`, and `acknowledged`.
+
+Acknowledgement is idempotent and records `acknowledged_at` plus `acknowledged_by` when an authenticated principal is available.
 
 ## Recommendation Status
 

@@ -284,6 +284,8 @@ class MachineRecommendation(TimestampMixin, Base):
     min_ram_mb: Mapped[int] = mapped_column(Integer, nullable=False)
     max_ram_mb: Mapped[int] = mapped_column(Integer, nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    acknowledged_by: Mapped[str | None] = mapped_column(String(255))
     current_cpu: Mapped[float | None] = mapped_column(Float)
     current_ram_mb: Mapped[float | None] = mapped_column(Float)
     current_disk_mb: Mapped[float | None] = mapped_column(Float)

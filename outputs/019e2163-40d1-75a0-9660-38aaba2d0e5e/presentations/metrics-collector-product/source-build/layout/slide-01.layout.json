@@ -1,0 +1,1068 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/2nuk0g",
+    "id": "2nuk0g",
+    "slide": 1,
+    "layoutId": "110d7f63-7fbb-4fe8-a48c-73e2b5c46904",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Avenir Next",
+      "Georgia"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "110d7f63-7fbb-4fe8-a48c-73e2b5c46904",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/tsvu9kni",
+      "id": "1",
+      "bbox": [
+        0,
+        0,
+        1280,
+        720
+      ],
+      "geometry": "rect",
+      "fillColor": "#17202A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/rqd4vmtw",
+      "id": "2",
+      "bbox": [
+        626,
+        0,
+        654,
+        720
+      ],
+      "alt": "Data to capacity decision visual",
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "086c2864-5fe4-43f4-a07d-fd63048cf073",
+        "contentType": "image/png",
+        "byteLength": 1806369
+      }
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/bm58z25k",
+      "id": "3",
+      "bbox": [
+        0,
+        0,
+        626,
+        720
+      ],
+      "geometry": "rect",
+      "fillColor": "#17202A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4vmtwra5",
+      "id": "4",
+      "bbox": [
+        604,
+        0,
+        22,
+        720
+      ],
+      "geometry": "rect",
+      "fillColor": "#24313C",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/tgfmlkjm",
+      "id": "5",
+      "name": "kicker-marker",
+      "bbox": [
+        58,
+        48,
+        5,
+        34
+      ],
+      "geometry": "rect",
+      "fillColor": "#D99B2B",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mp0bi9s3",
+      "id": "6",
+      "name": "kicker-label",
+      "bbox": [
+        76,
+        50,
+        360,
+        28
+      ],
+      "geometry": "rect",
+      "text": "PRODUIT A VENDRE",
+      "textPreview": "PRODUIT A VENDRE",
+      "resolvedFontSize": 10,
+      "resolvedTextStyle": {
+        "fontSize": 10,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "PRODUIT A VENDRE"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "PRODUIT A VENDRE",
+          "runs": [
+            {
+              "index": 1,
+              "text": "PRODUIT A VENDRE",
+              "fontSize": 10,
+              "typeface": "Avenir Next",
+              "color": "#F7F4EC",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/bat47y1k",
+      "id": "7",
+      "bbox": [
+        58,
+        108,
+        520,
+        210
+      ],
+      "geometry": "rect",
+      "text": "Metrics Collector transforme l'infrastructure en decisions capacite.",
+      "textPreview": "Metrics Collector transforme l'infrastructure en decisions capacite.",
+      "resolvedFontSize": 42,
+      "resolvedTextStyle": {
+        "fontSize": 42,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 4,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Metrics Collector"
+          },
+          {
+            "index": 2,
+            "text": "transforme"
+          },
+          {
+            "index": 3,
+            "text": "l'infrastructure en"
+          },
+          {
+            "index": 4,
+            "text": "decisions capacite."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Metrics Collector transforme l'infrastructure en decisions capacite.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Metrics Collector transforme l'infrastructure en decisions capacite.",
+              "fontSize": 42,
+              "typeface": "Georgia",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4nap4r65",
+      "id": "8",
+      "bbox": [
+        62,
+        332,
+        512,
+        74
+      ],
+      "geometry": "rect",
+      "text": "Une plateforme de pilotage qui collecte l'inventaire, orchestre les metriques et produit des recommandations explicables pour reduire le sur-provisionnement, les risques de saturation et les arbitrages manuels.",
+      "textPreview": "Une plateforme de pilotage qui collecte l'inventaire, orchestre les metriques et produit des recommandations explicables pour reduire le ...",
+      "resolvedFontSize": 15.2,
+      "resolvedTextStyle": {
+        "fontSize": 15.2,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Une plateforme de pilotage qui collecte l'inventaire, orchestre les"
+          },
+          {
+            "index": 2,
+            "text": "metriques et produit des recommandations explicables pour reduire le"
+          },
+          {
+            "index": 3,
+            "text": "sur-provisionnement, les risques de saturation et les arbitrages manuels."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Une plateforme de pilotage qui collecte l'inventaire, orchestre les metriques et produit des recommandations explicables pour reduire le sur-provisionnement, les risques de saturation et les arbitrages manuels.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Une plateforme de pilotage qui collecte l'inventaire, orchestre les metriques et produit des recommandations explicables pour reduire le sur-provisionnement, les risques de saturation et les arbitrages manuels.",
+              "fontSize": 15.2,
+              "typeface": "Avenir Next",
+              "color": "#D7E1E8"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/t83itgfm",
+      "id": "9",
+      "bbox": [
+        62,
+        438,
+        92,
+        30
+      ],
+      "geometry": "rect",
+      "fillColor": "#3A6EA5",
+      "lineColor": "#3A6EA5",
+      "lineWidth": 1
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9gr2p8nq",
+      "id": "10",
+      "bbox": [
+        72,
+        444,
+        72,
+        16
+      ],
+      "geometry": "rect",
+      "text": "Collecter",
+      "textPreview": "Collecter",
+      "resolvedFontSize": 9.51,
+      "resolvedTextStyle": {
+        "fontSize": 9.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "center"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Collecter"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Collecter",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Collecter",
+              "fontSize": 9.51,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gvy90je9",
+      "id": "11",
+      "bbox": [
+        166,
+        438,
+        112,
+        30
+      ],
+      "geometry": "rect",
+      "fillColor": "#D99B2B",
+      "lineColor": "#D99B2B",
+      "lineWidth": 1
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ra5gbq1o",
+      "id": "12",
+      "bbox": [
+        176,
+        444,
+        92,
+        16
+      ],
+      "geometry": "rect",
+      "text": "Orchestrer",
+      "textPreview": "Orchestrer",
+      "resolvedFontSize": 9.51,
+      "resolvedTextStyle": {
+        "fontSize": 9.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "center"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Orchestrer"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Orchestrer",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Orchestrer",
+              "fontSize": 9.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/2p8nqxs7",
+      "id": "13",
+      "bbox": [
+        290,
+        438,
+        132,
+        30
+      ],
+      "geometry": "rect",
+      "fillColor": "#1E7A78",
+      "lineColor": "#1E7A78",
+      "lineWidth": 1
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/94fu18jq",
+      "id": "14",
+      "bbox": [
+        300,
+        444,
+        112,
+        16
+      ],
+      "geometry": "rect",
+      "text": "Recommander",
+      "textPreview": "Recommander",
+      "resolvedFontSize": 9.51,
+      "resolvedTextStyle": {
+        "fontSize": 9.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "center"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Recommander"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Recommander",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Recommander",
+              "fontSize": 9.51,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/kjm1cfa9",
+      "id": "15",
+      "bbox": [
+        434,
+        438,
+        112,
+        30
+      ],
+      "geometry": "rect",
+      "fillColor": "#EEF0EA",
+      "lineColor": "#EEF0EA",
+      "lineWidth": 1
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/r2p8nqxs",
+      "id": "16",
+      "bbox": [
+        444,
+        444,
+        92,
+        16
+      ],
+      "geometry": "rect",
+      "text": "Gouverner",
+      "textPreview": "Gouverner",
+      "resolvedFontSize": 9.51,
+      "resolvedTextStyle": {
+        "fontSize": 9.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "center"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Gouverner"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Gouverner",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Gouverner",
+              "fontSize": 9.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/2hwfyxob",
+      "id": "17",
+      "bbox": [
+        58,
+        532,
+        548,
+        108
+      ],
+      "geometry": "rect",
+      "fillColor": "#202B35",
+      "lineColor": "#3A4650",
+      "lineWidth": 1
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9w3m94fu",
+      "id": "18",
+      "bbox": [
+        84,
+        552,
+        3,
+        68
+      ],
+      "geometry": "rect",
+      "fillColor": "#3A6EA5",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/kb6xkf6d",
+      "id": "19",
+      "bbox": [
+        100,
+        550,
+        150,
+        34
+      ],
+      "geometry": "rect",
+      "text": "54",
+      "textPreview": "54",
+      "resolvedFontSize": 28,
+      "resolvedTextStyle": {
+        "fontSize": 28,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "54"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "54",
+          "runs": [
+            {
+              "index": 1,
+              "text": "54",
+              "fontSize": 28,
+              "typeface": "Georgia",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0z61032l",
+      "id": "20",
+      "bbox": [
+        100,
+        588,
+        170,
+        18
+      ],
+      "geometry": "rect",
+      "text": "ENDPOINTS API",
+      "textPreview": "ENDPOINTS API",
+      "resolvedFontSize": 8.8,
+      "resolvedTextStyle": {
+        "fontSize": 8.8,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "ENDPOINTS API"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "ENDPOINTS API",
+          "runs": [
+            {
+              "index": 1,
+              "text": "ENDPOINTS API",
+              "fontSize": 8.8,
+              "typeface": "Avenir Next",
+              "color": "#D6DDE3",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/pkzupwb2",
+      "id": "21",
+      "bbox": [
+        100,
+        606,
+        180,
+        22
+      ],
+      "geometry": "rect",
+      "text": "surface produit admin + operations",
+      "textPreview": "surface produit admin + operations",
+      "resolvedFontSize": 8.51,
+      "resolvedTextStyle": {
+        "fontSize": 8.51,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "surface produit admin + operations"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "surface produit admin + operations",
+          "runs": [
+            {
+              "index": 1,
+              "text": "surface produit admin + operations",
+              "fontSize": 8.51,
+              "typeface": "Avenir Next",
+              "color": "#AEB9C2"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 22,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/itgfmlkj",
+      "id": "22",
+      "bbox": [
+        314,
+        552,
+        3,
+        68
+      ],
+      "geometry": "rect",
+      "fillColor": "#D99B2B",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 23,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7ed8bat4",
+      "id": "23",
+      "bbox": [
+        330,
+        550,
+        150,
+        34
+      ],
+      "geometry": "rect",
+      "text": "12",
+      "textPreview": "12",
+      "resolvedFontSize": 28,
+      "resolvedTextStyle": {
+        "fontSize": 28,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "12"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "12",
+          "runs": [
+            {
+              "index": 1,
+              "text": "12",
+              "fontSize": 28,
+              "typeface": "Georgia",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 24,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/0nuxc3yl",
+      "id": "24",
+      "bbox": [
+        330,
+        588,
+        170,
+        18
+      ],
+      "geometry": "rect",
+      "text": "TACHES CELERY",
+      "textPreview": "TACHES CELERY",
+      "resolvedFontSize": 8.8,
+      "resolvedTextStyle": {
+        "fontSize": 8.8,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "TACHES CELERY"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "TACHES CELERY",
+          "runs": [
+            {
+              "index": 1,
+              "text": "TACHES CELERY",
+              "fontSize": 8.8,
+              "typeface": "Avenir Next",
+              "color": "#D6DDE3",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 25,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/p8nqxs72",
+      "id": "25",
+      "bbox": [
+        330,
+        606,
+        180,
+        22
+      ],
+      "geometry": "rect",
+      "text": "collecte et fan-out industrialisables",
+      "textPreview": "collecte et fan-out industrialisables",
+      "resolvedFontSize": 8.51,
+      "resolvedTextStyle": {
+        "fontSize": 8.51,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "collecte et fan-out industrialisables"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "collecte et fan-out industrialisables",
+          "runs": [
+            {
+              "index": 1,
+              "text": "collecte et fan-out industrialisables",
+              "fontSize": 8.51,
+              "typeface": "Avenir Next",
+              "color": "#AEB9C2"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 26,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ih4byhgn",
+      "id": "26",
+      "bbox": [
+        58,
+        665,
+        500,
+        1
+      ],
+      "geometry": "rect",
+      "fillColor": "#4B5560",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 27,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/72x4nap4",
+      "id": "27",
+      "bbox": [
+        58,
+        678,
+        500,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Sources: README, app/api/routes, app/worker/tasks, app/mcp, internal/infra/db/models.py",
+      "textPreview": "Sources: README, app/api/routes, app/worker/tasks, app/mcp, internal/infra/db/models.py",
+      "resolvedFontSize": 8.51,
+      "resolvedTextStyle": {
+        "fontSize": 8.51,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Sources: README, app/api/routes, app/worker/tasks, app/mcp, internal/infra/db/models.py"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Sources: README, app/api/routes, app/worker/tasks, app/mcp, internal/infra/db/models.py",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Sources: README, app/api/routes, app/worker/tasks, app/mcp, internal/infra/db/models.py",
+              "fontSize": 8.51,
+              "typeface": "Avenir Next",
+              "color": "#C9D2D8"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 28,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wjudg7ad",
+      "id": "28",
+      "bbox": [
+        574,
+        674,
+        34,
+        22
+      ],
+      "geometry": "rect",
+      "text": "01",
+      "textPreview": "01",
+      "resolvedFontSize": 12,
+      "resolvedTextStyle": {
+        "fontSize": 12,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "right"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "01"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "01",
+          "runs": [
+            {
+              "index": 1,
+              "text": "01",
+              "fontSize": 12,
+              "typeface": "Avenir Next",
+              "color": "#C9D2D8",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

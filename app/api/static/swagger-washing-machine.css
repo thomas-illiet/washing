@@ -425,6 +425,14 @@ body {
   --wm-tag-image: url("/static/swagger-tag-images/machines.png");
 }
 
+.swagger-ui .opblock-tag-section[id*="machine-recommendations"] .opblock-tag,
+.swagger-ui [data-tag="Machine Recommendations"] .opblock-tag,
+.swagger-ui .opblock-tag[data-tag="Machine Recommendations"] {
+  --wm-tag-accent: #61bfb5;
+  --wm-tag-tint: #effbf9;
+  --wm-tag-image: url("/static/swagger-tag-images/machine-recommendations.png");
+}
+
 .swagger-ui .opblock-tag-section[id*="machine-metrics"] .opblock-tag,
 .swagger-ui [data-tag="Machine Metrics"] .opblock-tag,
 .swagger-ui .opblock-tag[data-tag="Machine Metrics"] {

@@ -31,6 +31,7 @@ EXPECTED_OPENAPI_TAG_DESCRIPTIONS = {
     "Platforms": "Cycle programs and settings.",
     "Applications": "Loads to track in the drum.",
     "Machines": "Main drum and inventory.",
+    "Machine Recommendations": "Capacity advice and acknowledged wash labels.",
     "Machine Metrics": "CPU, RAM, and disk spin cycle.",
     "Machine Providers": "Water inlets and metric sources.",
     "Machine Provisioners": "Detergent drawers and inventory connectors.",
@@ -90,6 +91,7 @@ def test_swagger_theme_css_is_served(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
     assert "--wm-bg: #f6fbfd;" in response.text
+    assert "machine-recommendations.png" in response.text
     scheme_container_rule = response.text.split(".swagger-ui .scheme-container {", maxsplit=1)[1].split("}", maxsplit=1)[0]
     assert "backdrop-filter" not in scheme_container_rule
 
@@ -119,6 +121,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "extra" not in schemas["ApplicationRead"]["properties"]
     assert "application" in schemas["MachineRead"]["properties"]
     assert "application_id" not in schemas["MachineRead"]["properties"]
+    assert {"acknowledged_at", "acknowledged_by"} <= set(schemas["MachineRecommendationRead"]["properties"])
     assert "enabled" not in schemas["CapsuleProvisionerCreate"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerUpdate"]["properties"]
     assert "parameters" in schemas["CapsuleProvisionerCreate"]["properties"]
@@ -150,6 +153,8 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/metrics" in paths
     assert "/v1/machines/{machine_id}/metrics" in paths
     assert "/v1/machines/{machine_id}" in paths
+    assert "/v1/machines/recommendations" in paths
+    assert "/v1/machines/recommendations/{recommendation_id}/acknowledge" in paths
     assert "/v1/machines/{machine_id}/recommendations" in paths
     assert "/v1/machines/{machine_id}/recommendations/history" in paths
     assert "/v1/machines/{machine_id}/recommendations/recalculate" in paths
@@ -173,7 +178,8 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "Health" not in tags
     assert tags == list(EXPECTED_OPENAPI_TAG_DESCRIPTIONS)
     assert tag_descriptions == EXPECTED_OPENAPI_TAG_DESCRIPTIONS
-    assert tags.index("Machines") < tags.index("Machine Metrics")
+    assert tags.index("Machines") < tags.index("Machine Recommendations")
+    assert tags.index("Machine Recommendations") < tags.index("Machine Metrics")
     assert tags.index("Machine Metrics") < tags.index("Machine Providers")
     assert tags.index("Machine Providers") < tags.index("Machine Provisioners")
     assert paths["/v1/machines"]["get"]["tags"] == ["Machines"]
@@ -182,9 +188,15 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/{machine_id}"]["delete"]["tags"] == ["Machines"]
     assert "patch" not in paths["/v1/machines/{machine_id}"]
     assert paths["/v1/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["Machines"]
-    assert paths["/v1/machines/{machine_id}/recommendations"]["get"]["tags"] == ["Machines"]
-    assert paths["/v1/machines/{machine_id}/recommendations/history"]["get"]["tags"] == ["Machines"]
-    assert paths["/v1/machines/{machine_id}/recommendations/recalculate"]["post"]["tags"] == ["Machines"]
+    assert paths["/v1/machines/recommendations"]["get"]["tags"] == ["Machine Recommendations"]
+    assert paths["/v1/machines/recommendations/{recommendation_id}/acknowledge"]["post"]["tags"] == [
+        "Machine Recommendations"
+    ]
+    assert paths["/v1/machines/{machine_id}/recommendations"]["get"]["tags"] == ["Machine Recommendations"]
+    assert paths["/v1/machines/{machine_id}/recommendations/history"]["get"]["tags"] == ["Machine Recommendations"]
+    assert paths["/v1/machines/{machine_id}/recommendations/recalculate"]["post"]["tags"] == [
+        "Machine Recommendations"
+    ]
     assert paths["/v1/machines/metrics"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/providers"]["get"]["tags"] == ["Machine Providers"]
@@ -212,6 +224,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "/v1/applications",
         "/v1/machines",
         "/v1/machines/{machine_id}/flavor-history",
+        "/v1/machines/recommendations",
         "/v1/machines/{machine_id}/recommendations/history",
         "/v1/machines/metrics",
         "/v1/machines/{machine_id}/metrics",
@@ -225,6 +238,19 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert {"type", "offset", "limit"} <= {
         param["name"] for param in paths["/v1/machines/{machine_id}/metrics"]["get"]["parameters"]
     }
+    assert {
+        "current_only",
+        "platform_id",
+        "machine_id",
+        "application",
+        "environment",
+        "region",
+        "status",
+        "action",
+        "acknowledged",
+        "offset",
+        "limit",
+    } <= {param["name"] for param in paths["/v1/machines/recommendations"]["get"]["parameters"]}
     recommendation_responses = paths["/v1/machines/{machine_id}/recommendations/recalculate"]["post"]["responses"]
     assert "202" in recommendation_responses
     assert (
@@ -1611,6 +1637,177 @@ def test_machine_recommendation_endpoints_read_current_and_history(client: TestC
     assert history.status_code == 200
     assert history.json()["total"] == 2
     assert [item["revision"] for item in history.json()["items"]] == [2, 1]
+
+
+def test_machine_recommendation_collection_filters_and_acknowledges(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    """Recommendations should be listable across machines and acknowledged by revision id."""
+    primary_platform = Platform(name="Recommendation Collection API")
+    other_platform = Platform(name="Recommendation Collection Other")
+    current_machine = Machine(
+        platform=primary_platform,
+        hostname="node-rec-01",
+        application="cart",
+        environment="prod",
+        region="eu",
+        cpu=4,
+        ram_mb=8192,
+        disk_mb=80 * 1024,
+    )
+    other_machine = Machine(
+        platform=other_platform,
+        hostname="node-rec-02",
+        application="billing",
+        environment="dev",
+        region="us",
+        cpu=2,
+        ram_mb=4096,
+        disk_mb=40 * 1024,
+    )
+    db_session.add_all([primary_platform, other_platform, current_machine, other_machine])
+    db_session.commit()
+
+    base_details = {
+        "cpu": {
+            "provider_id": None,
+            "status": "missing_provider",
+            "samples_used": 0,
+            "last_metric_date": None,
+            "stats": None,
+            "current_capacity": 4,
+            "raw_target_capacity": None,
+            "bounded_target_capacity": None,
+            "action": "unavailable",
+            "reason_code": "no_provider",
+        }
+    }
+    historical = MachineRecommendation(
+        machine_id=current_machine.id,
+        revision=1,
+        is_current=False,
+        current_machine_id=None,
+        superseded_at=current_machine.created_at,
+        status="partial",
+        action="insufficient_data",
+        window_size=30,
+        min_cpu=1,
+        max_cpu=64,
+        min_ram_mb=2048,
+        max_ram_mb=262144,
+        computed_at=current_machine.created_at,
+        current_cpu=4,
+        current_ram_mb=8192,
+        current_disk_mb=80 * 1024,
+        target_cpu=None,
+        target_ram_mb=None,
+        target_disk_mb=None,
+        details=base_details,
+    )
+    current = MachineRecommendation(
+        machine_id=current_machine.id,
+        revision=2,
+        is_current=True,
+        current_machine_id=current_machine.id,
+        superseded_at=None,
+        status="ready",
+        action="scale_up",
+        window_size=30,
+        min_cpu=1,
+        max_cpu=64,
+        min_ram_mb=2048,
+        max_ram_mb=262144,
+        computed_at=current_machine.updated_at,
+        current_cpu=4,
+        current_ram_mb=8192,
+        current_disk_mb=80 * 1024,
+        target_cpu=6,
+        target_ram_mb=8192,
+        target_disk_mb=80 * 1024,
+        details=base_details,
+    )
+    other_current = MachineRecommendation(
+        machine_id=other_machine.id,
+        revision=1,
+        is_current=True,
+        current_machine_id=other_machine.id,
+        superseded_at=None,
+        status="partial",
+        action="insufficient_data",
+        window_size=30,
+        min_cpu=1,
+        max_cpu=64,
+        min_ram_mb=2048,
+        max_ram_mb=262144,
+        computed_at=other_machine.updated_at,
+        current_cpu=2,
+        current_ram_mb=4096,
+        current_disk_mb=40 * 1024,
+        target_cpu=None,
+        target_ram_mb=None,
+        target_disk_mb=None,
+        details=base_details,
+    )
+    db_session.add_all([historical, current, other_current])
+    db_session.commit()
+
+    default_list = client.get("/v1/machines/recommendations")
+    assert default_list.status_code == 200
+    assert default_list.json()["total"] == 2
+    assert {item["id"] for item in default_list.json()["items"]} == {current.id, other_current.id}
+    assert all(item["is_current"] for item in default_list.json()["items"])
+
+    all_revisions = client.get(
+        "/v1/machines/recommendations",
+        params={"machine_id": current_machine.id, "current_only": False},
+    )
+    assert all_revisions.status_code == 200
+    assert all_revisions.json()["total"] == 2
+    assert [item["revision"] for item in all_revisions.json()["items"]] == [2, 1]
+
+    filtered = client.get(
+        "/v1/machines/recommendations",
+        params={
+            "platform_id": primary_platform.id,
+            "application": "cart",
+            "environment": "prod",
+            "region": "eu",
+            "status": "ready",
+            "action": "scale_up",
+        },
+    )
+    assert filtered.status_code == 200
+    assert filtered.json()["total"] == 1
+    assert filtered.json()["items"][0]["id"] == current.id
+
+    limited = client.get("/v1/machines/recommendations", params={"limit": 1})
+    assert limited.status_code == 200
+    assert limited.json()["limit"] == 1
+    assert len(limited.json()["items"]) == 1
+
+    acknowledged = client.post(f"/v1/machines/recommendations/{current.id}/acknowledge")
+    assert acknowledged.status_code == 200
+    assert acknowledged.json()["id"] == current.id
+    assert acknowledged.json()["acknowledged_at"] is not None
+    assert acknowledged.json()["acknowledged_by"] is None
+
+    repeated = client.post(f"/v1/machines/recommendations/{current.id}/acknowledge")
+    assert repeated.status_code == 200
+    assert repeated.json()["acknowledged_at"] == acknowledged.json()["acknowledged_at"]
+
+    acknowledged_list = client.get("/v1/machines/recommendations", params={"acknowledged": True})
+    assert acknowledged_list.status_code == 200
+    assert acknowledged_list.json()["total"] == 1
+    assert acknowledged_list.json()["items"][0]["id"] == current.id
+
+    unacknowledged_list = client.get("/v1/machines/recommendations", params={"acknowledged": False})
+    assert unacknowledged_list.status_code == 200
+    assert unacknowledged_list.json()["total"] == 1
+    assert unacknowledged_list.json()["items"][0]["id"] == other_current.id
+
+    missing = client.post("/v1/machines/recommendations/9999/acknowledge")
+    assert missing.status_code == 404
 
 
 def test_machine_recommendation_endpoints_handle_missing_state_and_enqueue_recalculation(

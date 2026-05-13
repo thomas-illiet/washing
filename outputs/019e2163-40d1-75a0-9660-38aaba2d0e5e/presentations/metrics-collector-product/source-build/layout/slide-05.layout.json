@@ -1,0 +1,1556 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/cdryat",
+    "id": "cdryat",
+    "slide": 5,
+    "layoutId": "110d7f63-7fbb-4fe8-a48c-73e2b5c46904",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Avenir Next",
+      "Georgia"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "110d7f63-7fbb-4fe8-a48c-73e2b5c46904",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fyxobm58",
+      "id": "1",
+      "bbox": [
+        0,
+        0,
+        1280,
+        720
+      ],
+      "geometry": "rect",
+      "fillColor": "#F7F4EC",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8jqh0fep",
+      "id": "2",
+      "bbox": [
+        0,
+        0,
+        1280,
+        6
+      ],
+      "geometry": "rect",
+      "fillColor": "#17202A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/x4nap4r6",
+      "id": "3",
+      "name": "kicker-marker",
+      "bbox": [
+        58,
+        48,
+        5,
+        34
+      ],
+      "geometry": "rect",
+      "fillColor": "#D85C4A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/qpg3ex0n",
+      "id": "4",
+      "name": "kicker-label",
+      "bbox": [
+        76,
+        50,
+        360,
+        28
+      ],
+      "geometry": "rect",
+      "text": "RECOMMANDATION",
+      "textPreview": "RECOMMANDATION",
+      "resolvedFontSize": 10,
+      "resolvedTextStyle": {
+        "fontSize": 10,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "RECOMMANDATION"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "RECOMMANDATION",
+          "runs": [
+            {
+              "index": 1,
+              "text": "RECOMMANDATION",
+              "fontSize": 10,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/fa9w3m94",
+      "id": "5",
+      "bbox": [
+        58,
+        88,
+        950,
+        86
+      ],
+      "geometry": "rect",
+      "text": "Le moteur est vendable parce qu'il explique pourquoi agir.",
+      "textPreview": "Le moteur est vendable parce qu'il explique pourquoi agir.",
+      "resolvedFontSize": 35,
+      "resolvedTextStyle": {
+        "fontSize": 35,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Le moteur est vendable parce qu'il explique"
+          },
+          {
+            "index": 2,
+            "text": "pourquoi agir."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Le moteur est vendable parce qu'il explique pourquoi agir.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Le moteur est vendable parce qu'il explique pourquoi agir.",
+              "fontSize": 35,
+              "typeface": "Georgia",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8v6psfil",
+      "id": "6",
+      "bbox": [
+        70,
+        218,
+        552,
+        360
+      ],
+      "geometry": "rect",
+      "fillColor": "#FFFDF7",
+      "lineColor": "#E8E3D6",
+      "lineWidth": 1
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/xczed8v6",
+      "id": "7",
+      "bbox": [
+        96,
+        244,
+        280,
+        26
+      ],
+      "geometry": "rect",
+      "text": "Regles metier lisibles",
+      "textPreview": "Regles metier lisibles",
+      "resolvedFontSize": 18,
+      "resolvedTextStyle": {
+        "fontSize": 18,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Regles metier lisibles"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Regles metier lisibles",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Regles metier lisibles",
+              "fontSize": 18,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/qtcj6tov",
+      "id": "8",
+      "bbox": [
+        96,
+        296,
+        182,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Objectif d'utilisation",
+      "textPreview": "Objectif d'utilisation",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Objectif d'utilisation"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Objectif d'utilisation",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Objectif d'utilisation",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/je9cvixc",
+      "id": "9",
+      "bbox": [
+        298,
+        301,
+        212,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#E8E3D6",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nih4byhg",
+      "id": "10",
+      "bbox": [
+        298,
+        301,
+        137.8,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#1E7A78",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/yxobm58z",
+      "id": "11",
+      "bbox": [
+        522,
+        295,
+        76,
+        18
+      ],
+      "geometry": "rect",
+      "text": "65%",
+      "textPreview": "65%",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "65%"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "65%",
+          "runs": [
+            {
+              "index": 1,
+              "text": "65%",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5o7qpg3e",
+      "id": "12",
+      "bbox": [
+        96,
+        338,
+        182,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Scale up p95",
+      "textPreview": "Scale up p95",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Scale up p95"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Scale up p95",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Scale up p95",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/g3ex0nux",
+      "id": "13",
+      "bbox": [
+        298,
+        343,
+        212,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#E8E3D6",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/r65wjudg",
+      "id": "14",
+      "bbox": [
+        298,
+        343,
+        180.2,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#D85C4A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ylc7u54z",
+      "id": "15",
+      "bbox": [
+        522,
+        337,
+        76,
+        18
+      ],
+      "geometry": "rect",
+      "text": ">=85%",
+      "textPreview": ">=85%",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": ">=85%"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": ">=85%",
+          "runs": [
+            {
+              "index": 1,
+              "text": ">=85%",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9cvixcze",
+      "id": "16",
+      "bbox": [
+        96,
+        380,
+        182,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Scale up max",
+      "textPreview": "Scale up max",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Scale up max"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Scale up max",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Scale up max",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gr2p8nqx",
+      "id": "17",
+      "bbox": [
+        298,
+        385,
+        212,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#E8E3D6",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/rytsvu9k",
+      "id": "18",
+      "bbox": [
+        298,
+        385,
+        201.4,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#D85C4A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/yd0z6103",
+      "id": "19",
+      "bbox": [
+        522,
+        379,
+        76,
+        18
+      ],
+      "geometry": "rect",
+      "text": ">=95%",
+      "textPreview": ">=95%",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": ">=95%"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": ">=95%",
+          "runs": [
+            {
+              "index": 1,
+              "text": ">=95%",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/a9w3m94f",
+      "id": "20",
+      "bbox": [
+        96,
+        422,
+        182,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Scale down p95",
+      "textPreview": "Scale down p95",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Scale down p95"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Scale down p95",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Scale down p95",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zupwb2hw",
+      "id": "21",
+      "bbox": [
+        298,
+        427,
+        212,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#E8E3D6",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 22,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/sfil0rqd",
+      "id": "22",
+      "bbox": [
+        298,
+        427,
+        84.8,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#4C8A43",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 23,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/h0fepkzu",
+      "id": "23",
+      "bbox": [
+        522,
+        421,
+        76,
+        18
+      ],
+      "geometry": "rect",
+      "text": "<=40%",
+      "textPreview": "<=40%",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "<=40%"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "<=40%",
+          "runs": [
+            {
+              "index": 1,
+              "text": "<=40%",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 24,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/al87ed8b",
+      "id": "24",
+      "bbox": [
+        96,
+        464,
+        182,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Scale down max",
+      "textPreview": "Scale down max",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Scale down max"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Scale down max",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Scale down max",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 25,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/z61032ls",
+      "id": "25",
+      "bbox": [
+        298,
+        469,
+        212,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#E8E3D6",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 26,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/orytsvu9",
+      "id": "26",
+      "bbox": [
+        298,
+        469,
+        127.2,
+        10
+      ],
+      "geometry": "rect",
+      "fillColor": "#4C8A43",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 27,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hcrmhk3q",
+      "id": "27",
+      "bbox": [
+        522,
+        463,
+        76,
+        18
+      ],
+      "geometry": "rect",
+      "text": "<=60%",
+      "textPreview": "<=60%",
+      "resolvedFontSize": 10.51,
+      "resolvedTextStyle": {
+        "fontSize": 10.51,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "<=60%"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "<=60%",
+          "runs": [
+            {
+              "index": 1,
+              "text": "<=60%",
+              "fontSize": 10.51,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 28,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/6xkf6dcb",
+      "id": "28",
+      "bbox": [
+        96,
+        520,
+        414,
+        34
+      ],
+      "geometry": "rect",
+      "text": "CPU et RAM peuvent monter ou descendre. Disk reste conservateur: montee possible, pas de downscale propose.",
+      "textPreview": "CPU et RAM peuvent monter ou descendre. Disk reste conservateur: montee possible, pas de downscale propose.",
+      "resolvedFontSize": 11.2,
+      "resolvedTextStyle": {
+        "fontSize": 11.2,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "CPU et RAM peuvent monter ou descendre. Disk reste conservateur: montee"
+          },
+          {
+            "index": 2,
+            "text": "possible, pas de downscale propose."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "CPU et RAM peuvent monter ou descendre. Disk reste conservateur: montee possible, pas de downscale propose.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "CPU et RAM peuvent monter ou descendre. Disk reste conservateur: montee possible, pas de downscale propose.",
+              "fontSize": 11.2,
+              "typeface": "Avenir Next",
+              "color": "#5C6670"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 29,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zed8v6ps",
+      "id": "29",
+      "bbox": [
+        674,
+        218,
+        472,
+        360
+      ],
+      "geometry": "rect",
+      "fillColor": "#17202A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 30,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/pg3ex0nu",
+      "id": "30",
+      "bbox": [
+        706,
+        248,
+        340,
+        26
+      ],
+      "geometry": "rect",
+      "text": "Ce que les responsables achetent",
+      "textPreview": "Ce que les responsables achetent",
+      "resolvedFontSize": 18,
+      "resolvedTextStyle": {
+        "fontSize": 18,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Ce que les responsables achetent"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Ce que les responsables achetent",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Ce que les responsables achetent",
+              "fontSize": 18,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 31,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wval87ed",
+      "id": "31",
+      "bbox": [
+        708,
+        314,
+        120,
+        24
+      ],
+      "geometry": "rect",
+      "text": "Confiance",
+      "textPreview": "Confiance",
+      "resolvedFontSize": 15,
+      "resolvedTextStyle": {
+        "fontSize": 15,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Confiance"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Confiance",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Confiance",
+              "fontSize": 15,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 32,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7adsji5s",
+      "id": "32",
+      "bbox": [
+        850,
+        315,
+        240,
+        32
+      ],
+      "geometry": "rect",
+      "text": "status ready / partial / error pour savoir quand croire la recommandation",
+      "textPreview": "status ready / partial / error pour savoir quand croire la recommandation",
+      "resolvedFontSize": 10.4,
+      "resolvedTextStyle": {
+        "fontSize": 10.4,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "status ready / partial / error pour savoir quand"
+          },
+          {
+            "index": 2,
+            "text": "croire la recommandation"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "status ready / partial / error pour savoir quand croire la recommandation",
+          "runs": [
+            {
+              "index": 1,
+              "text": "status ready / partial / error pour savoir quand croire la recommandation",
+              "fontSize": 10.4,
+              "typeface": "Avenir Next",
+              "color": "#D4DEE5"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 33,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/epkzupwb",
+      "id": "33",
+      "bbox": [
+        706,
+        362,
+        360,
+        1
+      ],
+      "geometry": "rect",
+      "fillColor": "#3A4650",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 34,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/psfil0rq",
+      "id": "34",
+      "bbox": [
+        708,
+        386,
+        120,
+        24
+      ],
+      "geometry": "rect",
+      "text": "Traçabilite",
+      "textPreview": "Traçabilite",
+      "resolvedFontSize": 15,
+      "resolvedTextStyle": {
+        "fontSize": 15,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Traçabilite"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Traçabilite",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Traçabilite",
+              "fontSize": 15,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 35,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/w7mp0bi9",
+      "id": "35",
+      "bbox": [
+        850,
+        387,
+        240,
+        32
+      ],
+      "geometry": "rect",
+      "text": "revision courante + historique, computed_at et details par scope",
+      "textPreview": "revision courante + historique, computed_at et details par scope",
+      "resolvedFontSize": 10.4,
+      "resolvedTextStyle": {
+        "fontSize": 10.4,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "revision courante + historique, computed_at et"
+          },
+          {
+            "index": 2,
+            "text": "details par scope"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "revision courante + historique, computed_at et details par scope",
+          "runs": [
+            {
+              "index": 1,
+              "text": "revision courante + historique, computed_at et details par scope",
+              "fontSize": 10.4,
+              "typeface": "Avenir Next",
+              "color": "#D4DEE5"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 36,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7mp0bi9s",
+      "id": "36",
+      "bbox": [
+        706,
+        434,
+        360,
+        1
+      ],
+      "geometry": "rect",
+      "fillColor": "#3A4650",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 37,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/e1w7mp0b",
+      "id": "37",
+      "bbox": [
+        708,
+        458,
+        120,
+        24
+      ],
+      "geometry": "rect",
+      "text": "Action",
+      "textPreview": "Action",
+      "resolvedFontSize": 15,
+      "resolvedTextStyle": {
+        "fontSize": 15,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Action"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Action",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Action",
+              "fontSize": 15,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 38,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/l0rqd4vm",
+      "id": "38",
+      "bbox": [
+        850,
+        459,
+        240,
+        32
+      ],
+      "geometry": "rect",
+      "text": "scale_up, scale_down, mixed, keep, insufficient_data ou unavailable",
+      "textPreview": "scale_up, scale_down, mixed, keep, insufficient_data ou unavailable",
+      "resolvedFontSize": 10.4,
+      "resolvedTextStyle": {
+        "fontSize": 10.4,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "scale_up, scale_down, mixed, keep,"
+          },
+          {
+            "index": 2,
+            "text": "insufficient_data ou unavailable"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "scale_up, scale_down, mixed, keep, insufficient_data ou unavailable",
+          "runs": [
+            {
+              "index": 1,
+              "text": "scale_up, scale_down, mixed, keep, insufficient_data ou unavailable",
+              "fontSize": 10.4,
+              "typeface": "Avenir Next",
+              "color": "#D4DEE5"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 39,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wfyxobm5",
+      "id": "39",
+      "bbox": [
+        58,
+        665,
+        1044,
+        1
+      ],
+      "geometry": "rect",
+      "fillColor": "#E8E3D6",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 40,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4nap4r65",
+      "id": "40",
+      "bbox": [
+        58,
+        678,
+        860,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Sources: docs/recommendations.md, internal/usecases/recommendations.py",
+      "textPreview": "Sources: docs/recommendations.md, internal/usecases/recommendations.py",
+      "resolvedFontSize": 8.51,
+      "resolvedTextStyle": {
+        "fontSize": 8.51,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Sources: docs/recommendations.md, internal/usecases/recommendations.py"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Sources: docs/recommendations.md, internal/usecases/recommendations.py",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Sources: docs/recommendations.md, internal/usecases/recommendations.py",
+              "fontSize": 8.51,
+              "typeface": "Avenir Next",
+              "color": "#8C8578"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 41,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/t83itgfm",
+      "id": "41",
+      "bbox": [
+        1166,
+        674,
+        42,
+        22
+      ],
+      "geometry": "rect",
+      "text": "05",
+      "textPreview": "05",
+      "resolvedFontSize": 12,
+      "resolvedTextStyle": {
+        "fontSize": 12,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "right"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "05"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "05",
+          "runs": [
+            {
+              "index": 1,
+              "text": "05",
+              "fontSize": 12,
+              "typeface": "Avenir Next",
+              "color": "#8C8578",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

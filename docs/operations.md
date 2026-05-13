@@ -132,6 +132,8 @@ Behavior:
 
 Useful endpoints:
 
+- list recommendations: `GET /v1/machines/recommendations`
+- acknowledge a recommendation: `POST /v1/machines/recommendations/{recommendation_id}/acknowledge`
 - read current recommendation: `GET /v1/machines/{machine_id}/recommendations`
 - read recommendation history: `GET /v1/machines/{machine_id}/recommendations/history`
 - enqueue a manual recalculation: `POST /v1/machines/{machine_id}/recommendations/recalculate`

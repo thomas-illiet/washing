@@ -1,0 +1,954 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/kqqmv1",
+    "id": "kqqmv1",
+    "slide": 8,
+    "layoutId": "110d7f63-7fbb-4fe8-a48c-73e2b5c46904",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Avenir Next",
+      "Georgia"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "110d7f63-7fbb-4fe8-a48c-73e2b5c46904",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zupwb2hw",
+      "id": "1",
+      "bbox": [
+        0,
+        0,
+        1280,
+        720
+      ],
+      "geometry": "rect",
+      "fillColor": "#F7F4EC",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/sfil0rqd",
+      "id": "2",
+      "bbox": [
+        0,
+        0,
+        1280,
+        6
+      ],
+      "geometry": "rect",
+      "fillColor": "#17202A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "image",
+      "scope": "slide",
+      "aid": "im/crmhk3q5",
+      "id": "3",
+      "bbox": [
+        0,
+        190,
+        1280,
+        346
+      ],
+      "alt": "Generated pilot-to-industrialization roadmap visual",
+      "contentType": "image/png",
+      "asset": {
+        "assetId": "c034b776-1116-4580-8bf3-dd75b1bb888e",
+        "contentType": "image/png",
+        "byteLength": 1622140
+      }
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/al87ed8b",
+      "id": "4",
+      "bbox": [
+        0,
+        0,
+        1280,
+        196
+      ],
+      "geometry": "rect",
+      "fillColor": "rgba(247, 244, 236, 0.96)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/z61032ls",
+      "id": "5",
+      "bbox": [
+        0,
+        536,
+        1280,
+        184
+      ],
+      "geometry": "rect",
+      "fillColor": "rgba(247, 244, 236, 0.96)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/orytsvu9",
+      "id": "6",
+      "name": "kicker-marker",
+      "bbox": [
+        58,
+        48,
+        5,
+        34
+      ],
+      "geometry": "rect",
+      "fillColor": "#D85C4A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hcrmhk3q",
+      "id": "7",
+      "name": "kicker-label",
+      "bbox": [
+        76,
+        50,
+        360,
+        28
+      ],
+      "geometry": "rect",
+      "text": "GO-TO-MARKET INTERNE",
+      "textPreview": "GO-TO-MARKET INTERNE",
+      "resolvedFontSize": 10,
+      "resolvedTextStyle": {
+        "fontSize": 10,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "GO-TO-MARKET INTERNE"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "GO-TO-MARKET INTERNE",
+          "runs": [
+            {
+              "index": 1,
+              "text": "GO-TO-MARKET INTERNE",
+              "fontSize": 10,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/6xkf6dcb",
+      "id": "8",
+      "bbox": [
+        58,
+        82,
+        1030,
+        92
+      ],
+      "geometry": "rect",
+      "text": "Pilote: 30 jours pour transformer le produit en decision d'investissement.",
+      "textPreview": "Pilote: 30 jours pour transformer le produit en decision d'investissement.",
+      "resolvedFontSize": 35,
+      "resolvedTextStyle": {
+        "fontSize": 35,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Pilote: 30 jours pour transformer le produit en decision"
+          },
+          {
+            "index": 2,
+            "text": "d'investissement."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Pilote: 30 jours pour transformer le produit en decision d'investissement.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Pilote: 30 jours pour transformer le produit en decision d'investissement.",
+              "fontSize": 35,
+              "typeface": "Georgia",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zed8v6ps",
+      "id": "9",
+      "bbox": [
+        86,
+        554,
+        286,
+        96
+      ],
+      "geometry": "rect",
+      "fillColor": "#FFFDF7",
+      "lineColor": "#3A6EA5",
+      "lineWidth": 1.4
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/n29gr2p8",
+      "id": "10",
+      "bbox": [
+        86,
+        554,
+        6,
+        96
+      ],
+      "geometry": "rect",
+      "fillColor": "#3A6EA5",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/yhgn29gr",
+      "id": "11",
+      "bbox": [
+        104,
+        566,
+        250,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Jours 1-7",
+      "textPreview": "Jours 1-7",
+      "resolvedFontSize": 10,
+      "resolvedTextStyle": {
+        "fontSize": 10,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Jours 1-7"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Jours 1-7",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Jours 1-7",
+              "fontSize": 10,
+              "typeface": "Avenir Next",
+              "color": "#5C6670",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/58z25kb6",
+      "id": "12",
+      "bbox": [
+        104,
+        588,
+        250,
+        22
+      ],
+      "geometry": "rect",
+      "text": "Brancher",
+      "textPreview": "Brancher",
+      "resolvedFontSize": 16,
+      "resolvedTextStyle": {
+        "fontSize": 16,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Brancher"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Brancher",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Brancher",
+              "fontSize": 16,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gn29gr2p",
+      "id": "13",
+      "bbox": [
+        104,
+        614,
+        250,
+        28
+      ],
+      "geometry": "rect",
+      "text": "1 plateforme cible, providers reels et donnees exploitables.",
+      "textPreview": "1 plateforme cible, providers reels et donnees exploitables.",
+      "resolvedFontSize": 8.8,
+      "resolvedTextStyle": {
+        "fontSize": 8.8,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "1 plateforme cible, providers reels et donnees exploitables."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "1 plateforme cible, providers reels et donnees exploitables.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "1 plateforme cible, providers reels et donnees exploitables.",
+              "fontSize": 8.8,
+              "typeface": "Avenir Next",
+              "color": "#5C6670"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nuxc3ylc",
+      "id": "14",
+      "bbox": [
+        492,
+        554,
+        286,
+        96
+      ],
+      "geometry": "rect",
+      "fillColor": "#FFFDF7",
+      "lineColor": "#4C8A43",
+      "lineWidth": 1.4
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/y90je9cv",
+      "id": "15",
+      "bbox": [
+        492,
+        554,
+        6,
+        96
+      ],
+      "geometry": "rect",
+      "fillColor": "#4C8A43",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5wjudg7a",
+      "id": "16",
+      "bbox": [
+        510,
+        566,
+        250,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Jours 8-21",
+      "textPreview": "Jours 8-21",
+      "resolvedFontSize": 10,
+      "resolvedTextStyle": {
+        "fontSize": 10,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Jours 8-21"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Jours 8-21",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Jours 8-21",
+              "fontSize": 10,
+              "typeface": "Avenir Next",
+              "color": "#5C6670",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gbq1oryt",
+      "id": "17",
+      "bbox": [
+        510,
+        588,
+        250,
+        22
+      ],
+      "geometry": "rect",
+      "text": "Comparer",
+      "textPreview": "Comparer",
+      "resolvedFontSize": 16,
+      "resolvedTextStyle": {
+        "fontSize": 16,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Comparer"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Comparer",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Comparer",
+              "fontSize": 16,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nqxs72x4",
+      "id": "18",
+      "bbox": [
+        510,
+        614,
+        250,
+        28
+      ],
+      "geometry": "rect",
+      "text": "Recommandations face aux decisions actuelles, avec acknowledgement.",
+      "textPreview": "Recommandations face aux decisions actuelles, avec acknowledgement.",
+      "resolvedFontSize": 8.8,
+      "resolvedTextStyle": {
+        "fontSize": 8.8,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Recommandations face aux decisions actuelles, avec"
+          },
+          {
+            "index": 2,
+            "text": "acknowledgement."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Recommandations face aux decisions actuelles, avec acknowledgement.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Recommandations face aux decisions actuelles, avec acknowledgement.",
+              "fontSize": 8.8,
+              "typeface": "Avenir Next",
+              "color": "#5C6670"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/u54zidon",
+      "id": "19",
+      "bbox": [
+        898,
+        554,
+        286,
+        96
+      ],
+      "geometry": "rect",
+      "fillColor": "#FFFDF7",
+      "lineColor": "#D99B2B",
+      "lineWidth": 1.4
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/29gr2p8n",
+      "id": "20",
+      "bbox": [
+        898,
+        554,
+        6,
+        96
+      ],
+      "geometry": "rect",
+      "fillColor": "#D99B2B",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vu9knih4",
+      "id": "21",
+      "bbox": [
+        916,
+        566,
+        250,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Jours 22-30",
+      "textPreview": "Jours 22-30",
+      "resolvedFontSize": 10,
+      "resolvedTextStyle": {
+        "fontSize": 10,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Jours 22-30"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Jours 22-30",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Jours 22-30",
+              "fontSize": 10,
+              "typeface": "Avenir Next",
+              "color": "#5C6670",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 22,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/kf6dcbul",
+      "id": "22",
+      "bbox": [
+        916,
+        588,
+        250,
+        22
+      ],
+      "geometry": "rect",
+      "text": "Decider",
+      "textPreview": "Decider",
+      "resolvedFontSize": 16,
+      "resolvedTextStyle": {
+        "fontSize": 16,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Decider"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Decider",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Decider",
+              "fontSize": 16,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 23,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/d0z61032",
+      "id": "23",
+      "bbox": [
+        916,
+        614,
+        250,
+        28
+      ],
+      "geometry": "rect",
+      "text": "ROI, risques, sponsoring et ordre de rollout industrialisable.",
+      "textPreview": "ROI, risques, sponsoring et ordre de rollout industrialisable.",
+      "resolvedFontSize": 8.8,
+      "resolvedTextStyle": {
+        "fontSize": 8.8,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "ROI, risques, sponsoring et ordre de rollout industrialisable."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "ROI, risques, sponsoring et ordre de rollout industrialisable.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "ROI, risques, sponsoring et ordre de rollout industrialisable.",
+              "fontSize": 8.8,
+              "typeface": "Avenir Next",
+              "color": "#5C6670"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 24,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/2lszqtcj",
+      "id": "24",
+      "bbox": [
+        58,
+        665,
+        1044,
+        1
+      ],
+      "geometry": "rect",
+      "fillColor": "#E8E3D6",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 25,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/v6psfil0",
+      "id": "25",
+      "bbox": [
+        58,
+        678,
+        860,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Sources: docs/deployment.md, docker-compose.example.yml",
+      "textPreview": "Sources: docs/deployment.md, docker-compose.example.yml",
+      "resolvedFontSize": 8.51,
+      "resolvedTextStyle": {
+        "fontSize": 8.51,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Sources: docs/deployment.md, docker-compose.example.yml"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Sources: docs/deployment.md, docker-compose.example.yml",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Sources: docs/deployment.md, docker-compose.example.yml",
+              "fontSize": 8.51,
+              "typeface": "Avenir Next",
+              "color": "#8C8578"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 26,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/knih4byh",
+      "id": "26",
+      "bbox": [
+        1166,
+        674,
+        42,
+        22
+      ],
+      "geometry": "rect",
+      "text": "08",
+      "textPreview": "08",
+      "resolvedFontSize": 12,
+      "resolvedTextStyle": {
+        "fontSize": 12,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "right"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "08"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "08",
+          "runs": [
+            {
+              "index": 1,
+              "text": "08",
+              "fontSize": 12,
+              "typeface": "Avenir Next",
+              "color": "#8C8578",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

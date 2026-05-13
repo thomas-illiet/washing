@@ -110,6 +110,8 @@ def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
             "revision",
             "is_current",
             "current_machine_id",
+            "acknowledged_at",
+            "acknowledged_by",
             "window_size",
             "min_cpu",
             "max_cpu",

@@ -1,0 +1,1067 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/v5w9q5",
+    "id": "v5w9q5",
+    "slide": 9,
+    "layoutId": "110d7f63-7fbb-4fe8-a48c-73e2b5c46904",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+    "masterLayoutName": "Master",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "Avenir Next",
+      "Georgia"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "110d7f63-7fbb-4fe8-a48c-73e2b5c46904",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "1c48249e-393a-4800-ab7c-7ebf1ec0c712",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zqtcj6to",
+      "id": "1",
+      "bbox": [
+        0,
+        0,
+        1280,
+        720
+      ],
+      "geometry": "rect",
+      "fillColor": "#17202A",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/obm58z25",
+      "id": "2",
+      "name": "kicker-marker",
+      "bbox": [
+        58,
+        48,
+        5,
+        34
+      ],
+      "geometry": "rect",
+      "fillColor": "#D99B2B",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hwfyxobm",
+      "id": "3",
+      "name": "kicker-label",
+      "bbox": [
+        76,
+        50,
+        360,
+        28
+      ],
+      "geometry": "rect",
+      "text": "DECISION",
+      "textPreview": "DECISION",
+      "resolvedFontSize": 10,
+      "resolvedTextStyle": {
+        "fontSize": 10,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "DECISION"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "DECISION",
+          "runs": [
+            {
+              "index": 1,
+              "text": "DECISION",
+              "fontSize": 10,
+              "typeface": "Avenir Next",
+              "color": "#F7F4EC",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/6xkf6dcb",
+      "id": "4",
+      "bbox": [
+        830,
+        76,
+        330,
+        64
+      ],
+      "geometry": "rect",
+      "text": "PILOTE",
+      "textPreview": "PILOTE",
+      "resolvedFontSize": 44,
+      "resolvedTextStyle": {
+        "fontSize": 44,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "right"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "PILOTE"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "PILOTE",
+          "runs": [
+            {
+              "index": 1,
+              "text": "PILOTE",
+              "fontSize": 44,
+              "typeface": "Georgia",
+              "color": "#D99B2B",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zed8v6ps",
+      "id": "5",
+      "bbox": [
+        58,
+        92,
+        920,
+        106
+      ],
+      "geometry": "rect",
+      "text": "La demande aux responsables: financer un pilote court et mesurable.",
+      "textPreview": "La demande aux responsables: financer un pilote court et mesurable.",
+      "resolvedFontSize": 40,
+      "resolvedTextStyle": {
+        "fontSize": 40,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "La demande aux responsables: financer un"
+          },
+          {
+            "index": 2,
+            "text": "pilote court et mesurable."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "La demande aux responsables: financer un pilote court et mesurable.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "La demande aux responsables: financer un pilote court et mesurable.",
+              "fontSize": 40,
+              "typeface": "Georgia",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/oza1gvy9",
+      "id": "6",
+      "bbox": [
+        62,
+        206,
+        760,
+        48
+      ],
+      "geometry": "rect",
+      "text": "Le produit est assez avance pour etre vendu en interne: API gouvernee, orchestration asynchrone, recommandations explicables, observabilite et trajectoire de deploiement.",
+      "textPreview": "Le produit est assez avance pour etre vendu en interne: API gouvernee, orchestration asynchrone, recommandations explicables, observabili...",
+      "resolvedFontSize": 14.51,
+      "resolvedTextStyle": {
+        "fontSize": 14.51,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Le produit est assez avance pour etre vendu en interne: API gouvernee, orchestration asynchrone,"
+          },
+          {
+            "index": 2,
+            "text": "recommandations explicables, observabilite et trajectoire de deploiement."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Le produit est assez avance pour etre vendu en interne: API gouvernee, orchestration asynchrone, recommandations explicables, observabilite et trajectoire de deploiement.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Le produit est assez avance pour etre vendu en interne: API gouvernee, orchestration asynchrone, recommandations explicables, observabilite et trajectoire de deploiement.",
+              "fontSize": 14.51,
+              "typeface": "Avenir Next",
+              "color": "#C9D2D8"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hk3q5o7q",
+      "id": "7",
+      "bbox": [
+        82,
+        300,
+        304,
+        178
+      ],
+      "geometry": "rect",
+      "fillColor": "#202B35",
+      "lineColor": "#3A6EA5",
+      "lineWidth": 1.4
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/al87ed8b",
+      "id": "8",
+      "bbox": [
+        82,
+        300,
+        8,
+        178
+      ],
+      "geometry": "rect",
+      "fillColor": "#3A6EA5",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/z61032ls",
+      "id": "9",
+      "bbox": [
+        106,
+        320,
+        256,
+        24
+      ],
+      "geometry": "rect",
+      "text": "Pourquoi maintenant",
+      "textPreview": "Pourquoi maintenant",
+      "resolvedFontSize": 16,
+      "resolvedTextStyle": {
+        "fontSize": 16,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Pourquoi maintenant"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Pourquoi maintenant",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Pourquoi maintenant",
+              "fontSize": 16,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/za1gvy90",
+      "id": "10",
+      "bbox": [
+        106,
+        356,
+        256,
+        34
+      ],
+      "geometry": "rect",
+      "text": "Decision capacity",
+      "textPreview": "Decision capacity",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "fontSize": 22,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Decision capacity"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Decision capacity",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Decision capacity",
+              "fontSize": 22,
+              "typeface": "Georgia",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ap4r65wj",
+      "id": "11",
+      "bbox": [
+        106,
+        398,
+        256,
+        62
+      ],
+      "geometry": "rect",
+      "text": "Chaque cycle de collecte peut devenir une recommandation tracable plutot qu'une analyse ponctuelle.",
+      "textPreview": "Chaque cycle de collecte peut devenir une recommandation tracable plutot qu'une analyse ponctuelle.",
+      "resolvedFontSize": 10.6,
+      "resolvedTextStyle": {
+        "fontSize": 10.6,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Chaque cycle de collecte peut devenir une"
+          },
+          {
+            "index": 2,
+            "text": "recommandation tracable plutot qu'une analyse"
+          },
+          {
+            "index": 3,
+            "text": "ponctuelle."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Chaque cycle de collecte peut devenir une recommandation tracable plutot qu'une analyse ponctuelle.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Chaque cycle de collecte peut devenir une recommandation tracable plutot qu'une analyse ponctuelle.",
+              "fontSize": 10.6,
+              "typeface": "Avenir Next",
+              "color": "#D7E1E8"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hgn29gr2",
+      "id": "12",
+      "bbox": [
+        488,
+        300,
+        304,
+        178
+      ],
+      "geometry": "rect",
+      "fillColor": "#202B35",
+      "lineColor": "#4C8A43",
+      "lineWidth": 1.4
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/svu9knih",
+      "id": "13",
+      "bbox": [
+        488,
+        300,
+        8,
+        178
+      ],
+      "geometry": "rect",
+      "fillColor": "#4C8A43",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/zidonyd0",
+      "id": "14",
+      "bbox": [
+        512,
+        320,
+        256,
+        24
+      ],
+      "geometry": "rect",
+      "text": "Ce qu'il faut",
+      "textPreview": "Ce qu'il faut",
+      "resolvedFontSize": 16,
+      "resolvedTextStyle": {
+        "fontSize": 16,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Ce qu'il faut"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Ce qu'il faut",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Ce qu'il faut",
+              "fontSize": 16,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/a1gvy90j",
+      "id": "15",
+      "bbox": [
+        512,
+        356,
+        256,
+        34
+      ],
+      "geometry": "rect",
+      "text": "Perimetre pilote",
+      "textPreview": "Perimetre pilote",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "fontSize": 22,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Perimetre pilote"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Perimetre pilote",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Perimetre pilote",
+              "fontSize": 22,
+              "typeface": "Georgia",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/hoza1gvy",
+      "id": "16",
+      "bbox": [
+        512,
+        398,
+        256,
+        62
+      ],
+      "geometry": "rect",
+      "text": "Une plateforme cible, des providers reels, et un sponsor pour valider les actions recommandees.",
+      "textPreview": "Une plateforme cible, des providers reels, et un sponsor pour valider les actions recommandees.",
+      "resolvedFontSize": 10.6,
+      "resolvedTextStyle": {
+        "fontSize": 10.6,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Une plateforme cible, des providers reels, et un"
+          },
+          {
+            "index": 2,
+            "text": "sponsor pour valider les actions recommandees."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Une plateforme cible, des providers reels, et un sponsor pour valider les actions recommandees.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Une plateforme cible, des providers reels, et un sponsor pour valider les actions recommandees.",
+              "fontSize": 10.6,
+              "typeface": "Avenir Next",
+              "color": "#D7E1E8"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/s36hcrmh",
+      "id": "17",
+      "bbox": [
+        894,
+        300,
+        304,
+        178
+      ],
+      "geometry": "rect",
+      "fillColor": "#202B35",
+      "lineColor": "#D99B2B",
+      "lineWidth": 1.4
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/3m94fu18",
+      "id": "18",
+      "bbox": [
+        894,
+        300,
+        8,
+        178
+      ],
+      "geometry": "rect",
+      "fillColor": "#D99B2B",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/a5gbq1or",
+      "id": "19",
+      "bbox": [
+        918,
+        320,
+        256,
+        24
+      ],
+      "geometry": "rect",
+      "text": "Ce qu'on mesure",
+      "textPreview": "Ce qu'on mesure",
+      "resolvedFontSize": 16,
+      "resolvedTextStyle": {
+        "fontSize": 16,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Ce qu'on mesure"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Ce qu'on mesure",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Ce qu'on mesure",
+              "fontSize": 16,
+              "typeface": "Avenir Next",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/yxobm58z",
+      "id": "20",
+      "bbox": [
+        918,
+        356,
+        256,
+        34
+      ],
+      "geometry": "rect",
+      "text": "Gain + confiance",
+      "textPreview": "Gain + confiance",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "fontSize": 22,
+        "typeface": "Georgia",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Gain + confiance"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Gain + confiance",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Gain + confiance",
+              "fontSize": 22,
+              "typeface": "Georgia",
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nih4byhg",
+      "id": "21",
+      "bbox": [
+        918,
+        398,
+        256,
+        62
+      ],
+      "geometry": "rect",
+      "text": "Reduction des arbitrages manuels, qualite des recommandations, taux d'acknowledgement.",
+      "textPreview": "Reduction des arbitrages manuels, qualite des recommandations, taux d'acknowledgement.",
+      "resolvedFontSize": 10.6,
+      "resolvedTextStyle": {
+        "fontSize": 10.6,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Reduction des arbitrages manuels, qualite des"
+          },
+          {
+            "index": 2,
+            "text": "recommandations, taux d'acknowledgement."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Reduction des arbitrages manuels, qualite des recommandations, taux d'acknowledgement.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Reduction des arbitrages manuels, qualite des recommandations, taux d'acknowledgement.",
+              "fontSize": 10.6,
+              "typeface": "Avenir Next",
+              "color": "#D7E1E8"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 22,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/g3ex0nux",
+      "id": "22",
+      "bbox": [
+        86,
+        538,
+        1010,
+        56
+      ],
+      "geometry": "rect",
+      "fillColor": "#F7F4EC",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 23,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5o7qpg3e",
+      "id": "23",
+      "bbox": [
+        112,
+        557,
+        940,
+        20
+      ],
+      "geometry": "rect",
+      "text": "Arbitrages demandes: choisir le perimetre pilote, confirmer les providers cibles, valider qui peut accuser reception des recommandations.",
+      "textPreview": "Arbitrages demandes: choisir le perimetre pilote, confirmer les providers cibles, valider qui peut accuser reception des recommandations.",
+      "resolvedFontSize": 13,
+      "resolvedTextStyle": {
+        "fontSize": 13,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Arbitrages demandes: choisir le perimetre pilote, confirmer les providers cibles, valider qui peut accuser reception des recommandations."
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Arbitrages demandes: choisir le perimetre pilote, confirmer les providers cibles, valider qui peut accuser reception des recommandations.",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Arbitrages demandes: choisir le perimetre pilote, confirmer les providers cibles, valider qui peut accuser reception des recommandations.",
+              "fontSize": 13,
+              "typeface": "Avenir Next",
+              "color": "#17202A",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 24,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ylc7u54z",
+      "id": "24",
+      "bbox": [
+        58,
+        665,
+        1044,
+        1
+      ],
+      "geometry": "rect",
+      "fillColor": "#4B5560",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 25,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/r65wjudg",
+      "id": "25",
+      "bbox": [
+        58,
+        678,
+        860,
+        18
+      ],
+      "geometry": "rect",
+      "text": "Sources: synthese du code et des docs; aucune metrique de production inventee",
+      "textPreview": "Sources: synthese du code et des docs; aucune metrique de production inventee",
+      "resolvedFontSize": 8.51,
+      "resolvedTextStyle": {
+        "fontSize": 8.51,
+        "typeface": "Avenir Next",
+        "alignment": "left"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "Sources: synthese du code et des docs; aucune metrique de production inventee"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "Sources: synthese du code et des docs; aucune metrique de production inventee",
+          "runs": [
+            {
+              "index": 1,
+              "text": "Sources: synthese du code et des docs; aucune metrique de production inventee",
+              "fontSize": 8.51,
+              "typeface": "Avenir Next",
+              "color": "#C9D2D8"
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    },
+    {
+      "order": 26,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gr2p8nqx",
+      "id": "26",
+      "bbox": [
+        1166,
+        674,
+        42,
+        22
+      ],
+      "geometry": "rect",
+      "text": "09",
+      "textPreview": "09",
+      "resolvedFontSize": 12,
+      "resolvedTextStyle": {
+        "fontSize": 12,
+        "typeface": "Avenir Next",
+        "bold": true,
+        "alignment": "right"
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "09"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "09",
+          "runs": [
+            {
+              "index": 1,
+              "text": "09",
+              "fontSize": 12,
+              "typeface": "Avenir Next",
+              "color": "#C9D2D8",
+              "bold": true
+            }
+          ]
+        }
+      ],
+      "fillColor": "rgba(0, 0, 0, 0)",
+      "lineColor": "rgba(0, 0, 0, 0)",
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

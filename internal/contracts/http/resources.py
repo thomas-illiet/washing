@@ -358,6 +358,8 @@ class MachineRecommendationRead(ApiModel):
     action: MachineRecommendationAction
     window_size: int
     computed_at: datetime
+    acknowledged_at: datetime | None = None
+    acknowledged_by: str | None = None
     current_cpu: float | None = None
     current_ram_mb: float | None = None
     current_disk_mb: float | None = None
