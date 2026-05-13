@@ -209,7 +209,7 @@ class Machine(TimestampMixin, Base):
         back_populates="machine",
         cascade="all, delete-orphan",
     )
-    recommendations: Mapped[list["MachineRecommendation"]] = relationship(
+    optimizations: Mapped[list["MachineOptimization"]] = relationship(
         back_populates="machine",
         cascade="all, delete-orphan",
     )
@@ -251,23 +251,23 @@ class MachineFlavorHistory(Base):
     source_provisioner: Mapped["MachineProvisioner | None"] = relationship()
 
 
-class MachineRecommendation(TimestampMixin, Base):
-    """Versioned recommendation snapshot for one machine."""
-    __tablename__ = "machine_recommendations"
+class MachineOptimization(TimestampMixin, Base):
+    """Versioned optimization snapshot for one machine."""
+    __tablename__ = "machine_optimizations"
     __table_args__ = (
-        UniqueConstraint("machine_id", "revision", name="uq_machine_recommendations_machine_revision"),
-        UniqueConstraint("current_machine_id", name="uq_machine_recommendations_current_machine_id"),
+        UniqueConstraint("machine_id", "revision", name="uq_machine_optimizations_machine_revision"),
+        UniqueConstraint("current_machine_id", name="uq_machine_optimizations_current_machine_id"),
         CheckConstraint(
             "current_machine_id IS NULL OR current_machine_id = machine_id",
-            name="ck_machine_recommendations_current_machine_matches_machine",
+            name="ck_machine_optimizations_current_machine_matches_machine",
         ),
         CheckConstraint(
             "(is_current AND current_machine_id IS NOT NULL AND superseded_at IS NULL) "
             "OR ((NOT is_current) AND current_machine_id IS NULL AND superseded_at IS NOT NULL)",
-            name="ck_machine_recommendations_current_state",
+            name="ck_machine_optimizations_current_state",
         ),
-        Index("ix_machine_recommendations_machine_current", "machine_id", "is_current"),
-        Index("ix_machine_recommendations_superseded_at", "superseded_at"),
+        Index("ix_machine_optimizations_machine_current", "machine_id", "is_current"),
+        Index("ix_machine_optimizations_superseded_at", "superseded_at"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -294,7 +294,7 @@ class MachineRecommendation(TimestampMixin, Base):
     target_disk_mb: Mapped[float | None] = mapped_column(Float)
     details: Mapped[JsonDict] = mapped_column(JSON, default=dict, nullable=False)
 
-    machine: Mapped["Machine"] = relationship(back_populates="recommendations")
+    machine: Mapped["Machine"] = relationship(back_populates="optimizations")
 
 
 class MachineMetricMixin(TimestampMixin):

@@ -24,7 +24,7 @@ from app.mcp.main import create_app as create_mcp_app
 from app.mcp.config import get_settings as get_mcp_settings
 from internal.infra.auth import clear_oidc_caches
 from internal.infra.config.settings import get_settings
-from internal.infra.db.models import Machine, MachineRecommendation, Platform
+from internal.infra.db.models import Machine, MachineOptimization, Platform
 
 
 class LiveServer:
@@ -233,20 +233,20 @@ def test_oidc_supports_custom_role_names(
     assert created.json()["name"] == "GCP"
 
 
-def test_oidc_acknowledge_recommendation_records_principal(
+def test_oidc_acknowledge_optimization_records_principal(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
     oidc_provider: FakeOIDCProvider,
 ) -> None:
-    """Acknowledging a recommendation should audit the authenticated principal."""
+    """Acknowledging an optimization should audit the authenticated principal."""
     client = _build_api_client(db_session, monkeypatch, oidc_provider)
     admin_headers = {"Authorization": f"Bearer {oidc_provider.issue_token(roles=['user', 'admin'])}"}
-    platform = Platform(name="OIDC Recommendation Ack")
-    machine = Machine(platform=platform, hostname="node-auth-rec")
+    platform = Platform(name="OIDC Optimization Ack")
+    machine = Machine(platform=platform, hostname="node-auth-opt")
     db_session.add_all([platform, machine])
     db_session.commit()
 
-    recommendation = MachineRecommendation(
+    optimization = MachineOptimization(
         machine_id=machine.id,
         revision=1,
         is_current=True,
@@ -281,11 +281,11 @@ def test_oidc_acknowledge_recommendation_records_principal(
             }
         },
     )
-    db_session.add(recommendation)
+    db_session.add(optimization)
     db_session.commit()
 
     response = client.post(
-        f"/v1/machines/recommendations/{recommendation.id}/acknowledge",
+        f"/v1/machines/optimizations/{optimization.id}/acknowledge",
         headers=admin_headers,
     )
 

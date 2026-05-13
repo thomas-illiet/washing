@@ -10,7 +10,7 @@ from internal.infra.db.base import utcnow
 from internal.infra.db.models import CeleryTaskExecution
 from internal.infra.db.session import SessionLocal
 from internal.infra.queue.task_names import (
-    RECALCULATE_MACHINE_RECOMMENDATIONS_TASK,
+    RECALCULATE_MACHINE_OPTIMIZATIONS_TASK,
     RUN_PROVIDER_MACHINE_TASK,
     RUN_PROVIDER_TASK,
     RUN_PROVISIONER_TASK,
@@ -26,7 +26,7 @@ TASK_RESOURCE_TYPES = {
     RUN_PROVIDER_TASK: "provider",
     RUN_PROVISIONER_TASK: "provisioner",
     SYNC_APPLICATION_METRICS_TASK: "application",
-    RECALCULATE_MACHINE_RECOMMENDATIONS_TASK: "machine",
+    RECALCULATE_MACHINE_OPTIMIZATIONS_TASK: "machine",
 }
 TERMINAL_TASK_STATES = {"SUCCESS", "FAILURE", "REVOKED"}
 _CELERY_TASK_TRACKING_REGISTERED = False

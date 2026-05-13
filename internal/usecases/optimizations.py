@@ -1,4 +1,4 @@
-"""Machine recommendation calculation and versioning use cases."""
+"""Machine optimization calculation and versioning use cases."""
 
 from __future__ import annotations
 
@@ -15,11 +15,11 @@ from internal.infra.db.models import (
     MachineDiskMetric,
     MachineProvider,
     MachineRAMMetric,
-    MachineRecommendation,
+    MachineOptimization,
 )
 
-RecommendationStatus = Literal["ready", "partial", "error"]
-RecommendationAction = Literal["scale_up", "scale_down", "mixed", "keep", "insufficient_data", "unavailable"]
+OptimizationStatus = Literal["ready", "partial", "error"]
+OptimizationAction = Literal["scale_up", "scale_down", "mixed", "keep", "insufficient_data", "unavailable"]
 ScopeStatus = Literal["ok", "missing_provider", "ambiguous_provider", "insufficient_data", "missing_current_capacity"]
 ScopeAction = Literal["scale_up", "scale_down", "keep", "insufficient_data", "unavailable"]
 ScopeName = Literal["cpu", "ram", "disk"]
@@ -40,20 +40,20 @@ DOWNSCALE_CAPACITY_MARGIN = 0.80
 DISK_STEP_MB = 10 * 1024
 
 
-def refresh_machine_recommendation(db: Session, machine_id: int) -> dict[str, int | str]:
-    """Recompute and version the stored recommendation for one machine."""
+def refresh_machine_optimization(db: Session, machine_id: int) -> dict[str, int | str]:
+    """Recompute and version the stored optimization for one machine."""
     machine = db.get(Machine, machine_id)
     if machine is None:
         raise ValueError(f"machine {machine_id} not found")
 
     db.flush()
     now = utcnow()
-    snapshot = _build_recommendation_snapshot(db, machine, now)
-    current = _current_recommendation_query(db, machine_id).one_or_none()
+    snapshot = _build_optimization_snapshot(db, machine, now)
+    current = _current_optimization_query(db, machine_id).one_or_none()
 
     if current is None:
         db.add(
-            MachineRecommendation(
+            MachineOptimization(
                 machine_id=machine.id,
                 revision=1,
                 is_current=True,
@@ -64,7 +64,7 @@ def refresh_machine_recommendation(db: Session, machine_id: int) -> dict[str, in
         )
         return {"machine_id": machine.id, "created": 1, "updated": 0, "status": "created"}
 
-    if _recommendation_snapshot_matches(current, snapshot):
+    if _optimization_snapshot_matches(current, snapshot):
         current.computed_at = now
         return {"machine_id": machine.id, "created": 0, "updated": 1, "status": "updated"}
 
@@ -74,7 +74,7 @@ def refresh_machine_recommendation(db: Session, machine_id: int) -> dict[str, in
     db.flush()
 
     db.add(
-        MachineRecommendation(
+        MachineOptimization(
             machine_id=machine.id,
             revision=current.revision + 1,
             is_current=True,
@@ -86,7 +86,7 @@ def refresh_machine_recommendation(db: Session, machine_id: int) -> dict[str, in
     return {"machine_id": machine.id, "created": 1, "updated": 1, "status": "revised"}
 
 
-def _build_recommendation_snapshot(db: Session, machine: Machine, now) -> dict[str, object]:
+def _build_optimization_snapshot(db: Session, machine: Machine, now) -> dict[str, object]:
     """Build the stored snapshot payload for one machine."""
     settings = get_settings()
     scopes = {
@@ -95,39 +95,39 @@ def _build_recommendation_snapshot(db: Session, machine: Machine, now) -> dict[s
             machine,
             "cpu",
             machine.cpu,
-            settings.flavor_recommendation_window_size,
-            settings.flavor_recommendation_min_cpu,
-            settings.flavor_recommendation_max_cpu,
+            settings.flavor_optimization_window_size,
+            settings.flavor_optimization_min_cpu,
+            settings.flavor_optimization_max_cpu,
         ),
         "ram": _evaluate_scope(
             db,
             machine,
             "ram",
             machine.ram_mb,
-            settings.flavor_recommendation_window_size,
-            settings.flavor_recommendation_min_ram_mb,
-            settings.flavor_recommendation_max_ram_mb,
+            settings.flavor_optimization_window_size,
+            settings.flavor_optimization_min_ram_mb,
+            settings.flavor_optimization_max_ram_mb,
         ),
         "disk": _evaluate_scope(
             db,
             machine,
             "disk",
             machine.disk_mb,
-            settings.flavor_recommendation_window_size,
+            settings.flavor_optimization_window_size,
             None,
             None,
         ),
     }
-    status, action = _aggregate_recommendation(scopes)
+    status, action = _aggregate_optimization(scopes)
 
     return {
         "status": status,
         "action": action,
-        "window_size": settings.flavor_recommendation_window_size,
-        "min_cpu": settings.flavor_recommendation_min_cpu,
-        "max_cpu": settings.flavor_recommendation_max_cpu,
-        "min_ram_mb": settings.flavor_recommendation_min_ram_mb,
-        "max_ram_mb": settings.flavor_recommendation_max_ram_mb,
+        "window_size": settings.flavor_optimization_window_size,
+        "min_cpu": settings.flavor_optimization_min_cpu,
+        "max_cpu": settings.flavor_optimization_max_cpu,
+        "min_ram_mb": settings.flavor_optimization_min_ram_mb,
+        "max_ram_mb": settings.flavor_optimization_max_ram_mb,
         "computed_at": now,
         "current_cpu": machine.cpu,
         "current_ram_mb": machine.ram_mb,
@@ -148,7 +148,7 @@ def _evaluate_scope(
     min_capacity: int | None,
     max_capacity: int | None,
 ) -> dict[str, object]:
-    """Evaluate one scope recommendation from the latest stored metrics."""
+    """Evaluate one scope optimization from the latest stored metrics."""
     providers = _visible_enabled_providers_for_scope(db, machine, scope)
     provider_id = providers[0].id if len(providers) == 1 else None
     details = {
@@ -321,8 +321,8 @@ def _rounded_target(scope: ScopeName, raw_target: float) -> float | None:
     return float(max(DISK_STEP_MB, ceil(raw_target / DISK_STEP_MB) * DISK_STEP_MB))
 
 
-def _aggregate_recommendation(scopes: dict[ScopeName, dict[str, object]]) -> tuple[RecommendationStatus, RecommendationAction]:
-    """Aggregate scope-level decisions into one global recommendation."""
+def _aggregate_optimization(scopes: dict[ScopeName, dict[str, object]]) -> tuple[OptimizationStatus, OptimizationAction]:
+    """Aggregate scope-level decisions into one global optimization."""
     has_ambiguous_provider = any(scope["status"] == "ambiguous_provider" for scope in scopes.values())
     ok_scopes = [scope for scope in scopes.values() if scope["status"] == "ok"]
     actions = {scope["action"] for scope in ok_scopes}
@@ -338,7 +338,7 @@ def _aggregate_recommendation(scopes: dict[ScopeName, dict[str, object]]) -> tup
     return "ready", _action_from_set(actions)
 
 
-def _action_from_set(actions: set[object]) -> RecommendationAction:
+def _action_from_set(actions: set[object]) -> OptimizationAction:
     """Return the aggregated action for the set of scope actions."""
     if "scale_up" in actions and "scale_down" in actions:
         return "mixed"
@@ -362,19 +362,19 @@ def _effective_target(current_capacity: float | None, scope: dict[str, object]) 
     return float(current_capacity)
 
 
-def _current_recommendation_query(db: Session, machine_id: int):
-    """Return the query used to load the current recommendation row."""
+def _current_optimization_query(db: Session, machine_id: int):
+    """Return the query used to load the current optimization row."""
     query = (
-        db.query(MachineRecommendation)
-        .filter(MachineRecommendation.machine_id == machine_id)
-        .filter(MachineRecommendation.is_current.is_(True))
+        db.query(MachineOptimization)
+        .filter(MachineOptimization.machine_id == machine_id)
+        .filter(MachineOptimization.is_current.is_(True))
     )
     if db.get_bind().dialect.name != "sqlite":
         query = query.with_for_update()
     return query
 
 
-def _recommendation_snapshot_matches(current: MachineRecommendation, snapshot: dict[str, object]) -> bool:
+def _optimization_snapshot_matches(current: MachineOptimization, snapshot: dict[str, object]) -> bool:
     """Return whether the calculated snapshot matches the stored current row."""
     return (
         current.status == snapshot["status"]

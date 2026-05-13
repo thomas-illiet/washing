@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 
-from . import crud, metrics, providers, provisioners, recommendations
+from . import crud, metrics, providers, provisioners, optimizations
 
 
 router = APIRouter()
@@ -10,4 +10,4 @@ router.include_router(crud.router)
 router.include_router(metrics.router)
 router.include_router(providers.router)
 router.include_router(provisioners.router)
-router.include_router(recommendations.router)
+router.include_router(optimizations.router)

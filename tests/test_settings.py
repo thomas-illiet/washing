@@ -89,29 +89,29 @@ def test_application_retention_days_must_stay_positive(monkeypatch: pytest.Monke
         Settings(_env_file=None)
 
 
-def test_flavor_recommendation_window_size_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Recommendation window size should reject zero or negative values."""
+def test_flavor_optimization_window_size_must_stay_positive(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Optimization window size should reject zero or negative values."""
     monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
-    monkeypatch.setenv("FLAVOR_RECOMMENDATION_WINDOW_SIZE", "0")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_WINDOW_SIZE", "0")
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
 
-def test_flavor_recommendation_cpu_bounds_must_be_ordered(monkeypatch: pytest.MonkeyPatch) -> None:
-    """CPU recommendation bounds should reject inverted minimum and maximum values."""
+def test_flavor_optimization_cpu_bounds_must_be_ordered(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CPU optimization bounds should reject inverted minimum and maximum values."""
     monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
-    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MIN_CPU", "8")
-    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MAX_CPU", "4")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MIN_CPU", "8")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MAX_CPU", "4")
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
 
-def test_flavor_recommendation_ram_bounds_require_gib_alignment(monkeypatch: pytest.MonkeyPatch) -> None:
-    """RAM recommendation bounds should stay aligned on GiB capacities."""
+def test_flavor_optimization_ram_bounds_require_gib_alignment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RAM optimization bounds should stay aligned on GiB capacities."""
     monkeypatch.setenv("DATABASE_ENCRYPTION_KEY", TEST_ENCRYPTION_KEY)
-    monkeypatch.setenv("FLAVOR_RECOMMENDATION_MIN_RAM_MB", "2500")
+    monkeypatch.setenv("FLAVOR_OPTIMIZATION_MIN_RAM_MB", "2500")
 
     with pytest.raises(ValidationError):
         Settings(_env_file=None)

@@ -11,4 +11,4 @@ SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK = "applications.sync_inventory_discove
 DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK = "applications.dispatch_due_metrics_syncs"
 SYNC_APPLICATION_METRICS_TASK = "applications.sync_metrics"
 DISPATCH_DUE_MACHINE_PROVISIONER_JOBS_TASK = "scheduler.dispatch_due_machine_provisioner_jobs"
-RECALCULATE_MACHINE_RECOMMENDATIONS_TASK = "machines.recalculate_recommendations"
+RECALCULATE_MACHINE_OPTIMIZATIONS_TASK = "machines.recalculate_optimizations"

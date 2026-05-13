@@ -79,22 +79,22 @@ The local Compose stack points Keycloak at the same `washing_machine` PostgreSQL
 | `APPLICATION_METRICS_SYNC_BATCH_SIZE` | `0` | Beat, workers | `0` means auto-calculate a batch size from the window and tick frequency. |
 | `APPLICATION_METRICS_SYNC_RETRY_AFTER_SECONDS` | `3600` | Beat, workers | Delay before retrying an application already marked as scheduled. |
 
-## Machine recommendation settings
+## Machine optimization settings
 
 | Variable | Default | Used by | Notes |
 | --- | --- | --- | --- |
-| `FLAVOR_RECOMMENDATION_WINDOW_SIZE` | `30` | API, worker | Number of latest stored samples read per scope (`cpu`, `ram`, `disk`) when computing a recommendation. |
-| `FLAVOR_RECOMMENDATION_MIN_CPU` | `1` | API, worker | Lower bound for proposed CPU targets. Must stay positive and lower than or equal to `FLAVOR_RECOMMENDATION_MAX_CPU`. |
-| `FLAVOR_RECOMMENDATION_MAX_CPU` | `64` | API, worker | Upper bound for proposed CPU targets. |
-| `FLAVOR_RECOMMENDATION_MIN_RAM_MB` | `2048` | API, worker | Lower bound for proposed RAM targets. Must be a multiple of `1024`. |
-| `FLAVOR_RECOMMENDATION_MAX_RAM_MB` | `262144` | API, worker | Upper bound for proposed RAM targets. Must be a multiple of `1024`. |
+| `FLAVOR_OPTIMIZATION_WINDOW_SIZE` | `30` | API, worker | Number of latest stored samples read per scope (`cpu`, `ram`, `disk`) when computing an optimization. |
+| `FLAVOR_OPTIMIZATION_MIN_CPU` | `1` | API, worker | Lower bound for proposed CPU targets. Must stay positive and lower than or equal to `FLAVOR_OPTIMIZATION_MAX_CPU`. |
+| `FLAVOR_OPTIMIZATION_MAX_CPU` | `64` | API, worker | Upper bound for proposed CPU targets. |
+| `FLAVOR_OPTIMIZATION_MIN_RAM_MB` | `2048` | API, worker | Lower bound for proposed RAM targets. Must be a multiple of `1024`. |
+| `FLAVOR_OPTIMIZATION_MAX_RAM_MB` | `262144` | API, worker | Upper bound for proposed RAM targets. Must be a multiple of `1024`. |
 
 Behavior notes:
 
-- the recommendation projection stores the `window_size` and CPU/RAM bounds used for each revision
+- the optimization projection stores the `window_size` and CPU/RAM bounds used for each revision
 - changing one of these variables only affects future recalculations
-- existing recommendation rows are not backfilled automatically after a config change
-- a later refresh can create a new recommendation revision even if the public API target stays the same, because the calculation context changed
+- existing optimization rows are not backfilled automatically after a config change
+- a later refresh can create a new optimization revision even if the public API target stays the same, because the calculation context changed
 
 ## Observability settings
 

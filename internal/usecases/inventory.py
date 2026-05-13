@@ -13,7 +13,7 @@ from internal.infra.connectors.registry import get_machine_provisioner
 from internal.infra.db.base import utcnow
 from internal.infra.db.models import Machine, MachineFlavorHistory, MachineProvisioner
 from internal.infra.security import sanitize_operational_error
-from internal.usecases.recommendations import refresh_machine_recommendation
+from internal.usecases.optimizations import refresh_machine_optimization
 
 PROVISIONER_DISABLED_DETAIL = "provisioner must be enabled before it can run"
 
@@ -114,7 +114,7 @@ def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int
         created = 0
         updated = 0
         flavor_changes = 0
-        recommendation_machine_ids: set[int] = set()
+        optimization_machine_ids: set[int] = set()
 
         for record in records:
             record = _normalize_machine_record(record)
@@ -137,14 +137,14 @@ def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int
                 db.add(machine)
                 db.flush()
                 _record_flavor_snapshot(db, machine, provisioner, record, now)
-                recommendation_machine_ids.add(machine.id)
+                optimization_machine_ids.add(machine.id)
                 created += 1
                 continue
 
             if _flavor_changed(machine, record):
                 _record_flavor_snapshot(db, machine, provisioner, record, now)
                 flavor_changes += 1
-                recommendation_machine_ids.add(machine.id)
+                optimization_machine_ids.add(machine.id)
 
             machine.source_provisioner_id = provisioner.id
             machine.application = application
@@ -158,8 +158,8 @@ def run_provisioner_inventory(db: Session, provisioner_id: int) -> dict[str, int
             machine.extra = record.extra
             updated += 1
 
-        for recommendation_machine_id in sorted(recommendation_machine_ids):
-            refresh_machine_recommendation(db, recommendation_machine_id)
+        for optimization_machine_id in sorted(optimization_machine_ids):
+            refresh_machine_optimization(db, optimization_machine_id)
 
         provisioner.last_success_at = now
         provisioner.last_error = None

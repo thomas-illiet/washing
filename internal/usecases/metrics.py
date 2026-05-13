@@ -10,7 +10,7 @@ from internal.infra.connectors.registry import get_metric_collector
 from internal.infra.db.base import utcnow
 from internal.infra.db.models import Machine, MachineCPUMetric, MachineDiskMetric, MachineProvider, MachineRAMMetric
 from internal.infra.security import sanitize_operational_error
-from internal.usecases.recommendations import refresh_machine_recommendation
+from internal.usecases.optimizations import refresh_machine_optimization
 
 
 METRIC_MODELS = {
@@ -183,7 +183,7 @@ def run_provider_machine_collection(db: Session, provider_id: int, machine_id: i
             result = _upsert_daily_metric(db, provider, records[0], [machine])
 
         provider.last_success_at = utcnow()
-        refresh_machine_recommendation(db, machine.id)
+        refresh_machine_optimization(db, machine.id)
         db.commit()
         return {
             "provider_id": provider.id,

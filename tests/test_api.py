@@ -16,7 +16,7 @@ from internal.infra.db.models import (
     MachineFlavorHistory,
     MachineProvider,
     MachineProvisioner,
-    MachineRecommendation,
+    MachineOptimization,
     Platform,
 )
 from internal.usecases.inventory import run_provisioner_inventory
@@ -31,7 +31,7 @@ EXPECTED_OPENAPI_TAG_DESCRIPTIONS = {
     "Platforms": "Cycle programs and settings.",
     "Applications": "Loads to track in the drum.",
     "Machines": "Main drum and inventory.",
-    "Machine Recommendations": "Capacity advice and acknowledged wash labels.",
+    "Machine Optimizations": "Capacity advice and acknowledged wash labels.",
     "Machine Metrics": "CPU, RAM, and disk spin cycle.",
     "Machine Providers": "Water inlets and metric sources.",
     "Machine Provisioners": "Detergent drawers and inventory connectors.",
@@ -91,7 +91,7 @@ def test_swagger_theme_css_is_served(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
     assert "--wm-bg: #f6fbfd;" in response.text
-    assert "machine-recommendations.png" in response.text
+    assert "machine-optimizations.png" in response.text
     scheme_container_rule = response.text.split(".swagger-ui .scheme-container {", maxsplit=1)[1].split("}", maxsplit=1)[0]
     assert "backdrop-filter" not in scheme_container_rule
 
@@ -121,7 +121,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "extra" not in schemas["ApplicationRead"]["properties"]
     assert "application" in schemas["MachineRead"]["properties"]
     assert "application_id" not in schemas["MachineRead"]["properties"]
-    assert {"acknowledged_at", "acknowledged_by"} <= set(schemas["MachineRecommendationRead"]["properties"])
+    assert {"acknowledged_at", "acknowledged_by"} <= set(schemas["MachineOptimizationRead"]["properties"])
     assert "enabled" not in schemas["CapsuleProvisionerCreate"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerUpdate"]["properties"]
     assert "parameters" in schemas["CapsuleProvisionerCreate"]["properties"]
@@ -153,11 +153,11 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/metrics" in paths
     assert "/v1/machines/{machine_id}/metrics" in paths
     assert "/v1/machines/{machine_id}" in paths
-    assert "/v1/machines/recommendations" in paths
-    assert "/v1/machines/recommendations/{recommendation_id}/acknowledge" in paths
-    assert "/v1/machines/{machine_id}/recommendations" in paths
-    assert "/v1/machines/{machine_id}/recommendations/history" in paths
-    assert "/v1/machines/{machine_id}/recommendations/recalculate" in paths
+    assert "/v1/machines/optimizations" in paths
+    assert "/v1/machines/optimizations/{optimization_id}/acknowledge" in paths
+    assert "/v1/machines/{machine_id}/optimizations" in paths
+    assert "/v1/machines/{machine_id}/optimizations/history" in paths
+    assert "/v1/machines/{machine_id}/optimizations/recalculate" in paths
     assert "/v1/machines/providers" in paths
     assert "/v1/machines/providers/{provider_id}" in paths
     assert "/v1/machines/providers/sync" in paths
@@ -178,8 +178,8 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "Health" not in tags
     assert tags == list(EXPECTED_OPENAPI_TAG_DESCRIPTIONS)
     assert tag_descriptions == EXPECTED_OPENAPI_TAG_DESCRIPTIONS
-    assert tags.index("Machines") < tags.index("Machine Recommendations")
-    assert tags.index("Machine Recommendations") < tags.index("Machine Metrics")
+    assert tags.index("Machines") < tags.index("Machine Optimizations")
+    assert tags.index("Machine Optimizations") < tags.index("Machine Metrics")
     assert tags.index("Machine Metrics") < tags.index("Machine Providers")
     assert tags.index("Machine Providers") < tags.index("Machine Provisioners")
     assert paths["/v1/machines"]["get"]["tags"] == ["Machines"]
@@ -188,14 +188,14 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/{machine_id}"]["delete"]["tags"] == ["Machines"]
     assert "patch" not in paths["/v1/machines/{machine_id}"]
     assert paths["/v1/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["Machines"]
-    assert paths["/v1/machines/recommendations"]["get"]["tags"] == ["Machine Recommendations"]
-    assert paths["/v1/machines/recommendations/{recommendation_id}/acknowledge"]["post"]["tags"] == [
-        "Machine Recommendations"
+    assert paths["/v1/machines/optimizations"]["get"]["tags"] == ["Machine Optimizations"]
+    assert paths["/v1/machines/optimizations/{optimization_id}/acknowledge"]["post"]["tags"] == [
+        "Machine Optimizations"
     ]
-    assert paths["/v1/machines/{machine_id}/recommendations"]["get"]["tags"] == ["Machine Recommendations"]
-    assert paths["/v1/machines/{machine_id}/recommendations/history"]["get"]["tags"] == ["Machine Recommendations"]
-    assert paths["/v1/machines/{machine_id}/recommendations/recalculate"]["post"]["tags"] == [
-        "Machine Recommendations"
+    assert paths["/v1/machines/{machine_id}/optimizations"]["get"]["tags"] == ["Machine Optimizations"]
+    assert paths["/v1/machines/{machine_id}/optimizations/history"]["get"]["tags"] == ["Machine Optimizations"]
+    assert paths["/v1/machines/{machine_id}/optimizations/recalculate"]["post"]["tags"] == [
+        "Machine Optimizations"
     ]
     assert paths["/v1/machines/metrics"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["Machine Metrics"]
@@ -224,8 +224,8 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "/v1/applications",
         "/v1/machines",
         "/v1/machines/{machine_id}/flavor-history",
-        "/v1/machines/recommendations",
-        "/v1/machines/{machine_id}/recommendations/history",
+        "/v1/machines/optimizations",
+        "/v1/machines/{machine_id}/optimizations/history",
         "/v1/machines/metrics",
         "/v1/machines/{machine_id}/metrics",
         "/v1/machines/providers",
@@ -250,11 +250,11 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "acknowledged",
         "offset",
         "limit",
-    } <= {param["name"] for param in paths["/v1/machines/recommendations"]["get"]["parameters"]}
-    recommendation_responses = paths["/v1/machines/{machine_id}/recommendations/recalculate"]["post"]["responses"]
-    assert "202" in recommendation_responses
+    } <= {param["name"] for param in paths["/v1/machines/optimizations"]["get"]["parameters"]}
+    optimization_responses = paths["/v1/machines/{machine_id}/optimizations/recalculate"]["post"]["responses"]
+    assert "202" in optimization_responses
     assert (
-        recommendation_responses["202"]["content"]["application/json"]["schema"]["$ref"].rpartition("/")[2]
+        optimization_responses["202"]["content"]["application/json"]["schema"]["$ref"].rpartition("/")[2]
         == "TaskEnqueueResponse"
     )
 
@@ -1538,9 +1538,9 @@ def test_machine_flavor_history_lists_initial_and_changed_inventory_snapshots(
     assert history.json()["items"][1]["disk_mb"] == 80 * 1024
 
 
-def test_machine_recommendation_endpoints_read_current_and_history(client: TestClient, db_session: Session) -> None:
-    """Machines should expose a current recommendation endpoint and its version history."""
-    platform = Platform(name="Recommendation API")
+def test_machine_optimization_endpoints_read_current_and_history(client: TestClient, db_session: Session) -> None:
+    """Machines should expose a current optimization endpoint and its version history."""
+    platform = Platform(name="Optimization API")
     machine = Machine(
         platform=platform,
         hostname="node-02",
@@ -1553,7 +1553,7 @@ def test_machine_recommendation_endpoints_read_current_and_history(client: TestC
 
     db_session.add_all(
         [
-            MachineRecommendation(
+            MachineOptimization(
                 machine_id=machine.id,
                 revision=1,
                 is_current=False,
@@ -1588,7 +1588,7 @@ def test_machine_recommendation_endpoints_read_current_and_history(client: TestC
                     }
                 },
             ),
-            MachineRecommendation(
+            MachineOptimization(
                 machine_id=machine.id,
                 revision=2,
                 is_current=True,
@@ -1627,28 +1627,28 @@ def test_machine_recommendation_endpoints_read_current_and_history(client: TestC
     )
     db_session.commit()
 
-    current = client.get(f"/v1/machines/{machine.id}/recommendations")
+    current = client.get(f"/v1/machines/{machine.id}/optimizations")
     assert current.status_code == 200
     assert current.json()["revision"] == 2
     assert current.json()["is_current"] is True
     assert current.json()["target_cpu"] == 6
 
-    history = client.get(f"/v1/machines/{machine.id}/recommendations/history")
+    history = client.get(f"/v1/machines/{machine.id}/optimizations/history")
     assert history.status_code == 200
     assert history.json()["total"] == 2
     assert [item["revision"] for item in history.json()["items"]] == [2, 1]
 
 
-def test_machine_recommendation_collection_filters_and_acknowledges(
+def test_machine_optimization_collection_filters_and_acknowledges(
     client: TestClient,
     db_session: Session,
 ) -> None:
-    """Recommendations should be listable across machines and acknowledged by revision id."""
-    primary_platform = Platform(name="Recommendation Collection API")
-    other_platform = Platform(name="Recommendation Collection Other")
+    """Optimizations should be listable across machines and acknowledged by revision id."""
+    primary_platform = Platform(name="Optimization Collection API")
+    other_platform = Platform(name="Optimization Collection Other")
     current_machine = Machine(
         platform=primary_platform,
-        hostname="node-rec-01",
+        hostname="node-opt-01",
         application="cart",
         environment="prod",
         region="eu",
@@ -1658,7 +1658,7 @@ def test_machine_recommendation_collection_filters_and_acknowledges(
     )
     other_machine = Machine(
         platform=other_platform,
-        hostname="node-rec-02",
+        hostname="node-opt-02",
         application="billing",
         environment="dev",
         region="us",
@@ -1683,7 +1683,7 @@ def test_machine_recommendation_collection_filters_and_acknowledges(
             "reason_code": "no_provider",
         }
     }
-    historical = MachineRecommendation(
+    historical = MachineOptimization(
         machine_id=current_machine.id,
         revision=1,
         is_current=False,
@@ -1705,7 +1705,7 @@ def test_machine_recommendation_collection_filters_and_acknowledges(
         target_disk_mb=None,
         details=base_details,
     )
-    current = MachineRecommendation(
+    current = MachineOptimization(
         machine_id=current_machine.id,
         revision=2,
         is_current=True,
@@ -1727,7 +1727,7 @@ def test_machine_recommendation_collection_filters_and_acknowledges(
         target_disk_mb=80 * 1024,
         details=base_details,
     )
-    other_current = MachineRecommendation(
+    other_current = MachineOptimization(
         machine_id=other_machine.id,
         revision=1,
         is_current=True,
@@ -1752,14 +1752,14 @@ def test_machine_recommendation_collection_filters_and_acknowledges(
     db_session.add_all([historical, current, other_current])
     db_session.commit()
 
-    default_list = client.get("/v1/machines/recommendations")
+    default_list = client.get("/v1/machines/optimizations")
     assert default_list.status_code == 200
     assert default_list.json()["total"] == 2
     assert {item["id"] for item in default_list.json()["items"]} == {current.id, other_current.id}
     assert all(item["is_current"] for item in default_list.json()["items"])
 
     all_revisions = client.get(
-        "/v1/machines/recommendations",
+        "/v1/machines/optimizations",
         params={"machine_id": current_machine.id, "current_only": False},
     )
     assert all_revisions.status_code == 200
@@ -1767,7 +1767,7 @@ def test_machine_recommendation_collection_filters_and_acknowledges(
     assert [item["revision"] for item in all_revisions.json()["items"]] == [2, 1]
 
     filtered = client.get(
-        "/v1/machines/recommendations",
+        "/v1/machines/optimizations",
         params={
             "platform_id": primary_platform.id,
             "application": "cart",
@@ -1781,63 +1781,63 @@ def test_machine_recommendation_collection_filters_and_acknowledges(
     assert filtered.json()["total"] == 1
     assert filtered.json()["items"][0]["id"] == current.id
 
-    limited = client.get("/v1/machines/recommendations", params={"limit": 1})
+    limited = client.get("/v1/machines/optimizations", params={"limit": 1})
     assert limited.status_code == 200
     assert limited.json()["limit"] == 1
     assert len(limited.json()["items"]) == 1
 
-    acknowledged = client.post(f"/v1/machines/recommendations/{current.id}/acknowledge")
+    acknowledged = client.post(f"/v1/machines/optimizations/{current.id}/acknowledge")
     assert acknowledged.status_code == 200
     assert acknowledged.json()["id"] == current.id
     assert acknowledged.json()["acknowledged_at"] is not None
     assert acknowledged.json()["acknowledged_by"] is None
 
-    repeated = client.post(f"/v1/machines/recommendations/{current.id}/acknowledge")
+    repeated = client.post(f"/v1/machines/optimizations/{current.id}/acknowledge")
     assert repeated.status_code == 200
     assert repeated.json()["acknowledged_at"] == acknowledged.json()["acknowledged_at"]
 
-    acknowledged_list = client.get("/v1/machines/recommendations", params={"acknowledged": True})
+    acknowledged_list = client.get("/v1/machines/optimizations", params={"acknowledged": True})
     assert acknowledged_list.status_code == 200
     assert acknowledged_list.json()["total"] == 1
     assert acknowledged_list.json()["items"][0]["id"] == current.id
 
-    unacknowledged_list = client.get("/v1/machines/recommendations", params={"acknowledged": False})
+    unacknowledged_list = client.get("/v1/machines/optimizations", params={"acknowledged": False})
     assert unacknowledged_list.status_code == 200
     assert unacknowledged_list.json()["total"] == 1
     assert unacknowledged_list.json()["items"][0]["id"] == other_current.id
 
-    missing = client.post("/v1/machines/recommendations/9999/acknowledge")
+    missing = client.post("/v1/machines/optimizations/9999/acknowledge")
     assert missing.status_code == 404
 
 
-def test_machine_recommendation_endpoints_handle_missing_state_and_enqueue_recalculation(
+def test_machine_optimization_endpoints_handle_missing_state_and_enqueue_recalculation(
     client: TestClient,
     db_session: Session,
     monkeypatch,
 ) -> None:
-    """Recommendation endpoints should report missing state and allow manual recalculation."""
-    platform = Platform(name="Recommendation Recalculate API")
+    """Optimization endpoints should report missing state and allow manual recalculation."""
+    platform = Platform(name="Optimization Recalculate API")
     machine = Machine(platform=platform, hostname="node-03")
     db_session.add_all([platform, machine])
     db_session.commit()
 
-    missing = client.get(f"/v1/machines/{machine.id}/recommendations")
+    missing = client.get(f"/v1/machines/{machine.id}/optimizations")
     assert missing.status_code == 404
-    assert missing.json()["detail"] == "recommendation not computed yet"
+    assert missing.json()["detail"] == "optimization not computed yet"
 
-    history = client.get(f"/v1/machines/{machine.id}/recommendations/history")
+    history = client.get(f"/v1/machines/{machine.id}/optimizations/history")
     assert history.status_code == 200
     assert history.json() == {"items": [], "offset": 0, "limit": 100, "total": 0}
 
     monkeypatch.setattr(
         "internal.infra.queue.enqueue.celery_app.send_task",
-        lambda *_args, **_kwargs: SimpleNamespace(id="manual-recommendation-recalc"),
+        lambda *_args, **_kwargs: SimpleNamespace(id="manual-optimization-recalc"),
     )
-    response = client.post(f"/v1/machines/{machine.id}/recommendations/recalculate")
+    response = client.post(f"/v1/machines/{machine.id}/optimizations/recalculate")
     assert response.status_code == 202
-    assert response.json() == {"task_id": "manual-recommendation-recalc"}
+    assert response.json() == {"task_id": "manual-optimization-recalc"}
 
-    missing_machine = client.post("/v1/machines/9999/recommendations/recalculate")
+    missing_machine = client.post("/v1/machines/9999/optimizations/recalculate")
     assert missing_machine.status_code == 404
 
 

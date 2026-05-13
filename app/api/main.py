@@ -45,7 +45,7 @@ OPENAPI_TAGS = [
     {"name": "Platforms", "description": "Cycle programs and settings."},
     {"name": "Applications", "description": "Loads to track in the drum."},
     {"name": "Machines", "description": "Main drum and inventory."},
-    {"name": "Machine Recommendations", "description": "Capacity advice and acknowledged wash labels."},
+    {"name": "Machine Optimizations", "description": "Capacity advice and acknowledged wash labels."},
     {"name": "Machine Metrics", "description": "CPU, RAM, and disk spin cycle."},
     {"name": "Machine Providers", "description": "Water inlets and metric sources."},
     {"name": "Machine Provisioners", "description": "Detergent drawers and inventory connectors."},

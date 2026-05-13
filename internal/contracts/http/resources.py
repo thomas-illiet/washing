@@ -12,16 +12,16 @@ from internal.infra.security import sanitize_operational_error, sanitize_task_re
 Scope = Literal["cpu", "ram", "disk"]
 TaskExecutionStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE", "RETRY", "REVOKED"]
 ApplicationSyncType = Literal["inventory_discovery", "metrics"]
-MachineRecommendationStatus = Literal["ready", "partial", "error"]
-MachineRecommendationAction = Literal["scale_up", "scale_down", "mixed", "keep", "insufficient_data", "unavailable"]
-MachineRecommendationScopeStatus = Literal[
+MachineOptimizationStatus = Literal["ready", "partial", "error"]
+MachineOptimizationAction = Literal["scale_up", "scale_down", "mixed", "keep", "insufficient_data", "unavailable"]
+MachineOptimizationScopeStatus = Literal[
     "ok",
     "missing_provider",
     "ambiguous_provider",
     "insufficient_data",
     "missing_current_capacity",
 ]
-MachineRecommendationScopeAction = Literal["scale_up", "scale_down", "keep", "insufficient_data", "unavailable"]
+MachineOptimizationScopeAction = Literal["scale_up", "scale_down", "keep", "insufficient_data", "unavailable"]
 ResourceT = TypeVar("ResourceT")
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -333,29 +333,29 @@ class MachineMetricRead(ApiModel):
     value: int
 
 
-class MachineRecommendationScopeRead(ApiModel):
-    """Public detail for one scope inside a stored recommendation."""
+class MachineOptimizationScopeRead(ApiModel):
+    """Public detail for one scope inside a stored optimization."""
     provider_id: int | None = None
-    status: MachineRecommendationScopeStatus
+    status: MachineOptimizationScopeStatus
     samples_used: int = 0
     last_metric_date: date | None = None
     stats: dict[str, float] | None = None
     current_capacity: float | None = None
     raw_target_capacity: float | None = None
     bounded_target_capacity: float | None = None
-    action: MachineRecommendationScopeAction
+    action: MachineOptimizationScopeAction
     reason_code: str
 
 
-class MachineRecommendationRead(ApiModel):
-    """Public representation of one machine recommendation revision."""
+class MachineOptimizationRead(ApiModel):
+    """Public representation of one machine optimization revision."""
     id: int
     machine_id: int
     revision: int
     is_current: bool
     superseded_at: datetime | None = None
-    status: MachineRecommendationStatus
-    action: MachineRecommendationAction
+    status: MachineOptimizationStatus
+    action: MachineOptimizationAction
     window_size: int
     computed_at: datetime
     acknowledged_at: datetime | None = None
@@ -366,7 +366,7 @@ class MachineRecommendationRead(ApiModel):
     target_cpu: float | None = None
     target_ram_mb: float | None = None
     target_disk_mb: float | None = None
-    details: dict[Scope, MachineRecommendationScopeRead]
+    details: dict[Scope, MachineOptimizationScopeRead]
     created_at: datetime
     updated_at: datetime
 

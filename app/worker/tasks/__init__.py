@@ -13,7 +13,7 @@ from app.worker.tasks.metrics import (
     run_provider_machine_task,
     run_provider_task,
 )
-from app.worker.tasks.recommendations import recalculate_machine_recommendations_task
+from app.worker.tasks.optimizations import recalculate_machine_optimizations_task
 from app.worker.tasks.scheduler import (
     dispatch_due_application_metrics_syncs_task,
     dispatch_due_machine_provisioner_jobs_task,
@@ -26,7 +26,7 @@ __all__ = [
     "purge_old_task_executions_task",
     "purge_stale_applications_task",
     "purge_stale_machines_task",
-    "recalculate_machine_recommendations_task",
+    "recalculate_machine_optimizations_task",
     "run_provider_machine_task",
     "run_provider_task",
     "run_provisioner_task",

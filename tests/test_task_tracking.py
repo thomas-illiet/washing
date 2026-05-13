@@ -15,7 +15,7 @@ from internal.infra.queue.task_names import (
     DISPATCH_ENABLED_PROVIDER_SYNCS_TASK,
     DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
     PURGE_OLD_TASK_EXECUTIONS_TASK,
-    RECALCULATE_MACHINE_RECOMMENDATIONS_TASK,
+    RECALCULATE_MACHINE_OPTIMIZATIONS_TASK,
     RUN_PROVIDER_MACHINE_TASK,
     RUN_PROVISIONER_TASK,
     SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
@@ -321,7 +321,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
             "manual-application-metrics-dispatch",
             "manual-provider-sync-dispatch",
             "manual-provisioner-run",
-            "manual-machine-recommendation-recalc",
+            "manual-machine-optimization-recalc",
         ]
     )
 
@@ -343,7 +343,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     metrics_sync_response = client.post("/v1/applications/sync", params={"type": "metrics"})
     provider_sync_response = client.post("/v1/machines/providers/sync")
     provisioner_response = client.post(f"/v1/machines/provisioners/{provisioner.id}/run")
-    recommendation_response = client.post(f"/v1/machines/{machine.id}/recommendations/recalculate")
+    optimization_response = client.post(f"/v1/machines/{machine.id}/optimizations/recalculate")
 
     assert inventory_sync_response.status_code == 202
     assert inventory_sync_response.json() == {"task_id": "manual-application-inventory-sync"}
@@ -353,8 +353,8 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     assert provider_sync_response.json() == {"task_id": "manual-provider-sync-dispatch"}
     assert provisioner_response.status_code == 202
     assert provisioner_response.json() == {"task_id": "manual-provisioner-run"}
-    assert recommendation_response.status_code == 202
-    assert recommendation_response.json() == {"task_id": "manual-machine-recommendation-recalc"}
+    assert optimization_response.status_code == 202
+    assert optimization_response.json() == {"task_id": "manual-machine-optimization-recalc"}
 
     db_session.expire_all()
     rows = (
@@ -378,8 +378,8 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
             None,
         ),
         (
-            "manual-machine-recommendation-recalc",
-            RECALCULATE_MACHINE_RECOMMENDATIONS_TASK,
+            "manual-machine-optimization-recalc",
+            RECALCULATE_MACHINE_OPTIMIZATIONS_TASK,
             "PENDING",
             "machine",
             machine.id,

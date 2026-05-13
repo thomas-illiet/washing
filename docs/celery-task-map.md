@@ -18,7 +18,7 @@ flowchart TD
     APIAppInv["POST /v1/applications/sync?type=inventory_discovery"] --> Enqueue
     APIAppMet["POST /v1/applications/sync?type=metrics"] --> Enqueue
     APIProviderSync["POST /v1/machines/providers/sync"] --> Enqueue
-    APIRecommendations["POST /v1/machines/{machine_id}/recommendations/recalculate"] --> Enqueue
+    APIOptimizations["POST /v1/machines/{machine_id}/optimizations/recalculate"] --> Enqueue
 
     Beat["Celery Beat\napp/beat/celery.py"] --> SchedProv["schedule: scheduler.dispatch_due_machine_provisioner_jobs"]
     Beat --> SchedInv["schedule: applications.sync_inventory_discovery"]
@@ -44,7 +44,7 @@ flowchart TD
     Worker --> DispatchProviders["providers.dispatch_enabled_syncs()"]
     Worker --> RunProvider["providers.run(provider_id)"]
     Worker --> RunProviderMachine["providers.run_machine(provider_id, machine_id)"]
-    Worker --> RunRecommendations["machines.recalculate_recommendations(machine_id)"]
+    Worker --> RunOptimizations["machines.recalculate_optimizations(machine_id)"]
     Worker --> SyncMet["applications.sync_metrics(application_id)"]
     Worker --> CleanupMachines["maintenance.purge_stale_machines()"]
     Worker --> CleanupApplications["maintenance.purge_stale_applications()"]
@@ -68,7 +68,7 @@ flowchart TD
 | `maintenance.purge_old_task_executions` | `purge_old_task_executions_task` | Beat daily schedule only | Deletes `celery_task_executions` rows older than the configured retention window. |
 | `maintenance.purge_stale_applications` | `purge_stale_applications_task` | Beat daily schedule only | Deletes stale `applications` rows based on `updated_at`, without touching other tables. |
 | `maintenance.purge_stale_machines` | `purge_stale_machines_task` | Beat daily schedule only | Deletes stale `machines` rows based on `updated_at`, without cleaning the `applications` projection. |
-| `machines.recalculate_recommendations` | `recalculate_machine_recommendations_task` | `POST /v1/machines/{machine_id}/recommendations/recalculate` | Recomputes and versions the recommendation projection for one machine. |
+| `machines.recalculate_optimizations` | `recalculate_machine_optimizations_task` | `POST /v1/machines/{machine_id}/optimizations/recalculate` | Recomputes and versions the optimization projection for one machine. |
 | `providers.dispatch_enabled_syncs` | `dispatch_enabled_provider_syncs_task` | `POST /v1/machines/providers/sync` | Selects enabled providers, then enqueues `providers.run` once per provider. |
 | `providers.run` | `run_provider_task` | Provider dispatcher only | Resolves the provider scope, then enqueues `providers.run_machine` once per visible machine. |
 | `providers.run_machine` | `run_provider_machine_task` | Provider dispatcher only | Collects one machine metric sample for one `provider_id` / `machine_id` pair and upserts the daily metric row. |
@@ -100,6 +100,6 @@ flowchart TD
 - `maintenance.purge_old_task_executions` is a housekeeping task that keeps the task history table bounded over time.
 - `maintenance.purge_stale_applications` is a housekeeping task for the `applications` projection only.
 - `maintenance.purge_stale_machines` is a housekeeping task for machine inventory only; `applications` cleanup stays separate.
-- `machines.recalculate_recommendations` is the manual entrypoint for on-demand recommendation refreshes; automatic refreshes still happen inside the inventory and metric workflows.
+- `machines.recalculate_optimizations` is the manual entrypoint for on-demand optimization refreshes; automatic refreshes still happen inside the inventory and metric workflows.
 - `providers.run_machine` is the terminal execution task for distributed machine metric collection.
 - `applications.sync_metrics` is the application-batch pivot: batching cadence is tracked on `applications`, while execution fan-out happens on `provider/machine` child tasks.
