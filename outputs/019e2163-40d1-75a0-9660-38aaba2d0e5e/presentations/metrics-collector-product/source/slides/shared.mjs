@@ -289,7 +289,7 @@ export async function slide02(presentation, ctx) {
     { size: 14, color: "#C9D2D8" },
   );
   text(slide, ctx, "3", 76, 278, 116, 138, { size: 112, color: STYLE.coral, face: STYLE.title, bold: true });
-  text(slide, ctx, "freins qui coutent du temps, du risque et de la capacite.", 82, 424, 112, 82, {
+  text(slide, ctx, "freins qui coutent du temps, du risque et de la capacite.", 82, 418, 126, 98, {
     size: 15,
     color: "#FFFFFF",
     bold: true,
@@ -461,14 +461,14 @@ export async function slide09(presentation, ctx) {
   const slide = presentation.slides.add();
   bg(slide, ctx, true);
   kicker(slide, ctx, "Decision", true);
-  text(slide, ctx, "PILOTE", 830, 76, 330, 64, { size: 44, color: STYLE.gold, face: STYLE.title, bold: true, align: "right" });
-  title(slide, ctx, "La demande aux responsables: financer un pilote court et mesurable.", 58, 92, 920, 106, 40, "#FFFFFF");
+  text(slide, ctx, "PILOTE", 992, 80, 168, 54, { size: 34, color: STYLE.gold, face: STYLE.title, bold: true, align: "right" });
+  title(slide, ctx, "La demande aux responsables: financer un pilote court et mesurable.", 58, 92, 760, 146, 40, "#FFFFFF");
   note(
     slide,
     ctx,
     "Le produit est assez avance pour etre vendu en interne: API gouvernee, orchestration asynchrone, recommandations explicables, observabilite et trajectoire de deploiement.",
     62,
-    206,
+    250,
     760,
     48,
     { size: 14.5, color: "#C9D2D8" },
