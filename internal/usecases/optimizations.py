@@ -31,13 +31,11 @@ METRIC_MODELS = {
 }
 
 TARGET_UTILIZATION_PERCENT = 65
-UPSCALE_P95_THRESHOLD = 85
-UPSCALE_MAX_THRESHOLD = 95
-DOWNSCALE_P95_THRESHOLD = 40
-DOWNSCALE_MAX_THRESHOLD = 60
+UPSCALE_UTILIZATION_THRESHOLD = 85
+DOWNSCALE_UTILIZATION_THRESHOLD = 40
 UPSCALE_CAPACITY_MARGIN = 1.10
 DOWNSCALE_CAPACITY_MARGIN = 0.80
-DISK_STEP_MB = 10 * 1024
+CAPACITY_STEP_MB = 1024
 
 
 def refresh_machine_optimization(db: Session, machine_id: int) -> dict[str, int | str]:
@@ -57,7 +55,6 @@ def refresh_machine_optimization(db: Session, machine_id: int) -> dict[str, int 
                 machine_id=machine.id,
                 revision=1,
                 is_current=True,
-                current_machine_id=machine.id,
                 superseded_at=None,
                 **snapshot,
             )
@@ -69,7 +66,6 @@ def refresh_machine_optimization(db: Session, machine_id: int) -> dict[str, int 
         return {"machine_id": machine.id, "created": 0, "updated": 1, "status": "updated"}
 
     current.is_current = False
-    current.current_machine_id = None
     current.superseded_at = now
     db.flush()
 
@@ -78,7 +74,6 @@ def refresh_machine_optimization(db: Session, machine_id: int) -> dict[str, int 
             machine_id=machine.id,
             revision=current.revision + 1,
             is_current=True,
-            current_machine_id=machine.id,
             superseded_at=None,
             **snapshot,
         )
@@ -155,8 +150,9 @@ def _evaluate_scope(
         "provider_id": provider_id,
         "status": "ok",
         "samples_used": 0,
+        "window_size": window_size,
         "last_metric_date": None,
-        "stats": None,
+        "utilization_percent": None,
         "current_capacity": current_capacity,
         "raw_target_capacity": None,
         "bounded_target_capacity": None,
@@ -186,48 +182,50 @@ def _evaluate_scope(
     details["samples_used"] = len(samples)
     if samples:
         details["last_metric_date"] = samples[0].date.isoformat()
-        details["stats"] = _metric_stats([float(sample.value) for sample in samples])
 
-    if len(samples) < window_size:
+    if not samples:
         details["status"] = "insufficient_data"
         details["action"] = "insufficient_data"
-        details["reason_code"] = "insufficient_points"
+        details["reason_code"] = "no_samples"
         return details
 
-    stats = details["stats"] or {}
-    p95 = float(stats["p95"])
-    max_value = float(stats["max"])
-    raw_target = float(current_capacity) * p95 / TARGET_UTILIZATION_PERCENT
+    utilization_percent = _average_metric_value([float(sample.value) for sample in samples])
+    raw_target = float(current_capacity) * utilization_percent / TARGET_UTILIZATION_PERCENT
     bounded_target, bound_reason = _bounded_target(scope, raw_target, min_capacity, max_capacity)
+    has_limited_history = len(samples) < window_size
+    default_reason = "limited_history" if has_limited_history else "within_hysteresis"
+    pressure_high_reason = "limited_history" if has_limited_history else "pressure_high"
+    pressure_low_reason = "limited_history" if has_limited_history else "pressure_low"
+    details["utilization_percent"] = utilization_percent
     details["raw_target_capacity"] = raw_target
     details["bounded_target_capacity"] = bounded_target
 
     if scope == "cpu" and min_capacity is not None and current_capacity < min_capacity:
         details["action"] = "scale_up"
-        details["reason_code"] = "raised_to_min_cpu"
+        details["reason_code"] = "limited_history" if has_limited_history else "raised_to_min_cpu"
         return details
 
     if scope == "ram" and min_capacity is not None and current_capacity < min_capacity:
         details["action"] = "scale_up"
-        details["reason_code"] = "raised_to_min_ram"
+        details["reason_code"] = "limited_history" if has_limited_history else "raised_to_min_ram"
         return details
 
-    pressure_high = p95 >= UPSCALE_P95_THRESHOLD or max_value >= UPSCALE_MAX_THRESHOLD
-    pressure_low = scope in {"cpu", "ram"} and p95 <= DOWNSCALE_P95_THRESHOLD and max_value <= DOWNSCALE_MAX_THRESHOLD
+    pressure_high = utilization_percent >= UPSCALE_UTILIZATION_THRESHOLD
+    pressure_low = scope in {"cpu", "ram"} and utilization_percent <= DOWNSCALE_UTILIZATION_THRESHOLD
 
     if pressure_high and bounded_target is not None:
         if bounded_target > float(current_capacity) * UPSCALE_CAPACITY_MARGIN and bounded_target > float(current_capacity):
             details["action"] = "scale_up"
-            details["reason_code"] = bound_reason or "pressure_high"
+            details["reason_code"] = "limited_history" if has_limited_history else bound_reason or pressure_high_reason
             return details
 
     if pressure_low and bounded_target is not None:
         if bounded_target < float(current_capacity) * DOWNSCALE_CAPACITY_MARGIN and bounded_target < float(current_capacity):
             details["action"] = "scale_down"
-            details["reason_code"] = bound_reason or "pressure_low"
+            details["reason_code"] = "limited_history" if has_limited_history else bound_reason or pressure_low_reason
             return details
 
-    details["reason_code"] = bound_reason or "within_hysteresis"
+    details["reason_code"] = "limited_history" if has_limited_history else bound_reason or default_reason
     return details
 
 
@@ -272,17 +270,11 @@ def _load_metric_samples(
     )
 
 
-def _metric_stats(values: list[float]) -> dict[str, float] | None:
-    """Return stable descriptive statistics for one metric window."""
+def _average_metric_value(values: list[float]) -> float:
+    """Return the average utilization percent for one metric window."""
     if not values:
-        return None
-    ordered = sorted(values)
-    index = max(0, ceil(0.95 * len(ordered)) - 1)
-    return {
-        "avg": sum(ordered) / len(ordered),
-        "p95": ordered[index],
-        "max": ordered[-1],
-    }
+        return 0.0
+    return sum(values) / len(values)
 
 
 def _bounded_target(
@@ -317,8 +309,8 @@ def _rounded_target(scope: ScopeName, raw_target: float) -> float | None:
     if scope == "cpu":
         return float(max(1, ceil(raw_target)))
     if scope == "ram":
-        return float(max(1024, ceil(raw_target / 1024) * 1024))
-    return float(max(DISK_STEP_MB, ceil(raw_target / DISK_STEP_MB) * DISK_STEP_MB))
+        return float(max(CAPACITY_STEP_MB, ceil(raw_target / CAPACITY_STEP_MB) * CAPACITY_STEP_MB))
+    return float(max(CAPACITY_STEP_MB, ceil(raw_target / CAPACITY_STEP_MB) * CAPACITY_STEP_MB))
 
 
 def _aggregate_optimization(scopes: dict[ScopeName, dict[str, object]]) -> tuple[OptimizationStatus, OptimizationAction]:

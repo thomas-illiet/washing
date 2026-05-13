@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import PaginationParams, get_db
 from app.api.routes.common import get_or_404, paginate_query
-from internal.contracts.http.resources import MachineMetricRead, PaginatedResponse, Scope
+from internal.contracts.http.resources import MachineMetricLatestRead, MachineMetricRead, PaginatedResponse, Scope
 from internal.infra.db.models import (
     Machine,
     MachineCPUMetric,
@@ -89,3 +89,21 @@ def list_machine_metric_history(
     get_or_404(db, Machine, machine_id, "machine not found")
     model, query = _metric_query(metric_type, db, provider_id=provider_id, machine_id=machine_id, start=start, end=end)
     return paginate_query(query, MachineMetricRead, pagination, model.date.desc(), model.id.desc())
+
+
+@router.get("/{machine_id:int}/metrics/latest", response_model=MachineMetricLatestRead)
+def get_machine_latest_metrics(
+    machine_id: int,
+    db: Session = Depends(get_db),
+) -> MachineMetricLatestRead:
+    """Return the latest stored metric sample for each machine metric scope."""
+    get_or_404(db, Machine, machine_id, "machine not found")
+    latest = {}
+    for scope, model in METRIC_MODELS.items():
+        latest[scope] = (
+            db.query(model)
+            .filter(model.machine_id == machine_id)
+            .order_by(model.date.desc(), model.id.desc())
+            .first()
+        )
+    return MachineMetricLatestRead(**latest)

@@ -8,8 +8,10 @@ from app.api.routes.common import get_or_404, paginate_query
 from internal.contracts.http.resources import (
     MachineOptimizationAction,
     MachineOptimizationRead,
+    MachineOptimizationResourceRead,
     MachineOptimizationStatus,
     PaginatedResponse,
+    Scope,
     TaskEnqueueResponse,
 )
 from internal.domain import normalize_application_code, normalize_dimension
@@ -21,6 +23,24 @@ from internal.infra.queue.task_names import RECALCULATE_MACHINE_OPTIMIZATIONS_TA
 
 router = APIRouter(prefix="/machines", tags=["Machine Optimizations"])
 
+RESOURCE_UNITS: dict[Scope, str] = {
+    "cpu": "cores",
+    "ram": "mb",
+    "disk": "mb",
+}
+
+RESOURCE_CURRENT_FIELDS: dict[Scope, str] = {
+    "cpu": "current_cpu",
+    "ram": "current_ram_mb",
+    "disk": "current_disk_mb",
+}
+
+RESOURCE_TARGET_FIELDS: dict[Scope, str] = {
+    "cpu": "target_cpu",
+    "ram": "target_ram_mb",
+    "disk": "target_disk_mb",
+}
+
 
 def _authenticated_principal_name(request: Request) -> str | None:
     """Return the authenticated user name recorded by the OIDC middleware."""
@@ -28,6 +48,42 @@ def _authenticated_principal_name(request: Request) -> str | None:
     if principal is None:
         return None
     return principal.username or principal.subject
+
+
+def _optimization_resource_summary(optimization: MachineOptimization, scope: Scope) -> MachineOptimizationResourceRead:
+    """Build the public summary for one optimized resource."""
+    details = optimization.details.get(scope, {})
+    return MachineOptimizationResourceRead(
+        status=details.get("status", "insufficient_data"),
+        action=details.get("action", "insufficient_data"),
+        current=getattr(optimization, RESOURCE_CURRENT_FIELDS[scope]),
+        recommended=getattr(optimization, RESOURCE_TARGET_FIELDS[scope]),
+        unit=RESOURCE_UNITS[scope],
+        utilization_percent=details.get("utilization_percent"),
+        reason=details.get("reason_code", "unavailable"),
+    )
+
+
+def serialize_machine_optimization(optimization: MachineOptimization) -> MachineOptimizationRead:
+    """Build the simplified public optimization response."""
+    return MachineOptimizationRead(
+        id=optimization.id,
+        machine_id=optimization.machine_id,
+        revision=optimization.revision,
+        is_current=optimization.is_current,
+        status=optimization.status,
+        action=optimization.action,
+        computed_at=optimization.computed_at,
+        acknowledged_at=optimization.acknowledged_at,
+        acknowledged_by=optimization.acknowledged_by,
+        resources={
+            "cpu": _optimization_resource_summary(optimization, "cpu"),
+            "ram": _optimization_resource_summary(optimization, "ram"),
+            "disk": _optimization_resource_summary(optimization, "disk"),
+        },
+        created_at=optimization.created_at,
+        updated_at=optimization.updated_at,
+    )
 
 
 @router.get("/optimizations", response_model=PaginatedResponse[MachineOptimizationRead])
@@ -90,6 +146,7 @@ def list_machine_optimizations(
         pagination,
         MachineOptimization.computed_at.desc(),
         MachineOptimization.id.desc(),
+        transform=serialize_machine_optimization,
     )
 
 
@@ -106,7 +163,7 @@ def acknowledge_machine_optimization(
         optimization.acknowledged_by = _authenticated_principal_name(request)
         db.commit()
         db.refresh(optimization)
-    return MachineOptimizationRead.model_validate(optimization)
+    return serialize_machine_optimization(optimization)
 
 
 @router.get("/{machine_id:int}/optimizations", response_model=MachineOptimizationRead)
@@ -124,7 +181,7 @@ def get_machine_optimization(
     )
     if optimization is None:
         raise HTTPException(status_code=404, detail="optimization not computed yet")
-    return MachineOptimizationRead.model_validate(optimization)
+    return serialize_machine_optimization(optimization)
 
 
 @router.get("/{machine_id:int}/optimizations/history", response_model=PaginatedResponse[MachineOptimizationRead])
@@ -142,6 +199,7 @@ def list_machine_optimization_history(
         pagination,
         MachineOptimization.revision.desc(),
         MachineOptimization.id.desc(),
+        transform=serialize_machine_optimization,
     )
 
 

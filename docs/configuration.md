@@ -83,7 +83,7 @@ The local Compose stack points Keycloak at the same `washing_machine` PostgreSQL
 
 | Variable | Default | Used by | Notes |
 | --- | --- | --- | --- |
-| `FLAVOR_OPTIMIZATION_WINDOW_SIZE` | `30` | API, worker | Number of latest stored samples read per scope (`cpu`, `ram`, `disk`) when computing an optimization. |
+| `FLAVOR_OPTIMIZATION_WINDOW_SIZE` | `30` | API, worker | Maximum number of latest stored samples read per scope (`cpu`, `ram`, `disk`) when computing an optimization. Calculations still run with fewer samples when at least one sample exists. |
 | `FLAVOR_OPTIMIZATION_MIN_CPU` | `1` | API, worker | Lower bound for proposed CPU targets. Must stay positive and lower than or equal to `FLAVOR_OPTIMIZATION_MAX_CPU`. |
 | `FLAVOR_OPTIMIZATION_MAX_CPU` | `64` | API, worker | Upper bound for proposed CPU targets. |
 | `FLAVOR_OPTIMIZATION_MIN_RAM_MB` | `2048` | API, worker | Lower bound for proposed RAM targets. Must be a multiple of `1024`. |

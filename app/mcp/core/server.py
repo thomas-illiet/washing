@@ -9,15 +9,17 @@ from fastmcp.server.lifespan import lifespan
 
 from app.mcp.core.product_api import ProductAPIProxy
 from app.mcp.resources import register_resources
+from app.mcp.prompts import register_prompts
 from app.mcp.config import get_settings
 from app.mcp.tools import register_tools
 
 SERVER_INSTRUCTIONS = """
-Read-only gateway over the Metrics Collector product API.
+Read-only discovery assistant for the Metrics Collector product API.
 
-Prefer the resources when you need browsable data and the tools when your client only works with tool calls.
-This server intentionally exposes only applications, machines, and stored machine metrics.
-Create, update, delete, sync, enable, disable, provider, provisioner, platform, and worker-task actions are out of scope.
+Use the discovery tools to help users find applications, machines, environments, regions, and current optimization recommendations without knowing internal ids.
+Prefer get_application_overview and get_machine_context when answering operational questions.
+Use search and fetch for ChatGPT/deep-research style retrieval.
+Create, update, delete, sync, enable, disable, provider-secret, provisioner-secret, and worker-task actions are out of scope.
 """.strip()
 
 
@@ -42,6 +44,7 @@ mcp = FastMCP(
     lifespan=mcp_lifespan,
 )
 register_resources(mcp)
+register_prompts(mcp)
 register_tools(mcp)
 
 __all__ = ["mcp"]

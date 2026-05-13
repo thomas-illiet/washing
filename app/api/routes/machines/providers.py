@@ -9,6 +9,7 @@ from internal.contracts.http.resources import (
     DynatraceProviderCreate,
     DynatraceProviderRead,
     DynatraceProviderUpdate,
+    MachineRead,
     PaginatedResponse,
     PrometheusProviderCreate,
     PrometheusProviderRead,
@@ -20,6 +21,7 @@ from internal.contracts.http.resources import (
 )
 from internal.infra.db.models import (
     PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL,
+    Machine,
     MachineProvider,
     MachineProviderProvisioner,
     MachineProvisioner,
@@ -27,11 +29,12 @@ from internal.infra.db.models import (
     find_provider_scope_conflict,
 )
 from internal.infra.queue.enqueue import enqueue_celery_task
-from internal.infra.queue.task_names import DISPATCH_ENABLED_PROVIDER_SYNCS_TASK
+from internal.infra.queue.task_names import DISPATCH_ENABLED_PROVIDER_SYNCS_TASK, RUN_PROVIDER_TASK
 
 
 router = APIRouter(prefix="/machines/providers", tags=["Machine Providers"])
 ENABLED_PROVIDER_SYNC_REQUIRED_DETAIL = "at least one enabled provider is required before syncing machine metrics"
+PROVIDER_DISABLED_DETAIL = "provider must be enabled before it can run"
 
 
 def _load_provider(db: Session, provider_id: int) -> MachineProvider:
@@ -86,6 +89,15 @@ def _ensure_provider_scope_matches_provisioners(provider: MachineProvider, scope
     for provisioner in provider.provisioners:
         if find_provider_scope_conflict(provisioner, scope, provider_id=provider.id) is not None:
             raise HTTPException(status_code=409, detail=PROVISIONER_PROVIDER_SCOPE_CONFLICT_DETAIL)
+
+
+def _provider_machine_query(db: Session, provider: MachineProvider):
+    """Build the machine query visible to one provider scope."""
+    query = db.query(Machine).filter(Machine.platform_id == provider.platform_id)
+    provisioner_ids = [provisioner.id for provisioner in provider.provisioners]
+    if provisioner_ids:
+        query = query.filter(Machine.source_provisioner_id.in_(provisioner_ids))
+    return query
 
 
 def _prometheus_read_model(provider: MachineProvider) -> PrometheusProviderRead:
@@ -235,6 +247,16 @@ def disable_provider(provider_id: int, db: Session = Depends(get_db)) -> Machine
     return _load_provider(db, provider_id)
 
 
+@router.post("/{provider_id}/run", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+def enqueue_provider_run(provider_id: int, db: Session = Depends(get_db)) -> TaskEnqueueResponse:
+    """Enqueue a manual metric sync for one enabled provider."""
+    provider = _load_provider(db, provider_id)
+    if not provider.enabled:
+        raise HTTPException(status_code=409, detail=PROVIDER_DISABLED_DETAIL)
+    task = enqueue_celery_task(RUN_PROVIDER_TASK, args=[provider_id])
+    return TaskEnqueueResponse(task_id=task.id)
+
+
 @router.patch("/{provider_id}/prometheus", response_model=PrometheusProviderRead)
 def update_prometheus_provider(
     provider_id: int,
@@ -341,6 +363,18 @@ def list_provider_provisioners(
         MachineProvisioner.name.asc(),
         MachineProvisioner.id.asc(),
     )
+
+
+@router.get("/{provider_id}/machines", response_model=PaginatedResponse[MachineRead])
+def list_provider_machines(
+    provider_id: int,
+    pagination: PaginationParams = Depends(PaginationParams),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[MachineRead]:
+    """List machines visible to one provider."""
+    provider = _load_provider(db, provider_id)
+    query = _provider_machine_query(db, provider)
+    return paginate_query(query, MachineRead, pagination, Machine.hostname.asc(), Machine.id.asc())
 
 
 @router.post("/{provider_id}/provisioners/{provisioner_id}", response_model=ProviderRead)

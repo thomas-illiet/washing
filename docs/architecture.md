@@ -110,8 +110,8 @@ flowchart TD
 
 1. A refresh is triggered automatically by inventory or metric collection, or manually through `POST /v1/machines/{machine_id}/optimizations/recalculate`.
 2. The worker resolves the visible enabled provider for each scope (`cpu`, `ram`, `disk`).
-3. It loads the latest configured metric window per scope.
-4. It computes scope-level and global optimization decisions, applying configured CPU and RAM bounds.
+3. It loads up to the latest configured metric window per scope.
+4. It computes scope-level and global optimization decisions from average utilization, applying configured CPU and RAM bounds.
 5. It updates the current optimization row in place when the snapshot is unchanged.
 6. It supersedes the previous current row and inserts a new revision when the snapshot changes.
 

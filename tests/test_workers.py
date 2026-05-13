@@ -961,11 +961,57 @@ def test_refresh_machine_optimization_creates_new_revision_when_snapshot_changes
     assert optimizations[1].details["cpu"]["action"] == "scale_down"
 
 
-def test_refresh_machine_optimization_reports_insufficient_data_and_ambiguous_providers(
+def test_refresh_machine_optimization_averages_available_metric_window(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Optimization refreshes should surface insufficient data and provider ambiguity explicitly."""
+    """Optimization refreshes should use the average utilization across loaded samples."""
+    _configure_optimization_settings(monkeypatch, window_size=3)
+
+    platform = Platform(name="Optimization Average Window")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-average",
+        hostname="vm-average",
+        cpu=4,
+        ram_mb=8192,
+        disk_mb=80 * 1024,
+    )
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 90},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, provider])
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            MachineCPUMetric(provider_id=provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=80),
+            MachineCPUMetric(provider_id=provider.id, machine_id=machine.id, date=date(2026, 5, 2), value=90),
+            MachineCPUMetric(provider_id=provider.id, machine_id=machine.id, date=date(2026, 5, 3), value=100),
+        ]
+    )
+    refresh_machine_optimization(db_session, machine.id)
+    db_session.commit()
+
+    optimization = db_session.query(MachineOptimization).filter(MachineOptimization.machine_id == machine.id).one()
+    assert optimization.details["cpu"]["utilization_percent"] == 90
+    assert optimization.details["cpu"]["reason_code"] == "pressure_high"
+    assert optimization.target_cpu == 6
+
+
+def test_refresh_machine_optimization_uses_partial_windows_and_reports_ambiguous_providers(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Optimization refreshes should calculate partial windows and surface provider ambiguity."""
     _configure_optimization_settings(monkeypatch, window_size=2)
 
     platform = Platform(name="Optimization Edge Cases")
@@ -1014,10 +1060,52 @@ def test_refresh_machine_optimization_reports_insufficient_data_and_ambiguous_pr
 
     optimization = db_session.query(MachineOptimization).filter(MachineOptimization.machine_id == machine.id).one()
     assert optimization.status == "error"
-    assert optimization.action == "unavailable"
+    assert optimization.action == "scale_down"
     assert optimization.details["cpu"]["status"] == "ambiguous_provider"
-    assert optimization.details["ram"]["status"] == "insufficient_data"
+    assert optimization.details["ram"]["status"] == "ok"
+    assert optimization.details["ram"]["action"] == "scale_down"
+    assert optimization.details["ram"]["reason_code"] == "limited_history"
+    assert optimization.details["ram"]["utilization_percent"] == 35
     assert optimization.details["disk"]["status"] == "missing_provider"
+
+
+def test_refresh_machine_optimization_reports_zero_samples_as_insufficient_data(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A visible provider without samples should keep its scope non-calculable."""
+    _configure_optimization_settings(monkeypatch, window_size=2)
+
+    platform = Platform(name="Optimization Zero Samples")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-3-empty",
+        hostname="vm-3-empty",
+        cpu=2,
+        ram_mb=4096,
+        disk_mb=80 * 1024,
+    )
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu",
+        type="mock_metric",
+        scope="cpu",
+        enabled=True,
+        config={"value": 85},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, provider])
+    db_session.commit()
+
+    refresh_machine_optimization(db_session, machine.id)
+    db_session.commit()
+
+    optimization = db_session.query(MachineOptimization).filter(MachineOptimization.machine_id == machine.id).one()
+    assert optimization.details["cpu"]["status"] == "insufficient_data"
+    assert optimization.details["cpu"]["action"] == "insufficient_data"
+    assert optimization.details["cpu"]["reason_code"] == "no_samples"
 
 
 def test_refresh_machine_optimization_clamps_cpu_and_ram_targets(
@@ -1073,6 +1161,7 @@ def test_refresh_machine_optimization_clamps_cpu_and_ram_targets(
     assert optimization.details["cpu"]["reason_code"] == "raised_to_min_cpu"
     assert optimization.details["ram"]["reason_code"] == "capped_by_max_ram"
     assert optimization.details["ram"]["bounded_target_capacity"] == 8192
+    assert optimization.details["ram"]["bounded_target_capacity"] % 1024 == 0
 
 
 def test_refresh_machine_optimization_never_scales_disk_down(
@@ -1112,6 +1201,61 @@ def test_refresh_machine_optimization_never_scales_disk_down(
     optimization = db_session.query(MachineOptimization).filter(MachineOptimization.machine_id == machine.id).one()
     assert optimization.details["disk"]["action"] == "keep"
     assert optimization.target_disk_mb == machine.disk_mb
+
+
+def test_refresh_machine_optimization_rounds_ram_and_disk_targets_to_gib_steps(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RAM and disk recommendations should stay aligned to 1024 MB steps."""
+    _configure_optimization_settings(monkeypatch, window_size=1)
+
+    platform = Platform(name="Optimization Capacity Steps")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-step",
+        hostname="vm-step",
+        cpu=2,
+        ram_mb=4096,
+        disk_mb=80 * 1024,
+    )
+    ram_provider = MachineProvider(
+        platform=platform,
+        name="ram",
+        type="mock_metric",
+        scope="ram",
+        enabled=True,
+        config={"value": 90},
+        provisioners=[provisioner],
+    )
+    disk_provider = MachineProvider(
+        platform=platform,
+        name="disk",
+        type="mock_metric",
+        scope="disk",
+        enabled=True,
+        config={"value": 90},
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, ram_provider, disk_provider])
+    db_session.commit()
+
+    db_session.add_all(
+        [
+            MachineRAMMetric(provider_id=ram_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=90),
+            MachineDiskMetric(provider_id=disk_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=90),
+        ]
+    )
+    refresh_machine_optimization(db_session, machine.id)
+    db_session.commit()
+
+    optimization = db_session.query(MachineOptimization).filter(MachineOptimization.machine_id == machine.id).one()
+    assert optimization.target_ram_mb == 6144
+    assert optimization.target_disk_mb == 113664
+    assert optimization.target_ram_mb % 1024 == 0
+    assert optimization.target_disk_mb % 1024 == 0
 
 
 def test_inventory_refreshes_optimization_when_flavor_changes(

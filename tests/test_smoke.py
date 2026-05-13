@@ -109,7 +109,6 @@ def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
             "machine_id",
             "revision",
             "is_current",
-            "current_machine_id",
             "acknowledged_at",
             "acknowledged_by",
             "window_size",
@@ -119,6 +118,9 @@ def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
             "max_ram_mb",
             "details",
         } <= set(optimization_columns)
+        assert "current_machine_id" not in optimization_columns
+        optimization_indexes = list(connection.execute("PRAGMA index_list(machine_optimizations)"))
+        assert any(row[1] == "uq_machine_optimizations_current_machine" and row[2] and row[4] for row in optimization_indexes)
     finally:
         connection.close()
 

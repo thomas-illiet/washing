@@ -14,8 +14,10 @@ from internal.infra.queue import task_tracking
 from internal.infra.queue.task_names import (
     DISPATCH_ENABLED_PROVIDER_SYNCS_TASK,
     DISPATCH_DUE_APPLICATION_METRICS_SYNCS_TASK,
+    DISPATCH_DUE_MACHINE_PROVISIONER_JOBS_TASK,
     PURGE_OLD_TASK_EXECUTIONS_TASK,
     RECALCULATE_MACHINE_OPTIMIZATIONS_TASK,
+    RUN_PROVIDER_TASK,
     RUN_PROVIDER_MACHINE_TASK,
     RUN_PROVISIONER_TASK,
     SYNC_APPLICATION_INVENTORY_DISCOVERY_TASK,
@@ -285,6 +287,15 @@ def test_worker_tasks_endpoint_filters_orders_and_paginates(client: TestClient, 
     assert application_rows.status_code == 200
     assert application_rows.json()["items"][0]["result"] == {"synced": 1}
 
+    fetched = client.get("/v1/worker/tasks/task-1")
+    assert fetched.status_code == 200
+    assert fetched.json()["task_id"] == "task-1"
+    assert fetched.json()["result"] == {"created": 1}
+
+    missing = client.get("/v1/worker/tasks/missing-task")
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "task execution not found"
+
 
 def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     client: TestClient,
@@ -319,7 +330,10 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
         [
             "manual-application-inventory-sync",
             "manual-application-metrics-dispatch",
+            "manual-single-application-metrics-sync",
             "manual-provider-sync-dispatch",
+            "manual-provider-run",
+            "manual-provisioner-sync",
             "manual-provisioner-run",
             "manual-machine-optimization-recalc",
         ]
@@ -341,7 +355,10 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
 
     inventory_sync_response = client.post("/v1/applications/sync", params={"type": "inventory_discovery"})
     metrics_sync_response = client.post("/v1/applications/sync", params={"type": "metrics"})
+    single_application_sync_response = client.post(f"/v1/applications/{application.id}/metrics/sync")
     provider_sync_response = client.post("/v1/machines/providers/sync")
+    provider_response = client.post(f"/v1/machines/providers/{provider.id}/run")
+    provisioner_sync_response = client.post("/v1/machines/provisioners/sync")
     provisioner_response = client.post(f"/v1/machines/provisioners/{provisioner.id}/run")
     optimization_response = client.post(f"/v1/machines/{machine.id}/optimizations/recalculate")
 
@@ -349,8 +366,14 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
     assert inventory_sync_response.json() == {"task_id": "manual-application-inventory-sync"}
     assert metrics_sync_response.status_code == 202
     assert metrics_sync_response.json() == {"task_id": "manual-application-metrics-dispatch"}
+    assert single_application_sync_response.status_code == 202
+    assert single_application_sync_response.json() == {"task_id": "manual-single-application-metrics-sync"}
     assert provider_sync_response.status_code == 202
     assert provider_sync_response.json() == {"task_id": "manual-provider-sync-dispatch"}
+    assert provider_response.status_code == 202
+    assert provider_response.json() == {"task_id": "manual-provider-run"}
+    assert provisioner_sync_response.status_code == 202
+    assert provisioner_sync_response.json() == {"task_id": "manual-provisioner-sync"}
     assert provisioner_response.status_code == 202
     assert provisioner_response.json() == {"task_id": "manual-provisioner-run"}
     assert optimization_response.status_code == 202
@@ -384,6 +407,7 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
             "machine",
             machine.id,
         ),
+        ("manual-provider-run", RUN_PROVIDER_TASK, "PENDING", "provider", provider.id),
         (
             "manual-provider-sync-dispatch",
             DISPATCH_ENABLED_PROVIDER_SYNCS_TASK,
@@ -392,6 +416,20 @@ def test_manual_task_endpoints_return_202_and_create_tracking_rows(
             None,
         ),
         ("manual-provisioner-run", RUN_PROVISIONER_TASK, "PENDING", "provisioner", provisioner.id),
+        (
+            "manual-provisioner-sync",
+            DISPATCH_DUE_MACHINE_PROVISIONER_JOBS_TASK,
+            "PENDING",
+            None,
+            None,
+        ),
+        (
+            "manual-single-application-metrics-sync",
+            SYNC_APPLICATION_METRICS_TASK,
+            "PENDING",
+            "application",
+            application.id,
+        ),
     ]
 
 

@@ -15,9 +15,12 @@ This document maps the Celery runtime entrypoints, the registered tasks, and the
 ```mermaid
 flowchart TD
     APIProv["POST /v1/machines/provisioners/{provisioner_id}/run"] --> Enqueue
+    APIProvDispatch["POST /v1/machines/provisioners/sync"] --> Enqueue
     APIAppInv["POST /v1/applications/sync?type=inventory_discovery"] --> Enqueue
     APIAppMet["POST /v1/applications/sync?type=metrics"] --> Enqueue
+    APIAppOne["POST /v1/applications/{application_id}/metrics/sync"] --> Enqueue
     APIProviderSync["POST /v1/machines/providers/sync"] --> Enqueue
+    APIProviderRun["POST /v1/machines/providers/{provider_id}/run"] --> Enqueue
     APIOptimizations["POST /v1/machines/{machine_id}/optimizations/recalculate"] --> Enqueue
 
     Beat["Celery Beat\napp/beat/celery.py"] --> SchedProv["schedule: scheduler.dispatch_due_machine_provisioner_jobs"]
@@ -60,17 +63,17 @@ flowchart TD
 
 | Task name | Python function | Direct entrypoint(s) | Downstream behavior |
 | --- | --- | --- | --- |
-| `scheduler.dispatch_due_machine_provisioner_jobs` | `dispatch_due_machine_provisioner_jobs_task` | Beat schedule only | Looks for due provisioners, then enqueues `provisioners.run` for each match. |
+| `scheduler.dispatch_due_machine_provisioner_jobs` | `dispatch_due_machine_provisioner_jobs_task` | Beat schedule, `POST /v1/machines/provisioners/sync` | Looks for due provisioners, then enqueues `provisioners.run` for each match. |
 | `provisioners.run` | `run_provisioner_task` | `POST /v1/machines/provisioners/{provisioner_id}/run`, plus the scheduler dispatcher above | Runs one inventory sync for a provisioner. |
 | `applications.sync_inventory_discovery` | `sync_application_inventory_discovery_task` | Beat schedule, `POST /v1/applications/sync?type=inventory_discovery` | Rebuilds the `applications` projection from current machine inventory. |
 | `applications.dispatch_due_metrics_syncs` | `dispatch_due_application_metrics_syncs_task` | Beat schedule, `POST /v1/applications/sync?type=metrics` | Selects due applications, then enqueues `applications.sync_metrics` in batches. |
-| `applications.sync_metrics` | `sync_application_metrics_task` | Application metrics dispatcher only | Resolves the machines/providers for one application batch, then enqueues `providers.run_machine` once per visible pair. |
+| `applications.sync_metrics` | `sync_application_metrics_task` | Application metrics dispatcher, `POST /v1/applications/{application_id}/metrics/sync` | Resolves the machines/providers for one application batch, then enqueues `providers.run_machine` once per visible pair. |
 | `maintenance.purge_old_task_executions` | `purge_old_task_executions_task` | Beat daily schedule only | Deletes `celery_task_executions` rows older than the configured retention window. |
 | `maintenance.purge_stale_applications` | `purge_stale_applications_task` | Beat daily schedule only | Deletes stale `applications` rows based on `updated_at`, without touching other tables. |
 | `maintenance.purge_stale_machines` | `purge_stale_machines_task` | Beat daily schedule only | Deletes stale `machines` rows based on `updated_at`, without cleaning the `applications` projection. |
 | `machines.recalculate_optimizations` | `recalculate_machine_optimizations_task` | `POST /v1/machines/{machine_id}/optimizations/recalculate` | Recomputes and versions the optimization projection for one machine. |
 | `providers.dispatch_enabled_syncs` | `dispatch_enabled_provider_syncs_task` | `POST /v1/machines/providers/sync` | Selects enabled providers, then enqueues `providers.run` once per provider. |
-| `providers.run` | `run_provider_task` | Provider dispatcher only | Resolves the provider scope, then enqueues `providers.run_machine` once per visible machine. |
+| `providers.run` | `run_provider_task` | Provider dispatcher, `POST /v1/machines/providers/{provider_id}/run` | Resolves the provider scope, then enqueues `providers.run_machine` once per visible machine. |
 | `providers.run_machine` | `run_provider_machine_task` | Provider dispatcher only | Collects one machine metric sample for one `provider_id` / `machine_id` pair and upserts the daily metric row. |
 
 ## Code locations

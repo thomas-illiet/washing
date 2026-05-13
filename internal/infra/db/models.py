@@ -2,7 +2,7 @@
 
 from datetime import date as date_value, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from internal.domain import (
@@ -256,15 +256,16 @@ class MachineOptimization(TimestampMixin, Base):
     __tablename__ = "machine_optimizations"
     __table_args__ = (
         UniqueConstraint("machine_id", "revision", name="uq_machine_optimizations_machine_revision"),
-        UniqueConstraint("current_machine_id", name="uq_machine_optimizations_current_machine_id"),
         CheckConstraint(
-            "current_machine_id IS NULL OR current_machine_id = machine_id",
-            name="ck_machine_optimizations_current_machine_matches_machine",
-        ),
-        CheckConstraint(
-            "(is_current AND current_machine_id IS NOT NULL AND superseded_at IS NULL) "
-            "OR ((NOT is_current) AND current_machine_id IS NULL AND superseded_at IS NOT NULL)",
+            "(is_current AND superseded_at IS NULL) OR ((NOT is_current) AND superseded_at IS NOT NULL)",
             name="ck_machine_optimizations_current_state",
+        ),
+        Index(
+            "uq_machine_optimizations_current_machine",
+            "machine_id",
+            unique=True,
+            postgresql_where=text("is_current = TRUE"),
+            sqlite_where=text("is_current = 1"),
         ),
         Index("ix_machine_optimizations_machine_current", "machine_id", "is_current"),
         Index("ix_machine_optimizations_superseded_at", "superseded_at"),
@@ -274,7 +275,6 @@ class MachineOptimization(TimestampMixin, Base):
     machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id", ondelete="CASCADE"), nullable=False, index=True)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     is_current: Mapped[bool] = mapped_column(nullable=False, default=True)
-    current_machine_id: Mapped[int | None] = mapped_column(Integer)
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     action: Mapped[str] = mapped_column(String(32), nullable=False)

@@ -5,158 +5,80 @@ from typing import Any
 
 from fastmcp import Context, FastMCP
 
-from app.mcp.core.shared import ReadOnlyResourceAnnotations
-from app.mcp.core.shared import Limit, MetricType, Offset, OptionalPositiveInt, PositiveInt
 from app.mcp.core.product_api import (
-    get_application,
-    get_machine,
-    list_applications,
-    list_machine_metric_history,
-    list_machine_metrics,
-    list_machines,
+    discovery_application_overview,
+    discovery_catalog,
+    discovery_current_optimizations,
+    discovery_machine_context,
 )
+from app.mcp.core.shared import PositiveInt, ReadOnlyResourceAnnotations
 
 
 def register_resources(mcp: FastMCP) -> None:
-    """Register read-only resources on the MCP server."""
+    """Register assistant-friendly read-only resources on the MCP server."""
 
     @mcp.resource(
-        "metrics-collector://applications{?name,environment,region,offset,limit}",
+        "metrics-collector://catalog",
+        name="discovery_catalog",
+        title="Discovery Catalog",
+        description="Browsable catalog of platforms, environments, regions, metric types, and optimization vocabulary.",
         mime_type="application/json",
         annotations=ReadOnlyResourceAnnotations,
+        tags={"discovery", "catalog"},
     )
-    async def applications_resource(
-        ctx: Context,
-        name: str | None = None,
-        environment: str | None = None,
-        region: str | None = None,
-        offset: Offset = 0,
-        limit: Limit = 100,
-    ) -> str:
-        """List applications with optional filters."""
+    async def catalog_resource(ctx: Context) -> str:
+        """Read the top-level discovery catalog."""
 
-        payload = await list_applications(
-            ctx,
-            name=name,
-            environment=environment,
-            region=region,
-            offset=offset,
-            limit=limit,
+        return _resource_json(await discovery_catalog(ctx))
+
+    @mcp.resource(
+        "metrics-collector://applications/{application_id}/overview",
+        name="application_overview",
+        title="Application Overview",
+        description="Browsable application context with machines and current optimization recommendations.",
+        mime_type="application/json",
+        annotations=ReadOnlyResourceAnnotations,
+        tags={"applications", "optimizations"},
+    )
+    async def application_overview_resource(ctx: Context, application_id: PositiveInt) -> str:
+        """Read the assistant overview for one application."""
+
+        return _resource_json(
+            await discovery_application_overview(
+                ctx,
+                application_id=application_id,
+                max_machines=100,
+                max_optimizations=100,
+            )
         )
-        return _resource_json(payload)
 
     @mcp.resource(
-        "metrics-collector://applications/{application_id}",
+        "metrics-collector://machines/{machine_id}/context",
+        name="machine_context",
+        title="Machine Context",
+        description="Browsable machine context with ownership, latest metrics, and current optimization.",
         mime_type="application/json",
         annotations=ReadOnlyResourceAnnotations,
+        tags={"machines", "metrics", "optimizations"},
     )
-    async def application_resource(ctx: Context, application_id: PositiveInt) -> str:
-        """Read one application by identifier."""
+    async def machine_context_resource(ctx: Context, machine_id: PositiveInt) -> str:
+        """Read the assistant context for one machine."""
 
-        payload = await get_application(ctx, application_id)
-        return _resource_json(payload)
+        return _resource_json(await discovery_machine_context(ctx, machine_id))
 
     @mcp.resource(
-        "metrics-collector://machines{?platform_id,application,source_provisioner_id,environment,region,offset,limit}",
+        "metrics-collector://optimizations/current",
+        name="current_optimizations",
+        title="Current Optimizations",
+        description="Browsable bounded list of current optimization recommendations across machines.",
         mime_type="application/json",
         annotations=ReadOnlyResourceAnnotations,
+        tags={"optimizations"},
     )
-    async def machines_resource(
-        ctx: Context,
-        platform_id: OptionalPositiveInt = None,
-        application: str | None = None,
-        source_provisioner_id: OptionalPositiveInt = None,
-        environment: str | None = None,
-        region: str | None = None,
-        offset: Offset = 0,
-        limit: Limit = 100,
-    ) -> str:
-        """List machines with optional filters."""
+    async def current_optimizations_resource(ctx: Context) -> str:
+        """Read current optimization recommendations."""
 
-        payload = await list_machines(
-            ctx,
-            platform_id=platform_id,
-            application=application,
-            source_provisioner_id=source_provisioner_id,
-            environment=environment,
-            region=region,
-            offset=offset,
-            limit=limit,
-        )
-        return _resource_json(payload)
-
-    @mcp.resource(
-        "metrics-collector://machines/{machine_id}",
-        mime_type="application/json",
-        annotations=ReadOnlyResourceAnnotations,
-    )
-    async def machine_resource(ctx: Context, machine_id: PositiveInt) -> str:
-        """Read one machine by identifier."""
-
-        payload = await get_machine(ctx, machine_id)
-        return _resource_json(payload)
-
-    @mcp.resource(
-        "metrics-collector://machine-metrics/{type}{?platform_id,provider_id,provisioner_id,machine_id,start,end,offset,limit}",
-        mime_type="application/json",
-        annotations=ReadOnlyResourceAnnotations,
-    )
-    async def machine_metrics_resource(
-        ctx: Context,
-        type: MetricType,
-        platform_id: OptionalPositiveInt = None,
-        provider_id: OptionalPositiveInt = None,
-        provisioner_id: OptionalPositiveInt = None,
-        machine_id: OptionalPositiveInt = None,
-        start: str | None = None,
-        end: str | None = None,
-        offset: Offset = 0,
-        limit: Limit = 100,
-    ) -> str:
-        """List stored metrics across machines for one metric type."""
-
-        payload = await list_machine_metrics(
-            ctx,
-            metric_type=type,
-            platform_id=platform_id,
-            provider_id=provider_id,
-            provisioner_id=provisioner_id,
-            machine_id=machine_id,
-            start=start,
-            end=end,
-            offset=offset,
-            limit=limit,
-        )
-        return _resource_json(payload)
-
-    @mcp.resource(
-        "metrics-collector://machines/{machine_id}/metrics/{type}{?provider_id,start,end,offset,limit}",
-        mime_type="application/json",
-        annotations=ReadOnlyResourceAnnotations,
-    )
-    async def machine_metric_history_resource(
-        ctx: Context,
-        machine_id: PositiveInt,
-        type: MetricType,
-        provider_id: OptionalPositiveInt = None,
-        start: str | None = None,
-        end: str | None = None,
-        offset: Offset = 0,
-        limit: Limit = 100,
-    ) -> str:
-        """List stored metrics for one machine and one metric type."""
-
-        payload = await list_machine_metric_history(
-            ctx,
-            machine_id=machine_id,
-            metric_type=type,
-            provider_id=provider_id,
-            start=start,
-            end=end,
-            offset=offset,
-            limit=limit,
-        )
-        return _resource_json(payload)
+        return _resource_json(await discovery_current_optimizations(ctx, max_results=100))
 
 
 def _resource_json(payload: dict[str, Any]) -> str:

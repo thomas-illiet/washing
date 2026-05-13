@@ -56,6 +56,7 @@ docker compose restart mcp
 ### Task visibility
 
 - API task history: `GET /v1/worker/tasks`
+- API task detail: `GET /v1/worker/tasks/{task_id}`
 - Flower UI: `http://localhost:5555`
 - Prometheus metrics: API `/metrics` and Celery exporters
 
@@ -117,7 +118,20 @@ The `applications` table is derived from `machines`.
 Use cases:
 
 - rebuild application projection: trigger `POST /v1/applications/sync?type=inventory_discovery`
+- inspect machines for one projection row: `GET /v1/applications/{application_id}/machines`
+- run metrics sync for one projection row: `POST /v1/applications/{application_id}/metrics/sync`
 - do not treat `applications` as the source of truth for inventory
+
+### Platform and machine diagnostics
+
+Useful endpoints:
+
+- platform summary: `GET /v1/platforms/{platform_id}/summary`
+- latest per-scope machine metrics: `GET /v1/machines/{machine_id}/metrics/latest`
+- trigger due provisioner dispatch: `POST /v1/machines/provisioners/sync`
+- trigger one enabled provider dispatch: `POST /v1/machines/providers/{provider_id}/run`
+- inspect provider-visible machines: `GET /v1/machines/providers/{provider_id}/machines`
+- inspect provisioner machines/providers: `GET /v1/machines/provisioners/{provisioner_id}/machines` and `GET /v1/machines/provisioners/{provisioner_id}/providers`
 
 ### Machine optimization projection
 
@@ -136,6 +150,7 @@ Useful endpoints:
 - acknowledge an optimization: `POST /v1/machines/optimizations/{optimization_id}/acknowledge`
 - read current optimization: `GET /v1/machines/{machine_id}/optimizations`
 - read optimization history: `GET /v1/machines/{machine_id}/optimizations/history`
+- list optimizations for one application projection row: `GET /v1/applications/{application_id}/optimizations`
 - enqueue a manual recalculation: `POST /v1/machines/{machine_id}/optimizations/recalculate`
 
 Manual recalculation is useful after:

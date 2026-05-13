@@ -1,17 +1,17 @@
 # Machine Optimizations
 
-Machine optimizations are versioned capacity suggestions for one machine. They compare the machine's current flavor with recent CPU, RAM, and disk metrics, then expose a current optimization plus historical revisions through the API.
+Machine optimizations are versioned capacity suggestions for one machine. They compare the current machine flavor with recent CPU, RAM, and disk utilization metrics, then expose a simple current recommendation plus historical revisions through the API.
 
 ## What the feature answers
 
 For each machine, the service answers:
 
-- whether the current CPU, RAM, and disk allocation should stay as-is
+- whether CPU, RAM, and disk should stay as-is
 - whether CPU or RAM should scale up or down
 - whether disk should scale up
-- whether an optimization is unavailable because the data or provider setup is incomplete
+- whether a resource cannot be evaluated because provider setup or metric data is missing
 
-Disk optimizations are conservative: disk can scale up when pressure is high, but it is not proposed for downscale.
+Disk optimizations are conservative: disk can scale up when pressure is high, but it is never proposed for downscale.
 
 ## Inputs
 
@@ -19,8 +19,10 @@ The optimization engine uses:
 
 - the current machine flavor from `machines.cpu`, `machines.ram_mb`, and `machines.disk_mb`
 - exactly one visible enabled metric provider per scope: `cpu`, `ram`, and `disk`
-- the latest `FLAVOR_OPTIMIZATION_WINDOW_SIZE` metric samples for each scope
+- up to the latest `FLAVOR_OPTIMIZATION_WINDOW_SIZE` metric samples for each scope
 - configured CPU and RAM bounds from `FLAVOR_OPTIMIZATION_MIN_*` and `FLAVOR_OPTIMIZATION_MAX_*`
+
+CPU and RAM samples are expected to be daily p95 utilization percentages already stored in the database. Disk samples are expected to be disk utilization percentages.
 
 A provider is visible to a machine when it belongs to the same platform and either:
 
@@ -53,6 +55,20 @@ Manual recalculation enqueues the `machines.recalculate_optimizations` Celery ta
 | `GET` | `/v1/machines/{machine_id}/optimizations/history` | Read all revisions, including the current one. |
 | `POST` | `/v1/machines/{machine_id}/optimizations/recalculate` | Enqueue an on-demand recalculation. |
 
+The optimization response is intentionally compact. Each response contains top-level revision metadata and a `resources` object keyed by `cpu`, `ram`, and `disk`.
+
+Each resource exposes:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | Resource status: `ok`, `missing_provider`, `ambiguous_provider`, `insufficient_data`, or `missing_current_capacity`. |
+| `action` | Resource action: `scale_up`, `scale_down`, `keep`, `insufficient_data`, or `unavailable`. |
+| `current` | Current capacity from inventory. |
+| `recommended` | Recommended capacity, or `null` when the resource is not calculable. |
+| `unit` | `cores` for CPU, `mb` for RAM and disk. |
+| `utilization_percent` | Average utilization percent used for the recommendation. |
+| `reason` | Machine-readable explanation such as `limited_history`, `pressure_high`, `pressure_low`, `no_samples`, or `no_provider`. |
+
 With OIDC enabled, read endpoints require the read role. Acknowledgement and recalculation endpoints require the admin role.
 
 If a machine exists but no optimization has been computed yet, the current optimization endpoint returns `404` with `optimization not computed yet`.
@@ -67,70 +83,42 @@ The top-level `status` summarizes whether the optimization can be trusted as a c
 
 | Status | Meaning |
 | --- | --- |
-| `ready` | All scopes were evaluated successfully. |
-| `partial` | At least one scope could not be evaluated because provider or metric data is missing. |
-| `error` | At least one scope is ambiguous, usually because multiple visible enabled providers match the same machine and scope. |
+| `ready` | All resources were evaluated successfully. |
+| `partial` | At least one resource could not be evaluated because provider, metric, or current capacity data is missing. |
+| `error` | At least one resource is ambiguous, usually because multiple visible enabled providers match the same machine and scope. |
 
-The top-level `action` summarizes the scope actions:
+The top-level `action` summarizes the resource actions:
 
 | Action | Meaning |
 | --- | --- |
-| `scale_up` | At least one scope needs more capacity, and none needs less. |
-| `scale_down` | At least one CPU or RAM scope can shrink, and none needs more. |
-| `mixed` | Some scopes want to scale up while others want to scale down. |
-| `keep` | Evaluated scopes should stay at the current capacity. |
-| `insufficient_data` | No scope has enough usable data yet. |
+| `scale_up` | At least one resource needs more capacity, and none needs less. |
+| `scale_down` | At least one CPU or RAM resource can shrink, and none needs more. |
+| `mixed` | Some resources want to scale up while others want to scale down. |
+| `keep` | Evaluated resources should stay at the current capacity. |
+| `insufficient_data` | No resource has usable metric data yet. |
 | `unavailable` | No actionable optimization can be produced. |
-
-## Scope Details
-
-Each optimization includes a `details` object keyed by `cpu`, `ram`, and `disk`.
-
-| Field | Meaning |
-| --- | --- |
-| `provider_id` | Provider used for that scope, or `null` when no single provider can be selected. |
-| `status` | Scope status: `ok`, `missing_provider`, `ambiguous_provider`, `insufficient_data`, or `missing_current_capacity`. |
-| `samples_used` | Number of metric samples loaded for the scope. |
-| `last_metric_date` | Newest metric sample date used for the scope. |
-| `stats` | Average, p95, and max across the loaded sample window. |
-| `current_capacity` | Current machine CPU, RAM, or disk capacity. |
-| `raw_target_capacity` | Unrounded target calculated from p95 pressure and target utilization. |
-| `bounded_target_capacity` | Rounded and bounded target used for decisions. |
-| `action` | Scope action: `scale_up`, `scale_down`, `keep`, `insufficient_data`, or `unavailable`. |
-| `reason_code` | Machine-readable explanation for the scope decision. |
-
-Common `reason_code` values include:
-
-- `no_provider`
-- `ambiguous_provider`
-- `missing_current_capacity`
-- `insufficient_points`
-- `pressure_high`
-- `pressure_low`
-- `within_hysteresis`
-- `raised_to_min_cpu`
-- `capped_by_max_cpu`
-- `raised_to_min_ram`
-- `capped_by_max_ram`
 
 ## Calculation Rules
 
 The engine uses a target utilization of `65%`.
 
-For each scope with enough samples:
+For each resource:
 
-1. Sort the latest sample window and compute average, p95, and max.
-2. Compute `raw_target_capacity = current_capacity * p95 / 65`.
-3. Round the target by capacity type:
+1. Load up to the latest configured sample window.
+2. If no sample exists, mark the resource as `insufficient_data`.
+3. If at least one sample exists, compute `utilization_percent` as the average of the available sample values.
+4. If fewer samples than `FLAVOR_OPTIMIZATION_WINDOW_SIZE` are available, still calculate and expose `limited_history` as the reason.
+5. Compute `raw_target_capacity = current_capacity * utilization_percent / 65`.
+6. Round the target by capacity type:
    - CPU rounds up to whole cores.
-   - RAM rounds up to 1024 MB increments.
-   - Disk rounds up to 10240 MB increments.
-4. Apply CPU and RAM min/max bounds.
-5. Propose scale-up when `p95 >= 85` or `max >= 95`, and the bounded target is more than `10%` above current capacity.
-6. Propose CPU or RAM scale-down when `p95 <= 40` and `max <= 60`, and the bounded target is more than `20%` below current capacity.
-7. Otherwise, keep the current capacity.
+   - RAM rounds up to `1024 MB` increments.
+   - Disk rounds up to `1024 MB` increments.
+7. Apply CPU and RAM min/max bounds.
+8. Propose scale-up when utilization is at least `85%` and the target is more than `10%` above current capacity.
+9. Propose CPU or RAM scale-down when utilization is at most `40%` and the target is more than `20%` below current capacity.
+10. Otherwise, keep the current capacity.
 
-For `keep`, the public target remains the current capacity. For unavailable or insufficient scopes, the public target is `null`.
+For `keep`, the recommended capacity remains the current capacity. For unavailable or insufficient resources, the recommended capacity is `null`.
 
 ## Versioning
 
@@ -140,9 +128,9 @@ Optimizations are stored in `machine_optimizations`.
 - old rows remain available as history with `is_current=false`
 - `revision` increases when the calculated snapshot changes
 - if a recalculation produces the same snapshot, the current row is updated in place with a new `computed_at`
-- each revision stores the window size and CPU/RAM bounds used to compute it
+- each revision stores the window size and CPU/RAM bounds used internally to compute it
 
-This means configuration changes can create a new revision even if the visible target capacities stay the same.
+This means configuration changes can create a new revision even if the visible recommendation stays the same.
 
 ## Operational Checklist
 
@@ -150,7 +138,7 @@ When optimizations are missing or partial:
 
 - confirm the machine has current CPU, RAM, and disk flavor values
 - confirm each needed scope has exactly one enabled visible provider
-- confirm metric collection has produced at least `FLAVOR_OPTIMIZATION_WINDOW_SIZE` samples per scope
+- confirm metric collection has produced at least one sample for each calculable scope
 - run `POST /v1/machines/{machine_id}/optimizations/recalculate` after fixing provider visibility or optimization settings
 - inspect `GET /v1/machines/{machine_id}/optimizations/history` to compare revisions
 

@@ -1,7 +1,7 @@
 """Machine provisioner routes."""
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import PaginationParams, get_db
 from app.api.routes.common import apply_patch, commit_or_409, get_or_404, paginate_query
@@ -12,13 +12,15 @@ from internal.contracts.http.resources import (
     DynatraceProvisionerCreate,
     DynatraceProvisionerRead,
     DynatraceProvisionerUpdate,
+    MachineRead,
     PaginatedResponse,
+    ProviderRead,
     ProvisionerRead,
     TaskEnqueueResponse,
 )
-from internal.infra.db.models import MachineProvisioner, Platform
+from internal.infra.db.models import Machine, MachineProvider, MachineProviderProvisioner, MachineProvisioner, Platform
 from internal.infra.queue.enqueue import enqueue_celery_task
-from internal.infra.queue.task_names import RUN_PROVISIONER_TASK
+from internal.infra.queue.task_names import DISPATCH_DUE_MACHINE_PROVISIONER_JOBS_TASK, RUN_PROVISIONER_TASK
 
 PROVISIONER_DISABLED_DETAIL = "provisioner must be enabled before it can run"
 
@@ -139,10 +141,49 @@ def list_provisioners(
     )
 
 
+@router.post("/sync", response_model=TaskEnqueueResponse, status_code=status.HTTP_202_ACCEPTED)
+def enqueue_provisioner_sync() -> TaskEnqueueResponse:
+    """Enqueue the scheduler dispatcher for due provisioner runs."""
+    task = enqueue_celery_task(DISPATCH_DUE_MACHINE_PROVISIONER_JOBS_TASK)
+    return TaskEnqueueResponse(task_id=task.id)
+
+
 @router.get("/{provisioner_id}", response_model=ProvisionerRead)
 def get_provisioner(provisioner_id: int, db: Session = Depends(get_db)) -> MachineProvisioner:
     """Return one provisioner without exposing its typed config."""
     return get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+
+
+@router.get("/{provisioner_id}/machines", response_model=PaginatedResponse[MachineRead])
+def list_provisioner_machines(
+    provisioner_id: int,
+    pagination: PaginationParams = Depends(PaginationParams),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[MachineRead]:
+    """List machines discovered by one provisioner."""
+    get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+    query = db.query(Machine).filter(Machine.source_provisioner_id == provisioner_id)
+    return paginate_query(query, MachineRead, pagination, Machine.hostname.asc(), Machine.id.asc())
+
+
+@router.get("/{provisioner_id}/providers", response_model=PaginatedResponse[ProviderRead])
+def list_provisioner_providers(
+    provisioner_id: int,
+    pagination: PaginationParams = Depends(PaginationParams),
+    db: Session = Depends(get_db),
+) -> PaginatedResponse[ProviderRead]:
+    """List metric providers attached to one provisioner."""
+    get_or_404(db, MachineProvisioner, provisioner_id, "provisioner not found")
+    query = (
+        db.query(MachineProvider)
+        .options(selectinload(MachineProvider.provisioners))
+        .join(
+            MachineProviderProvisioner,
+            MachineProviderProvisioner.provider_id == MachineProvider.id,
+        )
+        .filter(MachineProviderProvisioner.provisioner_id == provisioner_id)
+    )
+    return paginate_query(query, ProviderRead, pagination, MachineProvider.name.asc(), MachineProvider.id.asc())
 
 
 @router.get("/{provisioner_id}/capsule", response_model=CapsuleProvisionerRead)

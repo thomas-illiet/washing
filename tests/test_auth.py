@@ -190,6 +190,9 @@ def test_oidc_user_can_read_but_not_mutate(
     forbidden_sync = client.post("/v1/applications/sync", params={"type": "metrics"}, headers=user_headers)
     assert forbidden_sync.status_code == 403
 
+    forbidden_provisioner_sync = client.post("/v1/machines/provisioners/sync", headers=user_headers)
+    assert forbidden_provisioner_sync.status_code == 403
+
     created = client.post("/v1/platforms", json={"name": "AWS"}, headers=admin_headers)
     assert created.status_code == 201
     assert created.json()["name"] == "AWS"
@@ -250,7 +253,6 @@ def test_oidc_acknowledge_optimization_records_principal(
         machine_id=machine.id,
         revision=1,
         is_current=True,
-        current_machine_id=machine.id,
         superseded_at=None,
         status="partial",
         action="insufficient_data",
@@ -272,7 +274,7 @@ def test_oidc_acknowledge_optimization_records_principal(
                 "status": "missing_provider",
                 "samples_used": 0,
                 "last_metric_date": None,
-                "stats": None,
+                "utilization_percent": None,
                 "current_capacity": None,
                 "raw_target_capacity": None,
                 "bounded_target_capacity": None,

@@ -10,6 +10,7 @@ from internal.domain.cron import INVALID_CRON_EXPRESSION_DETAIL
 from internal.infra.config.settings import get_settings
 from internal.infra.db.models import (
     Application,
+    CeleryTaskExecution,
     Machine,
     MachineCPUMetric,
     MachineDiskMetric,
@@ -18,6 +19,11 @@ from internal.infra.db.models import (
     MachineProvisioner,
     MachineOptimization,
     Platform,
+)
+from internal.infra.queue.task_names import (
+    DISPATCH_DUE_MACHINE_PROVISIONER_JOBS_TASK,
+    RUN_PROVIDER_TASK,
+    SYNC_APPLICATION_METRICS_TASK,
 )
 from internal.usecases.inventory import run_provisioner_inventory
 from internal.usecases.applications import rebuild_applications_from_machines
@@ -30,6 +36,7 @@ EXPECTED_OPENAPI_DESCRIPTION = (
 EXPECTED_OPENAPI_TAG_DESCRIPTIONS = {
     "Platforms": "Cycle programs and settings.",
     "Applications": "Loads to track in the drum.",
+    "Discovery": "Assistant-ready inventory and optimization discovery.",
     "Machines": "Main drum and inventory.",
     "Machine Optimizations": "Capacity advice and acknowledged wash labels.",
     "Machine Metrics": "CPU, RAM, and disk spin cycle.",
@@ -115,13 +122,31 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     tag_descriptions = {tag["name"]: tag.get("description") for tag in body["tags"]}
     tags = [tag["name"] for tag in body["tags"]]
     assert "name" not in schemas["PlatformUpdate"]["properties"]
+    assert "PlatformSummaryRead" in schemas
+    assert "DiscoveryCatalogRead" in schemas
+    assert "ApplicationOverviewRead" in schemas
+    assert "MachineContextRead" in schemas
+    assert "OptimizationRecommendationRead" in schemas
+    assert "DiscoveryRecordRead" in schemas
     assert "ApplicationCreate" not in schemas
     assert "ApplicationUpdate" not in schemas
     assert {"sync_at", "sync_scheduled_at", "sync_error"} <= set(schemas["ApplicationRead"]["properties"])
     assert "extra" not in schemas["ApplicationRead"]["properties"]
     assert "application" in schemas["MachineRead"]["properties"]
     assert "application_id" not in schemas["MachineRead"]["properties"]
-    assert {"acknowledged_at", "acknowledged_by"} <= set(schemas["MachineOptimizationRead"]["properties"])
+    assert {"cpu", "ram", "disk"} <= set(schemas["MachineMetricLatestRead"]["properties"])
+    optimization_properties = set(schemas["MachineOptimizationRead"]["properties"])
+    assert {"acknowledged_at", "acknowledged_by", "resources"} <= optimization_properties
+    assert not {
+        "window_size",
+        "details",
+        "current_cpu",
+        "current_ram_mb",
+        "current_disk_mb",
+        "target_cpu",
+        "target_ram_mb",
+        "target_disk_mb",
+    } & optimization_properties
     assert "enabled" not in schemas["CapsuleProvisionerCreate"]["properties"]
     assert "enabled" not in schemas["CapsuleProvisionerUpdate"]["properties"]
     assert "parameters" in schemas["CapsuleProvisionerCreate"]["properties"]
@@ -150,8 +175,17 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/provisioners/{provisioner_id}" not in paths
     assert "/providers/{provider_id}/run" not in paths
     assert "/health" not in paths
+    assert "/v1/platforms/{platform_id}/summary" in paths
+    assert "/v1/discovery/catalog" in paths
+    assert "/v1/discovery/applications" in paths
+    assert "/v1/discovery/applications/{application_id}/overview" in paths
+    assert "/v1/discovery/machines/search" in paths
+    assert "/v1/discovery/machines/{machine_id}/context" in paths
+    assert "/v1/discovery/optimizations/current" in paths
+    assert "/v1/discovery/records/{record_id}" in paths
     assert "/v1/machines/metrics" in paths
     assert "/v1/machines/{machine_id}/metrics" in paths
+    assert "/v1/machines/{machine_id}/metrics/latest" in paths
     assert "/v1/machines/{machine_id}" in paths
     assert "/v1/machines/optimizations" in paths
     assert "/v1/machines/optimizations/{optimization_id}/acknowledge" in paths
@@ -163,26 +197,42 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/providers/sync" in paths
     assert "/v1/machines/providers/{provider_id}/enable" in paths
     assert "/v1/machines/providers/{provider_id}/disable" in paths
+    assert "/v1/machines/providers/{provider_id}/run" in paths
+    assert "/v1/machines/providers/{provider_id}/machines" in paths
     assert "/v1/machines/providers/{provider_id}/provisioners" in paths
     assert "/v1/machines/providers/mock" not in paths
     assert "/v1/machines/providers/{provider_id}/mock" not in paths
     assert "/v1/machines/provisioners" in paths
+    assert "/v1/machines/provisioners/sync" in paths
     assert "/v1/machines/provisioners/{provisioner_id}" in paths
+    assert "/v1/machines/provisioners/{provisioner_id}/machines" in paths
+    assert "/v1/machines/provisioners/{provisioner_id}/providers" in paths
     assert "/v1/machines/provisioners/mock" not in paths
     assert "/v1/machines/provisioners/{provisioner_id}/mock" not in paths
     assert "/v1/machines/provisioners/{provisioner_id}/enable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/disable" in paths
     assert "/v1/machines/provisioners/{provisioner_id}/run" in paths
     assert "/v1/applications/sync" in paths
+    assert "/v1/applications/{application_id}/machines" in paths
+    assert "/v1/applications/{application_id}/metrics/sync" in paths
+    assert "/v1/applications/{application_id}/optimizations" in paths
     assert "/v1/worker/tasks" in paths
+    assert "/v1/worker/tasks/{task_id}" in paths
     assert "Health" not in tags
     assert tags == list(EXPECTED_OPENAPI_TAG_DESCRIPTIONS)
     assert tag_descriptions == EXPECTED_OPENAPI_TAG_DESCRIPTIONS
+    assert tags.index("Applications") < tags.index("Discovery")
+    assert tags.index("Discovery") < tags.index("Machines")
     assert tags.index("Machines") < tags.index("Machine Optimizations")
     assert tags.index("Machine Optimizations") < tags.index("Machine Metrics")
     assert tags.index("Machine Metrics") < tags.index("Machine Providers")
     assert tags.index("Machine Providers") < tags.index("Machine Provisioners")
     assert paths["/v1/machines"]["get"]["tags"] == ["Machines"]
+    assert paths["/v1/discovery/catalog"]["get"]["tags"] == ["Discovery"]
+    assert paths["/v1/discovery/applications"]["get"]["tags"] == ["Discovery"]
+    assert paths["/v1/discovery/machines/search"]["get"]["tags"] == ["Discovery"]
+    assert paths["/v1/discovery/optimizations/current"]["get"]["tags"] == ["Discovery"]
+    assert paths["/v1/discovery/records/{record_id}"]["get"]["tags"] == ["Discovery"]
     assert "post" not in paths["/v1/machines"]
     assert paths["/v1/machines/{machine_id}"]["get"]["tags"] == ["Machines"]
     assert paths["/v1/machines/{machine_id}"]["delete"]["tags"] == ["Machines"]
@@ -199,16 +249,25 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     ]
     assert paths["/v1/machines/metrics"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/{machine_id}/metrics"]["get"]["tags"] == ["Machine Metrics"]
+    assert paths["/v1/machines/{machine_id}/metrics/latest"]["get"]["tags"] == ["Machine Metrics"]
     assert paths["/v1/machines/providers"]["get"]["tags"] == ["Machine Providers"]
     assert paths["/v1/machines/providers/sync"]["post"]["tags"] == ["Machine Providers"]
     assert paths["/v1/machines/providers/{provider_id}/enable"]["post"]["tags"] == ["Machine Providers"]
+    assert paths["/v1/machines/providers/{provider_id}/run"]["post"]["tags"] == ["Machine Providers"]
+    assert paths["/v1/machines/providers/{provider_id}/machines"]["get"]["tags"] == ["Machine Providers"]
     assert paths["/v1/machines/providers/{provider_id}/prometheus"]["get"]["tags"] == ["Machine Providers"]
     assert paths["/v1/machines/providers/{provider_id}/provisioners"]["get"]["tags"] == ["Machine Providers"]
     assert paths["/v1/machines/provisioners"]["get"]["tags"] == ["Machine Provisioners"]
+    assert paths["/v1/machines/provisioners/sync"]["post"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/enable"]["post"]["tags"] == ["Machine Provisioners"]
+    assert paths["/v1/machines/provisioners/{provisioner_id}/machines"]["get"]["tags"] == ["Machine Provisioners"]
+    assert paths["/v1/machines/provisioners/{provisioner_id}/providers"]["get"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/applications/sync"]["post"]["tags"] == ["Applications"]
+    assert paths["/v1/applications/{application_id}/machines"]["get"]["tags"] == ["Applications"]
+    assert paths["/v1/applications/{application_id}/metrics/sync"]["post"]["tags"] == ["Applications"]
+    assert paths["/v1/applications/{application_id}/optimizations"]["get"]["tags"] == ["Applications"]
     assert {param["name"] for param in paths["/v1/applications/sync"]["post"]["parameters"]} == {"type"}
     sync_responses = paths["/v1/applications/sync"]["post"]["responses"]
     assert "202" in sync_responses
@@ -229,8 +288,13 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "/v1/machines/metrics",
         "/v1/machines/{machine_id}/metrics",
         "/v1/machines/providers",
+        "/v1/machines/providers/{provider_id}/machines",
         "/v1/machines/providers/{provider_id}/provisioners",
         "/v1/machines/provisioners",
+        "/v1/machines/provisioners/{provisioner_id}/machines",
+        "/v1/machines/provisioners/{provisioner_id}/providers",
+        "/v1/applications/{application_id}/machines",
+        "/v1/applications/{application_id}/optimizations",
         "/v1/worker/tasks",
     ]:
         _assert_paginated_list_route(body, path)
@@ -257,6 +321,9 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         optimization_responses["202"]["content"]["application/json"]["schema"]["$ref"].rpartition("/")[2]
         == "TaskEnqueueResponse"
     )
+    assert "202" in paths["/v1/machines/provisioners/sync"]["post"]["responses"]
+    assert "202" in paths["/v1/machines/providers/{provider_id}/run"]["post"]["responses"]
+    assert "202" in paths["/v1/applications/{application_id}/metrics/sync"]["post"]["responses"]
 
 
 def test_platform_list_is_paginated_and_stably_sorted(client: TestClient) -> None:
@@ -307,6 +374,257 @@ def test_platform_patch_cannot_update_name(client: TestClient) -> None:
         json={"name": "AWS"},
     )
     assert patch_name.status_code == 422
+
+
+def test_platform_summary_counts_inventory_connectors_and_current_optimizations(
+    client: TestClient,
+    db_session: Session,
+) -> None:
+    """Platform summary should aggregate the platform-owned data only."""
+    platform = client.post("/v1/platforms", json={"name": "Summary Platform"}).json()
+    other_platform = Platform(name="Summary Other")
+    provisioner = MachineProvisioner(
+        platform_id=platform["id"],
+        name="enabled inventory",
+        type="mock_inventory",
+        enabled=True,
+        cron="* * * * *",
+    )
+    disabled_provisioner = MachineProvisioner(
+        platform_id=platform["id"],
+        name="disabled inventory",
+        type="mock_inventory",
+        enabled=False,
+        cron="* * * * *",
+    )
+    provider = MachineProvider(
+        platform_id=platform["id"],
+        name="enabled cpu",
+        type="prometheus",
+        scope="cpu",
+        enabled=True,
+        config={"url": "https://prometheus.example", "query": "avg(up)"},
+    )
+    disabled_provider = MachineProvider(
+        platform_id=platform["id"],
+        name="disabled ram",
+        type="prometheus",
+        scope="ram",
+        enabled=False,
+        config={"url": "https://prometheus.example", "query": "avg(mem)"},
+    )
+    machine_one = Machine(
+        platform_id=platform["id"],
+        source_provisioner=provisioner,
+        hostname="summary-01",
+        application="checkout",
+        environment="prod",
+        region="eu",
+    )
+    machine_two = Machine(
+        platform_id=platform["id"],
+        source_provisioner=provisioner,
+        hostname="summary-02",
+        application="CHECKOUT",
+        environment="PROD",
+        region="EU",
+    )
+    other_machine = Machine(platform=other_platform, hostname="summary-other", application="billing")
+    db_session.add_all(
+        [
+            other_platform,
+            provisioner,
+            disabled_provisioner,
+            provider,
+            disabled_provider,
+            machine_one,
+            machine_two,
+            other_machine,
+        ]
+    )
+    db_session.flush()
+    db_session.add(
+        MachineOptimization(
+            machine_id=machine_one.id,
+            revision=1,
+            is_current=True,
+            superseded_at=None,
+            status="ready",
+            action="scale_up",
+            window_size=30,
+            min_cpu=1,
+            max_cpu=64,
+            min_ram_mb=2048,
+            max_ram_mb=262144,
+            current_cpu=2,
+            current_ram_mb=4096,
+            current_disk_mb=51200,
+            target_cpu=4,
+            target_ram_mb=4096,
+            target_disk_mb=51200,
+            details={},
+        )
+    )
+    db_session.commit()
+
+    response = client.get(f"/v1/platforms/{platform['id']}/summary")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "platform_id": platform["id"],
+        "machines": 2,
+        "applications": 1,
+        "providers": 2,
+        "enabled_providers": 1,
+        "provisioners": 2,
+        "enabled_provisioners": 1,
+        "current_optimizations": 1,
+        "current_optimizations_by_status": {"ready": 1},
+        "current_optimizations_by_action": {"scale_up": 1},
+    }
+
+    missing = client.get("/v1/platforms/9999/summary")
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "platform not found"
+
+
+def test_discovery_endpoints_expose_assistant_ready_context(client: TestClient, db_session: Session) -> None:
+    """Discovery routes should expose bounded application, machine, and optimization context."""
+    platform = client.post("/v1/platforms", json={"name": "Discovery Platform"}).json()
+    billing_machine = _persist_machine(
+        db_session,
+        platform_id=platform["id"],
+        application="billing",
+        hostname="billing-01",
+        external_id="vm-billing-01",
+        environment="prod",
+        region="eu-west-1",
+        cpu=2,
+        ram_mb=4096,
+        disk_mb=51200,
+    )
+    _persist_machine(
+        db_session,
+        platform_id=platform["id"],
+        application="catalog",
+        hostname="catalog-01",
+        environment="dev",
+        region="us-east-1",
+    )
+    rebuild_applications_from_machines(db_session)
+    billing_application = db_session.query(Application).filter(Application.name == "BILLING").one()
+    provider = MachineProvider(
+        platform_id=platform["id"],
+        name="discovery cpu",
+        type="prometheus",
+        scope="cpu",
+        enabled=True,
+        config={"url": "https://prometheus.example", "query": "cpu"},
+    )
+    db_session.add(provider)
+    db_session.flush()
+    db_session.add_all(
+        [
+            MachineCPUMetric(
+                provider_id=provider.id,
+                machine_id=billing_machine.id,
+                date=date(2026, 5, 1),
+                value=91,
+            ),
+            MachineOptimization(
+                machine_id=billing_machine.id,
+                revision=1,
+                is_current=True,
+                superseded_at=None,
+                status="ready",
+                action="scale_up",
+                window_size=30,
+                min_cpu=1,
+                max_cpu=64,
+                min_ram_mb=2048,
+                max_ram_mb=262144,
+                current_cpu=2,
+                current_ram_mb=4096,
+                current_disk_mb=51200,
+                target_cpu=4,
+                target_ram_mb=4096,
+                target_disk_mb=51200,
+                details={
+                    "cpu": {
+                        "status": "ok",
+                        "action": "scale_up",
+                        "utilization_percent": 91,
+                        "reason_code": "pressure_high",
+                    },
+                    "ram": {
+                        "status": "ok",
+                        "action": "keep",
+                        "utilization_percent": 55,
+                        "reason_code": "pressure_normal",
+                    },
+                    "disk": {
+                        "status": "ok",
+                        "action": "keep",
+                        "utilization_percent": 40,
+                        "reason_code": "pressure_normal",
+                    },
+                },
+            ),
+        ]
+    )
+    db_session.commit()
+
+    catalog = client.get("/v1/discovery/catalog")
+    assert catalog.status_code == 200
+    assert catalog.json()["environments"] == ["DEV", "PROD"]
+    assert catalog.json()["regions"] == ["EU-WEST-1", "US-EAST-1"]
+    assert catalog.json()["metric_types"] == ["cpu", "ram", "disk"]
+    assert catalog.json()["totals"]["applications"] == 2
+    assert catalog.json()["totals"]["current_optimizations"] == 1
+
+    applications = client.get("/v1/discovery/applications", params={"max_results": 1})
+    assert applications.status_code == 200
+    assert applications.json()["total"] == 2
+    assert applications.json()["returned"] == 1
+    assert applications.json()["truncated"] is True
+
+    billing_summary = client.get("/v1/discovery/applications", params={"name": "billing"}).json()["items"][0]
+    assert billing_summary["application"]["id"] == billing_application.id
+    assert billing_summary["machine_count"] == 1
+    assert billing_summary["platform_ids"] == [platform["id"]]
+    assert billing_summary["current_optimization_count"] == 1
+    assert billing_summary["current_optimizations_by_action"] == {"scale_up": 1}
+
+    overview = client.get(
+        f"/v1/discovery/applications/{billing_application.id}/overview",
+        params={"max_machines": 1, "max_optimizations": 1},
+    )
+    assert overview.status_code == 200
+    assert overview.json()["application"]["name"] == "BILLING"
+    assert overview.json()["machines"]["items"][0]["hostname"] == "BILLING-01"
+    assert overview.json()["current_optimizations"]["items"][0]["action"] == "scale_up"
+
+    machine_search = client.get("/v1/discovery/machines/search", params={"q": "billing"})
+    assert machine_search.status_code == 200
+    assert machine_search.json()["total"] == 1
+    assert machine_search.json()["items"][0]["external_id"] == "vm-billing-01"
+
+    context = client.get(f"/v1/discovery/machines/{billing_machine.id}/context")
+    assert context.status_code == 200
+    assert context.json()["application"]["id"] == billing_application.id
+    assert context.json()["latest_metrics"]["cpu"]["value"] == 91
+    assert context.json()["current_optimization"]["resources"]["cpu"]["recommended"] == 4
+
+    recommendations = client.get("/v1/discovery/optimizations/current", params={"action": "scale_up"})
+    assert recommendations.status_code == 200
+    assert recommendations.json()["items"][0]["machine"]["hostname"] == "BILLING-01"
+    assert recommendations.json()["items"][0]["application"]["name"] == "BILLING"
+
+    record = client.get(f"/v1/discovery/records/application:{billing_application.id}")
+    assert record.status_code == 200
+    assert record.json()["id"] == f"application:{billing_application.id}"
+    assert record.json()["metadata"]["name"] == "BILLING"
+    assert '"machine_count": 1' in record.json()["text"]
 
 
 def test_named_fields_reject_blank_strings(client: TestClient) -> None:
@@ -787,7 +1105,8 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
     assert provider_after_detach["provisioner_ids"] == []
 
     disabled_run = client.post(f"/v1/machines/providers/{dynatrace['id']}/run")
-    assert disabled_run.status_code == 404
+    assert disabled_run.status_code == 409
+    assert disabled_run.json()["detail"] == "provider must be enabled before it can run"
 
 
 def test_typed_integration_write_payloads_reject_enabled_field(client: TestClient) -> None:
@@ -1045,6 +1364,82 @@ def test_manual_provider_sync_enqueues_global_dispatch(
     assert response.json() == {"task_id": "provider-sync-dispatch"}
 
 
+def test_provider_run_and_visible_machines_endpoint(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    """Provider run should enqueue one provider dispatcher and expose visible machines."""
+    platform = client.post("/v1/platforms", json={"name": "Provider Run Platform"}).json()
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "provider run inventory",
+            "token": "capsule-secret",
+        },
+    ).json()
+    other_provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "provider run other inventory",
+            "token": "capsule-secret",
+        },
+    ).json()
+    provider = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "provider run cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    ).json()
+    db_session.add_all(
+        [
+            Machine(
+                platform_id=platform["id"],
+                source_provisioner_id=provisioner["id"],
+                hostname="provider-visible-01",
+            ),
+            Machine(
+                platform_id=platform["id"],
+                source_provisioner_id=other_provisioner["id"],
+                hostname="provider-hidden-01",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    machines = client.get(f"/v1/machines/providers/{provider['id']}/machines")
+    assert machines.status_code == 200
+    assert machines.json()["total"] == 1
+    assert machines.json()["items"][0]["hostname"] == "PROVIDER-VISIBLE-01"
+
+    disabled = client.post(f"/v1/machines/providers/{provider['id']}/run")
+    assert disabled.status_code == 409
+    assert disabled.json()["detail"] == "provider must be enabled before it can run"
+
+    client.post(f"/v1/machines/providers/{provider['id']}/enable")
+    sent_tasks = []
+
+    def fake_send_task(task_name: str, *args, **kwargs) -> SimpleNamespace:
+        sent_tasks.append(task_name)
+        return SimpleNamespace(id="manual-provider-run")
+
+    monkeypatch.setattr("internal.infra.queue.enqueue.celery_app.send_task", fake_send_task)
+    run = client.post(f"/v1/machines/providers/{provider['id']}/run")
+    assert run.status_code == 202
+    assert run.json() == {"task_id": "manual-provider-run"}
+    assert sent_tasks == [RUN_PROVIDER_TASK]
+
+    assert client.get("/v1/machines/providers/9999/machines").status_code == 404
+    assert client.post("/v1/machines/providers/9999/run").status_code == 404
+
+
 def test_provider_creation_rejects_duplicate_scope_for_same_provisioner(client: TestClient) -> None:
     """A provisioner should not accept two attached providers for the same metric scope."""
     platform = client.post("/v1/platforms", json={"name": "Constraint Platform"}).json()
@@ -1238,6 +1633,110 @@ def test_application_projection_and_machine_application_field(client: TestClient
     fetched = client.get(f"/v1/applications/{listed['items'][0]['id']}").json()
     assert fetched["region"] == "EU-WEST-1"
     assert "extra" not in fetched
+
+
+def test_application_child_routes_list_machines_sync_metrics_and_optimizations(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    """Application child endpoints should use the projection row as the lookup key."""
+    platform = client.post("/v1/platforms", json={"name": "Application Child Routes"}).json()
+    application = Application(name="checkout", environment="prod", region="eu")
+    machine = Machine(
+        platform_id=platform["id"],
+        application="checkout",
+        hostname="checkout-app-01",
+        environment="prod",
+        region="eu",
+        cpu=2,
+        ram_mb=4096,
+        disk_mb=51200,
+    )
+    other_machine = Machine(
+        platform_id=platform["id"],
+        application="checkout",
+        hostname="checkout-app-02",
+        environment="dev",
+        region="eu",
+    )
+    db_session.add_all([application, machine, other_machine])
+    db_session.flush()
+    historical = MachineOptimization(
+        machine_id=machine.id,
+        revision=1,
+        is_current=False,
+        superseded_at=machine.created_at,
+        status="partial",
+        action="insufficient_data",
+        window_size=30,
+        min_cpu=1,
+        max_cpu=64,
+        min_ram_mb=2048,
+        max_ram_mb=262144,
+        computed_at=machine.created_at,
+        current_cpu=2,
+        current_ram_mb=4096,
+        current_disk_mb=51200,
+        details={},
+    )
+    current = MachineOptimization(
+        machine_id=machine.id,
+        revision=2,
+        is_current=True,
+        superseded_at=None,
+        status="ready",
+        action="keep",
+        window_size=30,
+        min_cpu=1,
+        max_cpu=64,
+        min_ram_mb=2048,
+        max_ram_mb=262144,
+        computed_at=machine.updated_at,
+        current_cpu=2,
+        current_ram_mb=4096,
+        current_disk_mb=51200,
+        target_cpu=2,
+        target_ram_mb=4096,
+        target_disk_mb=51200,
+        details={},
+    )
+    db_session.add_all([historical, current])
+    db_session.commit()
+
+    machines = client.get(f"/v1/applications/{application.id}/machines")
+    assert machines.status_code == 200
+    assert machines.json()["total"] == 1
+    assert machines.json()["items"][0]["hostname"] == "CHECKOUT-APP-01"
+
+    sent_tasks = []
+
+    def fake_send_task(task_name: str, *args, **kwargs) -> SimpleNamespace:
+        sent_tasks.append(task_name)
+        return SimpleNamespace(id="single-application-metrics-sync")
+
+    monkeypatch.setattr("internal.infra.queue.enqueue.celery_app.send_task", fake_send_task)
+    sync = client.post(f"/v1/applications/{application.id}/metrics/sync")
+    assert sync.status_code == 202
+    assert sync.json() == {"task_id": "single-application-metrics-sync"}
+    assert sent_tasks == [SYNC_APPLICATION_METRICS_TASK]
+
+    current_only = client.get(f"/v1/applications/{application.id}/optimizations")
+    assert current_only.status_code == 200
+    assert current_only.json()["total"] == 1
+    assert current_only.json()["items"][0]["id"] == current.id
+
+    all_revisions = client.get(
+        f"/v1/applications/{application.id}/optimizations",
+        params={"current_only": False},
+    )
+    assert all_revisions.status_code == 200
+    assert all_revisions.json()["total"] == 2
+    assert [item["revision"] for item in all_revisions.json()["items"]] == [2, 1]
+
+    assert client.get("/v1/applications/9999/machines").status_code == 404
+    assert client.post("/v1/applications/9999/metrics/sync").status_code == 404
+    assert client.get("/v1/applications/9999/optimizations").status_code == 404
 
 
 def test_machine_write_endpoints_are_disabled(client: TestClient, db_session: Session) -> None:
@@ -1557,7 +2056,6 @@ def test_machine_optimization_endpoints_read_current_and_history(client: TestCli
                 machine_id=machine.id,
                 revision=1,
                 is_current=False,
-                current_machine_id=None,
                 superseded_at=machine.created_at,
                 status="partial",
                 action="insufficient_data",
@@ -1579,7 +2077,7 @@ def test_machine_optimization_endpoints_read_current_and_history(client: TestCli
                         "status": "missing_provider",
                         "samples_used": 0,
                         "last_metric_date": None,
-                        "stats": None,
+                        "utilization_percent": None,
                         "current_capacity": 4,
                         "raw_target_capacity": None,
                         "bounded_target_capacity": None,
@@ -1592,7 +2090,6 @@ def test_machine_optimization_endpoints_read_current_and_history(client: TestCli
                 machine_id=machine.id,
                 revision=2,
                 is_current=True,
-                current_machine_id=machine.id,
                 superseded_at=None,
                 status="ready",
                 action="scale_up",
@@ -1612,14 +2109,14 @@ def test_machine_optimization_endpoints_read_current_and_history(client: TestCli
                     "cpu": {
                         "provider_id": 7,
                         "status": "ok",
-                        "samples_used": 30,
+                        "samples_used": 1,
                         "last_metric_date": "2026-05-02",
-                        "stats": {"avg": 88.0, "p95": 92.0, "max": 95.0},
+                        "utilization_percent": 92.0,
                         "current_capacity": 4,
                         "raw_target_capacity": 5.6615384615,
                         "bounded_target_capacity": 6,
                         "action": "scale_up",
-                        "reason_code": "pressure_high",
+                        "reason_code": "limited_history",
                     }
                 },
             ),
@@ -1631,7 +2128,17 @@ def test_machine_optimization_endpoints_read_current_and_history(client: TestCli
     assert current.status_code == 200
     assert current.json()["revision"] == 2
     assert current.json()["is_current"] is True
-    assert current.json()["target_cpu"] == 6
+    assert current.json()["resources"]["cpu"] == {
+        "status": "ok",
+        "action": "scale_up",
+        "current": 4.0,
+        "recommended": 6.0,
+        "unit": "cores",
+        "utilization_percent": 92.0,
+        "reason": "limited_history",
+    }
+    assert "target_cpu" not in current.json()
+    assert "details" not in current.json()
 
     history = client.get(f"/v1/machines/{machine.id}/optimizations/history")
     assert history.status_code == 200
@@ -1675,7 +2182,7 @@ def test_machine_optimization_collection_filters_and_acknowledges(
             "status": "missing_provider",
             "samples_used": 0,
             "last_metric_date": None,
-            "stats": None,
+            "utilization_percent": None,
             "current_capacity": 4,
             "raw_target_capacity": None,
             "bounded_target_capacity": None,
@@ -1687,7 +2194,6 @@ def test_machine_optimization_collection_filters_and_acknowledges(
         machine_id=current_machine.id,
         revision=1,
         is_current=False,
-        current_machine_id=None,
         superseded_at=current_machine.created_at,
         status="partial",
         action="insufficient_data",
@@ -1709,7 +2215,6 @@ def test_machine_optimization_collection_filters_and_acknowledges(
         machine_id=current_machine.id,
         revision=2,
         is_current=True,
-        current_machine_id=current_machine.id,
         superseded_at=None,
         status="ready",
         action="scale_up",
@@ -1731,7 +2236,6 @@ def test_machine_optimization_collection_filters_and_acknowledges(
         machine_id=other_machine.id,
         revision=1,
         is_current=True,
-        current_machine_id=other_machine.id,
         superseded_at=None,
         status="partial",
         action="insufficient_data",
@@ -1897,6 +2401,68 @@ def test_provider_provisioner_list_is_paginated_and_missing_provider_returns_404
     assert missing_provider.json()["detail"] == "provider not found"
 
 
+def test_provisioner_sync_and_child_routes(
+    client: TestClient,
+    db_session: Session,
+    monkeypatch,
+) -> None:
+    """Provisioner child routes should list discovered machines and attached providers."""
+    platform = client.post("/v1/platforms", json={"name": "Provisioner Child Platform"}).json()
+    provisioner = client.post(
+        "/v1/machines/provisioners/capsule",
+        json={
+            "platform_id": platform["id"],
+            "name": "child inventory",
+            "token": "capsule-secret",
+        },
+    ).json()
+    provider = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "child cpu",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    ).json()
+    db_session.add(
+        Machine(
+            platform_id=platform["id"],
+            source_provisioner_id=provisioner["id"],
+            hostname="provisioner-child-01",
+        )
+    )
+    db_session.commit()
+
+    machines = client.get(f"/v1/machines/provisioners/{provisioner['id']}/machines")
+    assert machines.status_code == 200
+    assert machines.json()["total"] == 1
+    assert machines.json()["items"][0]["hostname"] == "PROVISIONER-CHILD-01"
+
+    providers = client.get(f"/v1/machines/provisioners/{provisioner['id']}/providers")
+    assert providers.status_code == 200
+    assert providers.json()["total"] == 1
+    assert providers.json()["items"][0]["id"] == provider["id"]
+    assert providers.json()["items"][0]["provisioner_ids"] == [provisioner["id"]]
+
+    sent_tasks = []
+
+    def fake_send_task(task_name: str, *args, **kwargs) -> SimpleNamespace:
+        sent_tasks.append(task_name)
+        return SimpleNamespace(id="manual-provisioner-sync")
+
+    monkeypatch.setattr("internal.infra.queue.enqueue.celery_app.send_task", fake_send_task)
+    sync = client.post("/v1/machines/provisioners/sync")
+    assert sync.status_code == 202
+    assert sync.json() == {"task_id": "manual-provisioner-sync"}
+    assert sent_tasks == [DISPATCH_DUE_MACHINE_PROVISIONER_JOBS_TASK]
+
+    assert client.get("/v1/machines/provisioners/9999/machines").status_code == 404
+    assert client.get("/v1/machines/provisioners/9999/providers").status_code == 404
+
+
 def test_machine_metric_history_endpoint_requires_type_and_paginates(client: TestClient, db_session: Session) -> None:
     """Machine metric history should require a type and expose offset pagination."""
     platform = Platform(name="Machine Metrics")
@@ -1951,6 +2517,51 @@ def test_machine_metric_history_endpoint_requires_type_and_paginates(client: Tes
     missing_machine = client.get("/v1/machines/9999/metrics", params={"type": "cpu"})
     assert missing_machine.status_code == 404
     assert missing_machine.json()["detail"] == "machine not found"
+
+
+def test_machine_latest_metrics_returns_each_scope_or_null(client: TestClient, db_session: Session) -> None:
+    """Latest metrics should expose one sample per scope and null when missing."""
+    platform = Platform(name="Latest Machine Metrics")
+    machine = Machine(platform=platform, hostname="latest-node-01")
+    cpu_provider = MachineProvider(
+        platform=platform,
+        name="cpu provider",
+        type="prometheus",
+        scope="cpu",
+        config={"url": "https://prometheus.example", "query": "avg(up)"},
+    )
+    disk_provider = MachineProvider(
+        platform=platform,
+        name="disk provider",
+        type="prometheus",
+        scope="disk",
+        config={"url": "https://prometheus.example", "query": "avg(disk)"},
+    )
+    db_session.add_all([platform, machine, cpu_provider, disk_provider])
+    db_session.commit()
+    db_session.add_all(
+        [
+            MachineCPUMetric(provider_id=cpu_provider.id, machine_id=machine.id, date=date(2026, 5, 1), value=10),
+            MachineCPUMetric(provider_id=cpu_provider.id, machine_id=machine.id, date=date(2026, 5, 2), value=20),
+            MachineDiskMetric(provider_id=disk_provider.id, machine_id=machine.id, date=date(2026, 5, 3), value=70),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get(f"/v1/machines/{machine.id}/metrics/latest")
+
+    assert response.status_code == 200
+    assert response.json()["cpu"]["provider_id"] == cpu_provider.id
+    assert response.json()["cpu"]["date"] == "2026-05-02"
+    assert response.json()["cpu"]["value"] == 20
+    assert response.json()["ram"] is None
+    assert response.json()["disk"]["provider_id"] == disk_provider.id
+    assert response.json()["disk"]["date"] == "2026-05-03"
+    assert response.json()["disk"]["value"] == 70
+
+    missing = client.get("/v1/machines/9999/metrics/latest")
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "machine not found"
 
 
 def test_machine_metrics_global_endpoint_filters_and_paginates(client: TestClient, db_session: Session) -> None:

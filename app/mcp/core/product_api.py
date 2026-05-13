@@ -2,6 +2,7 @@
 
 from datetime import date
 from typing import Any, Mapping
+from urllib.parse import quote
 
 import httpx
 from fastmcp import Context
@@ -187,6 +188,121 @@ async def list_machine_metric_history(
             "limit": limit,
         },
     )
+
+
+async def discovery_catalog(ctx: Context) -> dict[str, Any]:
+    """Read the assistant discovery catalog endpoint."""
+
+    return await proxy_get_json(ctx, "/v1/discovery/catalog")
+
+
+async def discovery_applications(
+    ctx: Context,
+    name: str | None = None,
+    environment: str | None = None,
+    region: str | None = None,
+    platform_id: int | None = None,
+    max_results: int = 25,
+) -> dict[str, Any]:
+    """Read assistant-friendly application summaries."""
+
+    return await proxy_get_json(
+        ctx,
+        "/v1/discovery/applications",
+        {
+            "name": name,
+            "environment": environment,
+            "region": region,
+            "platform_id": platform_id,
+            "max_results": max_results,
+        },
+    )
+
+
+async def discovery_application_overview(
+    ctx: Context,
+    application_id: int,
+    max_machines: int = 25,
+    max_optimizations: int = 25,
+) -> dict[str, Any]:
+    """Read the full assistant context for one application."""
+
+    return await proxy_get_json(
+        ctx,
+        f"/v1/discovery/applications/{application_id}/overview",
+        {
+            "max_machines": max_machines,
+            "max_optimizations": max_optimizations,
+        },
+    )
+
+
+async def discovery_machine_search(
+    ctx: Context,
+    q: str | None = None,
+    hostname: str | None = None,
+    external_id: str | None = None,
+    application: str | None = None,
+    environment: str | None = None,
+    region: str | None = None,
+    platform_id: int | None = None,
+    max_results: int = 25,
+) -> dict[str, Any]:
+    """Search assistant-friendly machine inventory."""
+
+    return await proxy_get_json(
+        ctx,
+        "/v1/discovery/machines/search",
+        {
+            "q": q,
+            "hostname": hostname,
+            "external_id": external_id,
+            "application": application,
+            "environment": environment,
+            "region": region,
+            "platform_id": platform_id,
+            "max_results": max_results,
+        },
+    )
+
+
+async def discovery_machine_context(ctx: Context, machine_id: int) -> dict[str, Any]:
+    """Read the full assistant context for one machine."""
+
+    return await proxy_get_json(ctx, f"/v1/discovery/machines/{machine_id}/context")
+
+
+async def discovery_current_optimizations(
+    ctx: Context,
+    platform_id: int | None = None,
+    application: str | None = None,
+    environment: str | None = None,
+    region: str | None = None,
+    status: str | None = None,
+    action: str | None = None,
+    max_results: int = 25,
+) -> dict[str, Any]:
+    """Read current assistant-friendly optimization recommendations."""
+
+    return await proxy_get_json(
+        ctx,
+        "/v1/discovery/optimizations/current",
+        {
+            "platform_id": platform_id,
+            "application": application,
+            "environment": environment,
+            "region": region,
+            "status": status,
+            "action": action,
+            "max_results": max_results,
+        },
+    )
+
+
+async def discovery_record(ctx: Context, record_id: str) -> dict[str, Any]:
+    """Read one fetchable discovery record."""
+
+    return await proxy_get_json(ctx, f"/v1/discovery/records/{quote(record_id, safe='')}")
 
 
 def _clean_query_params(params: Mapping[str, Any]) -> dict[str, Any]:

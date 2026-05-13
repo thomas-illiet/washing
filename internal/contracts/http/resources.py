@@ -22,6 +22,7 @@ MachineOptimizationScopeStatus = Literal[
     "missing_current_capacity",
 ]
 MachineOptimizationScopeAction = Literal["scale_up", "scale_down", "keep", "insufficient_data", "unavailable"]
+DiscoveryRecordType = Literal["catalog", "application", "machine", "optimization"]
 ResourceT = TypeVar("ResourceT")
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -62,6 +63,20 @@ class PlatformRead(PlatformCreate):
     id: int
     created_at: datetime
     updated_at: datetime
+
+
+class PlatformSummaryRead(ApiModel):
+    """Aggregated operational summary for one platform."""
+    platform_id: int
+    machines: int
+    applications: int
+    providers: int
+    enabled_providers: int
+    provisioners: int
+    enabled_provisioners: int
+    current_optimizations: int
+    current_optimizations_by_status: dict[MachineOptimizationStatus, int] = Field(default_factory=dict)
+    current_optimizations_by_action: dict[MachineOptimizationAction, int] = Field(default_factory=dict)
 
 
 class ApplicationRead(ApiModel):
@@ -333,18 +348,22 @@ class MachineMetricRead(ApiModel):
     value: int
 
 
-class MachineOptimizationScopeRead(ApiModel):
-    """Public detail for one scope inside a stored optimization."""
-    provider_id: int | None = None
+class MachineMetricLatestRead(ApiModel):
+    """Latest stored metric sample for each machine metric scope."""
+    cpu: MachineMetricRead | None = None
+    ram: MachineMetricRead | None = None
+    disk: MachineMetricRead | None = None
+
+
+class MachineOptimizationResourceRead(ApiModel):
+    """Public resource recommendation inside a stored optimization."""
     status: MachineOptimizationScopeStatus
-    samples_used: int = 0
-    last_metric_date: date | None = None
-    stats: dict[str, float] | None = None
-    current_capacity: float | None = None
-    raw_target_capacity: float | None = None
-    bounded_target_capacity: float | None = None
     action: MachineOptimizationScopeAction
-    reason_code: str
+    current: float | None = None
+    recommended: float | None = None
+    unit: Literal["cores", "mb"]
+    utilization_percent: float | None = None
+    reason: str
 
 
 class MachineOptimizationRead(ApiModel):
@@ -353,22 +372,83 @@ class MachineOptimizationRead(ApiModel):
     machine_id: int
     revision: int
     is_current: bool
-    superseded_at: datetime | None = None
     status: MachineOptimizationStatus
     action: MachineOptimizationAction
-    window_size: int
     computed_at: datetime
     acknowledged_at: datetime | None = None
     acknowledged_by: str | None = None
-    current_cpu: float | None = None
-    current_ram_mb: float | None = None
-    current_disk_mb: float | None = None
-    target_cpu: float | None = None
-    target_ram_mb: float | None = None
-    target_disk_mb: float | None = None
-    details: dict[Scope, MachineOptimizationScopeRead]
+    resources: dict[Scope, MachineOptimizationResourceRead]
     created_at: datetime
     updated_at: datetime
+
+
+# Discovery and assistant-friendly resources.
+class BoundedResponse(ApiModel, Generic[ResourceT]):
+    """Bounded list response that avoids exposing pagination controls."""
+    items: list[ResourceT]
+    total: int
+    returned: int
+    truncated: bool
+
+
+class DiscoveryCatalogRead(ApiModel):
+    """Top-level inventory catalog for assistant discovery."""
+    platforms: list[PlatformRead]
+    environments: list[str]
+    regions: list[str]
+    metric_types: list[Scope]
+    optimization_statuses: list[MachineOptimizationStatus]
+    optimization_actions: list[MachineOptimizationAction]
+    totals: dict[str, int]
+
+
+class ApplicationSummaryRead(ApiModel):
+    """Assistant-friendly application summary."""
+    application: ApplicationRead
+    machine_count: int
+    platform_ids: list[int]
+    current_optimization_count: int
+    current_optimizations_by_status: dict[MachineOptimizationStatus, int] = Field(default_factory=dict)
+    current_optimizations_by_action: dict[MachineOptimizationAction, int] = Field(default_factory=dict)
+
+
+class ApplicationOverviewRead(ApiModel):
+    """Complete assistant context for one application projection row."""
+    application: ApplicationRead
+    machine_count: int
+    platform_ids: list[int]
+    current_optimization_count: int
+    current_optimizations_by_status: dict[MachineOptimizationStatus, int] = Field(default_factory=dict)
+    current_optimizations_by_action: dict[MachineOptimizationAction, int] = Field(default_factory=dict)
+    machines: BoundedResponse[MachineRead]
+    current_optimizations: BoundedResponse[MachineOptimizationRead]
+
+
+class MachineContextRead(ApiModel):
+    """Complete assistant context for one machine."""
+    machine: MachineRead
+    platform: PlatformRead | None = None
+    application: ApplicationRead | None = None
+    latest_metrics: MachineMetricLatestRead
+    current_optimization: MachineOptimizationRead | None = None
+
+
+class OptimizationRecommendationRead(ApiModel):
+    """Current optimization with its machine and ownership context."""
+    optimization: MachineOptimizationRead
+    machine: MachineRead
+    platform: PlatformRead | None = None
+    application: ApplicationRead | None = None
+
+
+class DiscoveryRecordRead(ApiModel):
+    """Fetchable text record for MCP search/fetch compatibility."""
+    id: str
+    type: DiscoveryRecordType
+    title: str
+    text: str
+    url: str
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # Shared envelopes and async task resources.

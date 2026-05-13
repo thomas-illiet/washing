@@ -92,7 +92,6 @@ def test_purge_stale_machines_deletes_only_old_machine_rows(db_session: Session)
                 machine_id=old_machine_id,
                 revision=1,
                 is_current=True,
-                current_machine_id=old_machine_id,
                 status="partial",
                 action="insufficient_data",
                 window_size=30,

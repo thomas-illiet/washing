@@ -425,9 +425,12 @@ body {
   --wm-tag-image: url("/static/swagger-tag-images/machines.png");
 }
 
-.swagger-ui .opblock-tag-section[id*="machine-optimizations"] .opblock-tag,
-.swagger-ui [data-tag="Machine Optimizations"] .opblock-tag,
-.swagger-ui .opblock-tag[data-tag="Machine Optimizations"] {
+.swagger-ui .opblock-tag-section[id*="machine-optimizations" i] .opblock-tag,
+.swagger-ui .opblock-tag-section[id*="Machine_Optimizations" i] .opblock-tag,
+.swagger-ui [data-tag="Machine Optimizations" i] .opblock-tag,
+.swagger-ui .opblock-tag[id*="machine-optimizations" i],
+.swagger-ui .opblock-tag[id*="Machine_Optimizations" i],
+.swagger-ui .opblock-tag[data-tag="Machine Optimizations" i] {
   --wm-tag-accent: #61bfb5;
   --wm-tag-tint: #effbf9;
   --wm-tag-image: url("/static/swagger-tag-images/machine-optimizations.png");

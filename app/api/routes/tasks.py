@@ -1,6 +1,6 @@
 """Task execution history routes."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.api.deps import PaginationParams, get_db
@@ -39,3 +39,16 @@ def list_task_executions(
         CeleryTaskExecution.queued_at.desc(),
         CeleryTaskExecution.id.desc(),
     )
+
+
+@router.get("/{task_id}", response_model=TaskExecutionRead)
+def get_task_execution(task_id: str, db: Session = Depends(get_db)) -> CeleryTaskExecution:
+    """Return one tracked Celery task execution by task id."""
+    execution = (
+        db.query(CeleryTaskExecution)
+        .filter(CeleryTaskExecution.task_id == task_id)
+        .one_or_none()
+    )
+    if execution is None:
+        raise HTTPException(status_code=404, detail="task execution not found")
+    return execution
