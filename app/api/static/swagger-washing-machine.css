@@ -417,6 +417,14 @@ body {
   --wm-tag-image: url("/static/swagger-tag-images/applications.png");
 }
 
+.swagger-ui .opblock-tag-section[id*="discovery" i] .opblock-tag,
+.swagger-ui [data-tag="Discovery" i] .opblock-tag,
+.swagger-ui .opblock-tag[data-tag="Discovery" i] {
+  --wm-tag-accent: #65c3d0;
+  --wm-tag-tint: #eefbfd;
+  --wm-tag-image: url("/static/swagger-tag-images/discovery.png");
+}
+
 .swagger-ui .opblock-tag-section[id*="machines"] .opblock-tag,
 .swagger-ui [data-tag="Machines"] .opblock-tag,
 .swagger-ui .opblock-tag[data-tag="Machines"] {

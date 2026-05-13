@@ -98,9 +98,19 @@ def test_swagger_theme_css_is_served(client: TestClient) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/css")
     assert "--wm-bg: #f6fbfd;" in response.text
+    assert "discovery.png" in response.text
     assert "machine-optimizations.png" in response.text
     scheme_container_rule = response.text.split(".swagger-ui .scheme-container {", maxsplit=1)[1].split("}", maxsplit=1)[0]
     assert "backdrop-filter" not in scheme_container_rule
+
+
+def test_discovery_swagger_tag_image_is_served(client: TestClient) -> None:
+    """The Discovery tag artwork should be available to the Swagger theme."""
+    response = client.get("/static/swagger-tag-images/discovery.png")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/png")
+    assert response.content.startswith(b"\x89PNG")
 
 
 def test_default_docs_endpoints_are_disabled(client: TestClient) -> None:
