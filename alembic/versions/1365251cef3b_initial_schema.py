@@ -1,19 +1,19 @@
-"""initial release of database
+"""initial schema
 
-Revision ID: 755ada20c181
+Revision ID: 1365251cef3b
 Revises: 
-Create Date: 2026-05-07 13:16:19.739048
+Create Date: 2026-05-13 18:22:48.538311
 
 """
 from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 from internal.infra.db.base import EncryptedJSONType
+from internal.infra.db.base import JSONType
 
 # revision identifiers, used by Alembic.
-revision: str = '755ada20c181'
+revision: str = '1365251cef3b'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -51,7 +51,7 @@ def upgrade() -> None:
     sa.Column('started_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('finished_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('duration_seconds', sa.Float(), nullable=True),
-    sa.Column('result', postgresql.JSONB(astext_type=sa.Text()).with_variant(sa.JSON(), 'sqlite'), nullable=True),
+    sa.Column('result', JSONType, nullable=True),
     sa.Column('error', sa.Text(), nullable=True),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_celery_task_executions'))
     )
@@ -66,7 +66,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
     sa.Column('description', sa.Text(), nullable=True),
-    sa.Column('extra', postgresql.JSONB(astext_type=sa.Text()).with_variant(sa.JSON(), 'sqlite'), nullable=False),
+    sa.Column('extra', JSONType, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('pk_platforms'))
@@ -129,7 +129,7 @@ def upgrade() -> None:
     sa.Column('cpu', sa.Float(), nullable=True),
     sa.Column('ram_mb', sa.Float(), nullable=True),
     sa.Column('disk_mb', sa.Float(), nullable=True),
-    sa.Column('extra', postgresql.JSONB(astext_type=sa.Text()).with_variant(sa.JSON(), 'sqlite'), nullable=False),
+    sa.Column('extra', JSONType, nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['platform_id'], ['platforms.id'], name=op.f('fk_machines_platform_id_platforms'), ondelete='CASCADE'),
@@ -189,6 +189,42 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_machine_flavor_history_changed_at'), 'machine_flavor_history', ['changed_at'], unique=False)
     op.create_index(op.f('ix_machine_flavor_history_machine_id'), 'machine_flavor_history', ['machine_id'], unique=False)
+    op.create_table('machine_optimizations',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('machine_id', sa.Integer(), nullable=False),
+    sa.Column('revision', sa.Integer(), nullable=False),
+    sa.Column('is_current', sa.Boolean(), nullable=False),
+    sa.Column('current_machine_id', sa.Integer(), nullable=True),
+    sa.Column('superseded_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('status', sa.String(length=32), nullable=False),
+    sa.Column('action', sa.String(length=32), nullable=False),
+    sa.Column('window_size', sa.Integer(), nullable=False),
+    sa.Column('min_cpu', sa.Integer(), nullable=False),
+    sa.Column('max_cpu', sa.Integer(), nullable=False),
+    sa.Column('min_ram_mb', sa.Integer(), nullable=False),
+    sa.Column('max_ram_mb', sa.Integer(), nullable=False),
+    sa.Column('computed_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('acknowledged_at', sa.DateTime(timezone=True), nullable=True),
+    sa.Column('acknowledged_by', sa.String(length=255), nullable=True),
+    sa.Column('current_cpu', sa.Float(), nullable=True),
+    sa.Column('current_ram_mb', sa.Float(), nullable=True),
+    sa.Column('current_disk_mb', sa.Float(), nullable=True),
+    sa.Column('target_cpu', sa.Float(), nullable=True),
+    sa.Column('target_ram_mb', sa.Float(), nullable=True),
+    sa.Column('target_disk_mb', sa.Float(), nullable=True),
+    sa.Column('details', sa.JSON(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+    sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint('(is_current AND current_machine_id IS NOT NULL AND superseded_at IS NULL) OR ((NOT is_current) AND current_machine_id IS NULL AND superseded_at IS NOT NULL)', name=op.f('ck_machine_optimizations_ck_machine_optimizations_current_state')),
+    sa.CheckConstraint('current_machine_id IS NULL OR current_machine_id = machine_id', name=op.f('ck_machine_optimizations_ck_machine_optimizations_current_machine_matches_machine')),
+    sa.ForeignKeyConstraint(['machine_id'], ['machines.id'], name=op.f('fk_machine_optimizations_machine_id_machines'), ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id', name=op.f('pk_machine_optimizations')),
+    sa.UniqueConstraint('current_machine_id', name='uq_machine_optimizations_current_machine_id'),
+    sa.UniqueConstraint('machine_id', 'revision', name='uq_machine_optimizations_machine_revision')
+    )
+    op.create_index('ix_machine_optimizations_machine_current', 'machine_optimizations', ['machine_id', 'is_current'], unique=False)
+    op.create_index(op.f('ix_machine_optimizations_machine_id'), 'machine_optimizations', ['machine_id'], unique=False)
+    op.create_index('ix_machine_optimizations_superseded_at', 'machine_optimizations', ['superseded_at'], unique=False)
     op.create_table('machine_ram_metrics',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('provider_id', sa.Integer(), nullable=False),
@@ -215,6 +251,10 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_machine_ram_metrics_machine_id'), table_name='machine_ram_metrics')
     op.drop_index(op.f('ix_machine_ram_metrics_date'), table_name='machine_ram_metrics')
     op.drop_table('machine_ram_metrics')
+    op.drop_index('ix_machine_optimizations_superseded_at', table_name='machine_optimizations')
+    op.drop_index(op.f('ix_machine_optimizations_machine_id'), table_name='machine_optimizations')
+    op.drop_index('ix_machine_optimizations_machine_current', table_name='machine_optimizations')
+    op.drop_table('machine_optimizations')
     op.drop_index(op.f('ix_machine_flavor_history_machine_id'), table_name='machine_flavor_history')
     op.drop_index(op.f('ix_machine_flavor_history_changed_at'), table_name='machine_flavor_history')
     op.drop_table('machine_flavor_history')

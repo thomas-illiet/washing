@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool, text
 
 from internal.infra.config.settings import get_settings
 from internal.infra.db import models  # noqa: F401
-from internal.infra.db.base import Base
+from internal.infra.db.base import Base, EncryptedJSONType, JSONType
 from internal.infra.db.config import build_connect_args, uses_postgresql
 
 config = context.config
@@ -27,6 +27,19 @@ def include_object(object_, name: str, type_: str, reflected: bool, compare_to) 
     return True
 
 
+def render_item(type_: str, object_, autogen_context) -> str | bool:
+    """Render project-specific SQLAlchemy types in generated migrations."""
+    if type_ != "type":
+        return False
+    if object_ is JSONType:
+        autogen_context.imports.add("from internal.infra.db.base import JSONType")
+        return "JSONType"
+    if isinstance(object_, EncryptedJSONType):
+        autogen_context.imports.add("from internal.infra.db.base import EncryptedJSONType")
+        return "EncryptedJSONType()"
+    return False
+
+
 def run_migrations_offline() -> None:
     """Run migrations in offline mode without opening a DB connection."""
     url = config.get_main_option("sqlalchemy.url")
@@ -37,6 +50,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_object=include_object,
+        render_item=render_item,
         version_table_schema=version_table_schema,
     )
 
@@ -65,6 +79,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             include_object=include_object,
+            render_item=render_item,
             version_table_schema=version_table_schema,
         )
 
