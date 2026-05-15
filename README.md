@@ -110,7 +110,7 @@ uv run uvicorn app.api.main:app --reload
 MCP_API_BASE_URL=http://localhost:8000 uv run uvicorn app.mcp.main:app --reload --port 8001
 uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo
 uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
-uv run celery -A app.flower.celery.celery_app flower
+uv run celery -A app.flower.main.celery_app flower
 ```
 
 Appliquer les migrations localement :

@@ -33,7 +33,7 @@ flowchart TD
 | MCP | Read-only proxy over the product API | `app/mcp/main.py` |
 | Worker | Executes inventory, metrics, and dispatcher tasks | `app/worker/celery.py` |
 | Beat | Emits scheduled dispatcher and sync tasks | `app/beat/celery.py` |
-| Flower | Celery operational UI | `app/flower/celery.py` |
+| Flower | Celery operational UI | `app/flower/main.py` |
 | Keycloak | Local OIDC provider for development | container import from `config/keycloak/washing-machine-realm.json` |
 
 ## Code organization

@@ -16,7 +16,7 @@ def test_flower_entrypoint_imports_without_application_settings(tmp_path: Path) 
 import json
 import sys
 
-from app.flower.celery import celery_app
+from app.flower.main import celery_app
 
 print(json.dumps({
     "broker_url": celery_app.conf.broker_url,

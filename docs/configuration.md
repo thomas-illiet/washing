@@ -5,7 +5,7 @@ This page documents the main environment variables used by the application and t
 ## Configuration model
 
 - The API, worker, and beat use [../internal/infra/config/settings.py](../internal/infra/config/settings.py).
-- Flower uses the minimal Celery settings in [../app/flower/celery.py](../app/flower/celery.py).
+- Flower uses the minimal Celery settings in [../app/flower/main.py](../app/flower/main.py).
 - The MCP gateway uses [../app/mcp/config/settings.py](../app/mcp/config/settings.py).
 - OIDC auth uses [../internal/infra/auth/settings.py](../internal/infra/auth/settings.py).
 - The local Keycloak stack consumes the same `.env` file through [../docker-compose.example.yml](../docker-compose.example.yml).

@@ -8,7 +8,7 @@ This document maps the Celery runtime entrypoints, the registered tasks, and the
 | --- | --- | --- | --- |
 | Worker | `uv run celery -A app.worker.celery.celery_app worker --loglevel=INFO --pool=solo` | `app/worker/celery.py` | Imports `app.worker.tasks` so every task is registered in the worker process. |
 | Beat | `uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO` | `app/beat/celery.py` | Loads the stateless Beat schedule returned by `app/beat/schedule.py`. |
-| Flower | `uv run celery -A app.flower.celery.celery_app flower` | `app/flower/celery.py` | Operational UI for queues, workers, and task states without importing worker tasks. |
+| Flower | `uv run celery -A app.flower.main.celery_app flower` | `app/flower/main.py` | Operational UI for queues, workers, and task states without importing worker tasks. |
 
 ## End-to-end execution flow
 
@@ -93,7 +93,7 @@ flowchart TD
 ## How to see running and past tasks
 
 - API history: `GET /v1/worker/tasks`
-- Flower UI: run `uv run celery -A app.flower.celery.celery_app flower`
+- Flower UI: run `uv run celery -A app.flower.main.celery_app flower`
 - DB-backed tracking: `internal/infra/queue/task_tracking.py` records publish, start, retry, success, and failure transitions into `CeleryTaskExecution`
 
 ## Notes
