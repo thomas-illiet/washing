@@ -51,7 +51,6 @@ docker compose restart mcp
 
 - API: `GET /health`
 - MCP: `GET /health` on port `8001`
-- Flower: `GET /health` on port `5555`
 - Keycloak readiness: internal `/health/ready`
 
 ### Task visibility

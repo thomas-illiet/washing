@@ -17,15 +17,10 @@ import json
 import sys
 
 from app.flower.main import celery_app
-from flower.urls import handlers
 
 print(json.dumps({
     "broker_url": celery_app.conf.broker_url,
     "result_backend": celery_app.conf.result_backend,
-    "has_health_endpoint": any(
-        isinstance(handler, tuple) and handler[0] == r"/health"
-        for handler in handlers
-    ),
     "loaded_application_settings": "internal.infra.config.settings" in sys.modules,
     "loaded_celery_prometheus": "internal.infra.observability.prometheus" in sys.modules,
     "loaded_task_tracking": "internal.infra.queue.task_tracking" in sys.modules,
@@ -59,7 +54,6 @@ print(json.dumps({
     assert data == {
         "broker_url": "memory://",
         "result_backend": "cache+memory://",
-        "has_health_endpoint": True,
         "loaded_application_settings": False,
         "loaded_celery_prometheus": False,
         "loaded_task_tracking": False,

@@ -71,7 +71,6 @@ It also initializes a shared Postgres database named `washing_machine` with sepa
 - MCP health: `http://localhost:8001/health`
 - Keycloak: `http://localhost:8080`
 - Flower: `http://localhost:5555`
-- Flower health: `http://localhost:5555/health`
 - Grafana: `http://localhost:3000`
 
 ## Local dev accounts

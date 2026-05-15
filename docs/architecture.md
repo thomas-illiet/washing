@@ -82,7 +82,7 @@ flowchart TD
 - Role extraction is configurable and provider-agnostic
 - The API exposes read vs write permissions through configurable role names
 - The MCP gateway does not mint service credentials; it only forwards the caller's `Authorization` header
-- `/health` stays public on API, MCP, and Flower
+- `/health` stays public on API and MCP
 - `/metrics` stays public on the API by design for Prometheus scraping
 
 ## Main flows
