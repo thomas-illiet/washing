@@ -212,7 +212,6 @@ class PrometheusProviderCreate(ApiModel):
     scope: Scope
     url: AnyHttpUrl
     query: NonEmptyStr
-    provisioner_ids: list[int] = Field(default_factory=list)
 
 
 class PrometheusProviderUpdate(ApiModel):

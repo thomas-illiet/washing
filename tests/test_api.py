@@ -173,6 +173,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "MockProviderUpdate" not in schemas
     assert "MockProviderRead" not in schemas
     assert "enabled" not in schemas["PrometheusProviderCreate"]["properties"]
+    assert "provisioner_ids" not in schemas["PrometheusProviderCreate"]["properties"]
     assert "provisioner_ids" not in schemas["PrometheusProviderUpdate"]["properties"]
     assert "enabled" not in schemas["PrometheusProviderUpdate"]["properties"]
     assert "enabled" not in schemas["DynatraceProviderCreate"]["properties"]
@@ -1054,12 +1055,18 @@ def test_typed_provider_routes_hide_config_and_map_scope(client: TestClient, db_
             "scope": "cpu",
             "url": "https://prometheus.example",
             "query": "avg(up)",
-            "provisioner_ids": [provisioner["id"]],
         },
     ).json()
     assert prometheus["type"] == "prometheus"
     assert prometheus["enabled"] is False
     assert prometheus["scope"] == "cpu"
+    assert prometheus["provisioner_ids"] == []
+
+    attach_prometheus = client.post(f"/v1/machines/providers/{prometheus['id']}/provisioners/{provisioner['id']}")
+    assert attach_prometheus.status_code == 200
+    assert attach_prometheus.json()["provisioner_ids"] == [provisioner["id"]]
+
+    prometheus = client.get(f"/v1/machines/providers/{prometheus['id']}/prometheus").json()
     assert prometheus["provisioner_ids"] == [provisioner["id"]]
     assert "config" not in prometheus
     assert "metric_type_id" not in prometheus
@@ -1163,6 +1170,19 @@ def test_typed_integration_write_payloads_reject_enabled_field(client: TestClien
         },
     )
     assert provider_create.status_code == 422
+
+    provider_with_provisioners_create = client.post(
+        "/v1/machines/providers/prometheus",
+        json={
+            "platform_id": platform["id"],
+            "name": "prom cpu with provisioners",
+            "scope": "cpu",
+            "url": "https://prometheus.example",
+            "query": "avg(up)",
+            "provisioner_ids": [provisioner["id"]],
+        },
+    )
+    assert provider_with_provisioners_create.status_code == 422
 
     provider = client.post(
         "/v1/machines/providers/prometheus",
@@ -1407,9 +1427,11 @@ def test_provider_run_and_visible_machines_endpoint(
             "scope": "cpu",
             "url": "https://prometheus.example",
             "query": "avg(up)",
-            "provisioner_ids": [provisioner["id"]],
         },
     ).json()
+    attach = client.post(f"/v1/machines/providers/{provider['id']}/provisioners/{provisioner['id']}")
+    assert attach.status_code == 200
+
     db_session.add_all(
         [
             Machine(
@@ -1473,10 +1495,11 @@ def test_provider_creation_rejects_duplicate_scope_for_same_provisioner(client: 
             "scope": "cpu",
             "url": "https://prometheus.example",
             "query": "avg(up)",
-            "provisioner_ids": [provisioner["id"]],
         },
     )
     assert first_provider.status_code == 201
+    first_attach = client.post(f"/v1/machines/providers/{first_provider.json()['id']}/provisioners/{provisioner['id']}")
+    assert first_attach.status_code == 200
 
     second_scope = client.post(
         "/v1/machines/providers/prometheus",
@@ -1486,10 +1509,11 @@ def test_provider_creation_rejects_duplicate_scope_for_same_provisioner(client: 
             "scope": "ram",
             "url": "https://prometheus.example",
             "query": "avg(node_memory_MemAvailable_bytes)",
-            "provisioner_ids": [provisioner["id"]],
         },
     )
     assert second_scope.status_code == 201
+    second_attach = client.post(f"/v1/machines/providers/{second_scope.json()['id']}/provisioners/{provisioner['id']}")
+    assert second_attach.status_code == 200
 
     providers = client.get("/v1/machines/providers", params={"platform_id": platform["id"]}).json()
     assert providers["total"] == 2
@@ -1592,9 +1616,10 @@ def test_provider_update_rejects_duplicate_scope_for_attached_provisioner(
             "scope": "cpu",
             "url": "https://prometheus.example",
             "query": "avg(up)",
-            "provisioner_ids": [provisioner["id"]],
         },
     ).json()
+    attach = client.post(f"/v1/machines/providers/{cpu_provider['id']}/provisioners/{provisioner['id']}")
+    assert attach.status_code == 200
     ram_provider = client.post(
         "/v1/machines/providers/dynatrace",
         json={
@@ -2510,9 +2535,10 @@ def test_provisioner_sync_and_child_routes(
             "scope": "cpu",
             "url": "https://prometheus.example",
             "query": "avg(up)",
-            "provisioner_ids": [provisioner["id"]],
         },
     ).json()
+    attach = client.post(f"/v1/machines/providers/{provider['id']}/provisioners/{provisioner['id']}")
+    assert attach.status_code == 200
     db_session.add(
         Machine(
             platform_id=platform["id"],

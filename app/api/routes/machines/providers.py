@@ -125,19 +125,12 @@ def create_prometheus_provider(
 ) -> PrometheusProviderRead:
     """Create a typed Prometheus provider."""
     get_or_404(db, Platform, payload.platform_id, "platform not found")
-    provisioners = _load_provisioners_for_provider(
-        db,
-        payload.provisioner_ids,
-        payload.platform_id,
-        provider_scope=payload.scope,
-    )
     provider = MachineProvider(
         platform_id=payload.platform_id,
         name=payload.name,
         type="prometheus",
         scope=payload.scope,
         config={"url": str(payload.url), "query": payload.query},
-        provisioners=provisioners,
     )
     db.add(provider)
     commit_or_409(db, "provider name already exists for this platform")
