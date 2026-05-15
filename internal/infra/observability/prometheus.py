@@ -45,6 +45,16 @@ CELERY_BEAT_UP = Gauge(
     "celery_beat_up",
     "Whether the Celery beat metrics process is running.",
 )
+MCP_TOOL_CALLS_TOTAL = Counter(
+    "mcp_tool_calls_total",
+    "Total MCP tool calls by tool and envelope status.",
+    ["tool_name", "status"],
+)
+MCP_TOOL_DURATION_SECONDS = Histogram(
+    "mcp_tool_duration_seconds",
+    "MCP tool call duration in seconds.",
+    ["tool_name", "status"],
+)
 
 _TASK_START_TIMES: dict[str, float] = {}
 _CELERY_SIGNALS_REGISTERED = False
@@ -70,6 +80,12 @@ def observe_api_request(method: str, route: str, status_code: int, duration_seco
     labels = {"method": method, "route": route, "status_code": str(status_code)}
     HTTP_REQUESTS_TOTAL.labels(**labels).inc()
     HTTP_REQUEST_DURATION_SECONDS.labels(method=method, route=route).observe(duration_seconds)
+
+
+def observe_mcp_tool_call(tool_name: str, status: str, duration_seconds: float) -> None:
+    """Record one completed MCP tool call in Prometheus metrics."""
+    MCP_TOOL_CALLS_TOTAL.labels(tool_name=tool_name, status=status).inc()
+    MCP_TOOL_DURATION_SECONDS.labels(tool_name=tool_name, status=status).observe(duration_seconds)
 
 
 async def prometheus_http_middleware(request: Request, call_next):

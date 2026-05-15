@@ -1,90 +1,126 @@
-"""MCP resource registrations."""
+"""Read-only MCP resources describing the Metrics Collector surface."""
 
 import json
-from typing import Any
 
-from fastmcp import Context, FastMCP
+from fastmcp import FastMCP
 
-from app.mcp.core.product_api import (
-    discovery_application_overview,
-    discovery_catalog,
-    discovery_current_optimizations,
-    discovery_machine_context,
-)
-from app.mcp.core.shared import PositiveInt, ReadOnlyResourceAnnotations
+from app.mcp.core.shared import ReadOnlyResourceAnnotations
+
+
+MCP_CATALOG = {
+    "server": "Metrics Collector MCP",
+    "mode": "read_only",
+    "rules": [
+        "Use only read-only tools for inventory, metrics, and optimization consultation.",
+        "Do not create, update, delete, sync, enable, disable, or enqueue worker tasks through MCP.",
+        "Forwarded authorization comes from the caller's Bearer token.",
+    ],
+    "units": {
+        "cpu": "cores",
+        "ram": "mb",
+        "disk": "mb",
+        "utilization": "percent",
+    },
+    "tools": {
+        "applications": [
+            "application_list",
+            "application_search",
+            "application_get",
+            "application_regions_list",
+            "application_environments_list",
+            "application_stats_get",
+            "application_optimizations_get",
+        ],
+        "machines": [
+            "machine_list",
+            "machine_search",
+            "machine_get",
+        ],
+    },
+    "filters": {
+        "applications": ["query", "environment", "region", "platform_id", "offset", "page_size"],
+        "machines": [
+            "query",
+            "hostname",
+            "external_id",
+            "application",
+            "application_id",
+            "application_name",
+            "environment",
+            "region",
+            "platform_id",
+            "offset",
+            "page_size",
+        ],
+        "stats_windows_days": [7, 15, 30],
+    },
+}
+
+OPTIMIZATION_REASON_CODES = {
+    "global_statuses": ["ready", "partial", "error"],
+    "global_actions": ["scale_up", "scale_down", "mixed", "keep", "insufficient_data", "unavailable"],
+    "scope_statuses": [
+        "ok",
+        "missing_provider",
+        "ambiguous_provider",
+        "insufficient_data",
+        "missing_current_capacity",
+    ],
+    "scope_actions": ["scale_up", "scale_down", "keep", "insufficient_data", "unavailable"],
+    "reason_codes": {
+        "pressure_high": "Observed utilization is above the upscale threshold.",
+        "pressure_low": "Observed utilization is below the downscale threshold.",
+        "pressure_normal": "Observed utilization is inside the normal band.",
+        "within_hysteresis": "A computed target would not materially change the current allocation.",
+        "limited_history": "At least one sample exists, but the rolling window is not complete.",
+        "no_samples": "No metric samples are available for the requested scope.",
+        "no_provider": "No enabled provider is available for the requested scope.",
+        "ambiguous_provider": "More than one enabled provider could supply the same scope.",
+        "missing_current_capacity": "The current machine flavor has no capacity for the requested scope.",
+        "raised_to_min_cpu": "The CPU recommendation was raised to the configured minimum.",
+        "raised_to_min_ram": "The RAM recommendation was raised to the configured minimum.",
+        "above_max_cpu": "The computed CPU target exceeds the configured maximum.",
+        "above_max_ram": "The computed RAM target exceeds the configured maximum.",
+        "unavailable": "The optimization reason is unavailable.",
+    },
+}
 
 
 def register_resources(mcp: FastMCP) -> None:
-    """Register assistant-friendly read-only resources on the MCP server."""
+    """Register static read-only resources for MCP clients."""
 
     @mcp.resource(
-        "metrics-collector://catalog",
-        name="discovery_catalog",
-        title="Discovery Catalog",
-        description="Browsable catalog of platforms, environments, regions, metric types, and optimization vocabulary.",
+        "metrics-collector://mcp/catalog",
+        name="mcp_catalog",
+        title="MCP Catalog",
+        description="Read-only catalog of Metrics Collector MCP tools, rules, filters, and units.",
         mime_type="application/json",
         annotations=ReadOnlyResourceAnnotations,
-        tags={"discovery", "catalog"},
+        tags={"catalog", "read-only"},
     )
-    async def catalog_resource(ctx: Context) -> str:
-        """Read the top-level discovery catalog."""
+    def mcp_catalog() -> str:
+        """Return the read-only MCP catalog."""
 
-        return _resource_json(await discovery_catalog(ctx))
+        return _json_resource(MCP_CATALOG)
 
     @mcp.resource(
-        "metrics-collector://applications/{application_id}/overview",
-        name="application_overview",
-        title="Application Overview",
-        description="Browsable application context with machines and current optimization recommendations.",
+        "metrics-collector://optimizations/reason-codes",
+        name="optimization_reason_codes",
+        title="Optimization Reason Codes",
+        description="Optimization statuses, actions, scope statuses, and reason-code meanings.",
         mime_type="application/json",
         annotations=ReadOnlyResourceAnnotations,
-        tags={"applications", "optimizations"},
+        tags={"optimizations", "read-only"},
     )
-    async def application_overview_resource(ctx: Context, application_id: PositiveInt) -> str:
-        """Read the assistant overview for one application."""
+    def optimization_reason_codes() -> str:
+        """Return optimization reason-code metadata."""
 
-        return _resource_json(
-            await discovery_application_overview(
-                ctx,
-                application_id=application_id,
-                max_machines=100,
-                max_optimizations=100,
-            )
-        )
-
-    @mcp.resource(
-        "metrics-collector://machines/{machine_id}/context",
-        name="machine_context",
-        title="Machine Context",
-        description="Browsable machine context with ownership, latest metrics, and current optimization.",
-        mime_type="application/json",
-        annotations=ReadOnlyResourceAnnotations,
-        tags={"machines", "metrics", "optimizations"},
-    )
-    async def machine_context_resource(ctx: Context, machine_id: PositiveInt) -> str:
-        """Read the assistant context for one machine."""
-
-        return _resource_json(await discovery_machine_context(ctx, machine_id))
-
-    @mcp.resource(
-        "metrics-collector://optimizations/current",
-        name="current_optimizations",
-        title="Current Optimizations",
-        description="Browsable bounded list of current optimization recommendations across machines.",
-        mime_type="application/json",
-        annotations=ReadOnlyResourceAnnotations,
-        tags={"optimizations"},
-    )
-    async def current_optimizations_resource(ctx: Context) -> str:
-        """Read current optimization recommendations."""
-
-        return _resource_json(await discovery_current_optimizations(ctx, max_results=100))
+        return _json_resource(OPTIMIZATION_REASON_CODES)
 
 
-def _resource_json(payload: dict[str, Any]) -> str:
-    """Serialize a downstream JSON payload for a resource response."""
-
-    return json.dumps(payload)
+def _json_resource(payload: dict[str, object]) -> str:
+    """Serialize a stable JSON resource response."""
+    return json.dumps(payload, indent=2, sort_keys=True)
 
 
 __all__ = ["register_resources"]

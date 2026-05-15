@@ -2,13 +2,14 @@
 
 from datetime import date
 from typing import Any, Mapping
-from urllib.parse import quote
 
 import httpx
 from fastmcp import Context
 from fastmcp.server.dependencies import get_http_headers
 
-from app.mcp.core.shared import MetricType
+
+class ProductAPIError(RuntimeError):
+    """Public downstream API error safe to return in MCP tool envelopes."""
 
 
 class ProductAPIProxy:
@@ -19,7 +20,12 @@ class ProductAPIProxy:
 
         self._client = client
 
-    async def get_json(self, path: str, params: Mapping[str, Any] | None = None, headers: Mapping[str, str] | None = None) -> dict[str, Any]:
+    async def get_json(
+        self,
+        path: str,
+        params: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> dict[str, Any]:
         """Perform a GET request and decode a JSON object response."""
 
         cleaned_params = _clean_query_params(params or {})
@@ -27,22 +33,55 @@ class ProductAPIProxy:
             response = await self._client.get(path, params=cleaned_params, headers=dict(headers or {}))
             response.raise_for_status()
         except httpx.TimeoutException as exc:
-            raise RuntimeError(f"product API request timed out for GET {path}") from exc
+            raise ProductAPIError(f"product API request timed out for GET {path}") from exc
         except httpx.HTTPStatusError as exc:
             detail = _response_detail(exc.response)
-            raise RuntimeError(
+            raise ProductAPIError(
                 f"product API returned {exc.response.status_code} for GET {path}: {detail}"
             ) from exc
         except httpx.HTTPError as exc:
-            raise RuntimeError(f"product API request failed for GET {path}: {exc}") from exc
+            raise ProductAPIError(f"product API request failed for GET {path}: {exc}") from exc
 
         try:
             payload = response.json()
         except ValueError as exc:
-            raise RuntimeError(f"product API returned invalid JSON for GET {path}") from exc
+            raise ProductAPIError(f"product API returned invalid JSON for GET {path}") from exc
 
         if not isinstance(payload, dict):
-            raise RuntimeError(f"product API returned an unexpected payload for GET {path}")
+            raise ProductAPIError(f"product API returned an unexpected payload for GET {path}")
+        return payload
+
+    async def get_optional_json(
+        self,
+        path: str,
+        params: Mapping[str, Any] | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> dict[str, Any] | None:
+        """Perform a GET request and return None for downstream 404 responses."""
+
+        cleaned_params = _clean_query_params(params or {})
+        try:
+            response = await self._client.get(path, params=cleaned_params, headers=dict(headers or {}))
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+        except httpx.TimeoutException as exc:
+            raise ProductAPIError(f"product API request timed out for GET {path}") from exc
+        except httpx.HTTPStatusError as exc:
+            detail = _response_detail(exc.response)
+            raise ProductAPIError(
+                f"product API returned {exc.response.status_code} for GET {path}: {detail}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise ProductAPIError(f"product API request failed for GET {path}: {exc}") from exc
+
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise ProductAPIError(f"product API returned invalid JSON for GET {path}") from exc
+
+        if not isinstance(payload, dict):
+            raise ProductAPIError(f"product API returned an unexpected payload for GET {path}")
         return payload
 
 
@@ -58,7 +97,7 @@ def get_product_api_proxy(ctx: Context) -> ProductAPIProxy:
 def forwarded_authorization_headers() -> dict[str, str]:
     """Forward only the incoming Authorization header, when present."""
 
-    authorization = get_http_headers().get("authorization")
+    authorization = get_http_headers(include={"authorization"}).get("authorization")
     if not authorization:
         return {}
     return {"Authorization": authorization}
@@ -71,13 +110,26 @@ async def proxy_get_json(ctx: Context, path: str, params: Mapping[str, Any] | No
     return await proxy.get_json(path, params=params, headers=forwarded_authorization_headers())
 
 
+async def proxy_get_optional_json(
+    ctx: Context,
+    path: str,
+    params: Mapping[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Proxy a read-only GET request and return None for 404 responses."""
+
+    proxy = get_product_api_proxy(ctx)
+    return await proxy.get_optional_json(path, params=params, headers=forwarded_authorization_headers())
+
+
 async def list_applications(
     ctx: Context,
+    q: str | None = None,
     name: str | None = None,
     environment: str | None = None,
     region: str | None = None,
+    platform_id: int | None = None,
     offset: int = 0,
-    limit: int = 100,
+    limit: int = 25,
 ) -> dict[str, Any]:
     """Read the application collection endpoint."""
 
@@ -85,9 +137,11 @@ async def list_applications(
         ctx,
         "/v1/applications",
         {
+            "q": q,
             "name": name,
             "environment": environment,
             "region": region,
+            "platform_id": platform_id,
             "offset": offset,
             "limit": limit,
         },
@@ -100,15 +154,70 @@ async def get_application(ctx: Context, application_id: int) -> dict[str, Any]:
     return await proxy_get_json(ctx, f"/v1/applications/{application_id}")
 
 
+async def list_application_regions(
+    ctx: Context,
+    environment: str | None = None,
+    platform_id: int | None = None,
+) -> dict[str, Any]:
+    """Read available application regions."""
+
+    return await proxy_get_json(
+        ctx,
+        "/v1/applications/regions",
+        {
+            "environment": environment,
+            "platform_id": platform_id,
+        },
+    )
+
+
+async def list_application_environments(
+    ctx: Context,
+    region: str | None = None,
+    platform_id: int | None = None,
+) -> dict[str, Any]:
+    """Read available application environments."""
+
+    return await proxy_get_json(
+        ctx,
+        "/v1/applications/environments",
+        {
+            "region": region,
+            "platform_id": platform_id,
+        },
+    )
+
+
+async def get_application_stats(ctx: Context, application_id: int, window_days: int) -> dict[str, Any]:
+    """Read application capacity and usage stats."""
+
+    return await proxy_get_json(
+        ctx,
+        f"/v1/applications/{application_id}/stats",
+        {"window_days": window_days},
+    )
+
+
+async def get_application_optimizations_summary(ctx: Context, application_id: int) -> dict[str, Any]:
+    """Read aggregated application optimization recommendations."""
+
+    return await proxy_get_json(ctx, f"/v1/applications/{application_id}/optimizations/summary")
+
+
 async def list_machines(
     ctx: Context,
+    q: str | None = None,
     platform_id: int | None = None,
+    application_id: int | None = None,
+    application_name: str | None = None,
     application: str | None = None,
     source_provisioner_id: int | None = None,
+    hostname: str | None = None,
+    external_id: str | None = None,
     environment: str | None = None,
     region: str | None = None,
     offset: int = 0,
-    limit: int = 100,
+    limit: int = 25,
 ) -> dict[str, Any]:
     """Read the machine collection endpoint."""
 
@@ -116,9 +225,14 @@ async def list_machines(
         ctx,
         "/v1/machines",
         {
+            "q": q,
             "platform_id": platform_id,
+            "application_id": application_id,
+            "application_name": application_name,
             "application": application,
             "source_provisioner_id": source_provisioner_id,
+            "hostname": hostname,
+            "external_id": external_id,
             "environment": environment,
             "region": region,
             "offset": offset,
@@ -133,176 +247,16 @@ async def get_machine(ctx: Context, machine_id: int) -> dict[str, Any]:
     return await proxy_get_json(ctx, f"/v1/machines/{machine_id}")
 
 
-async def list_machine_metrics(
-    ctx: Context,
-    metric_type: MetricType,
-    platform_id: int | None = None,
-    provider_id: int | None = None,
-    provisioner_id: int | None = None,
-    machine_id: int | None = None,
-    start: str | None = None,
-    end: str | None = None,
-    offset: int = 0,
-    limit: int = 100,
-) -> dict[str, Any]:
-    """Read the cross-machine metrics endpoint."""
+async def get_machine_latest_metrics(ctx: Context, machine_id: int) -> dict[str, Any]:
+    """Read the latest metrics for one machine."""
 
-    return await proxy_get_json(
-        ctx,
-        "/v1/machines/metrics",
-        {
-            "type": metric_type,
-            "platform_id": platform_id,
-            "provider_id": provider_id,
-            "provisioner_id": provisioner_id,
-            "machine_id": machine_id,
-            "start": start,
-            "end": end,
-            "offset": offset,
-            "limit": limit,
-        },
-    )
+    return await proxy_get_json(ctx, f"/v1/machines/{machine_id}/metrics/latest")
 
 
-async def list_machine_metric_history(
-    ctx: Context,
-    machine_id: int,
-    metric_type: MetricType,
-    provider_id: int | None = None,
-    start: str | None = None,
-    end: str | None = None,
-    offset: int = 0,
-    limit: int = 100,
-) -> dict[str, Any]:
-    """Read the per-machine metrics history endpoint."""
+async def get_machine_current_optimization(ctx: Context, machine_id: int) -> dict[str, Any] | None:
+    """Read the current optimization for one machine, returning None when absent."""
 
-    return await proxy_get_json(
-        ctx,
-        f"/v1/machines/{machine_id}/metrics",
-        {
-            "type": metric_type,
-            "provider_id": provider_id,
-            "start": start,
-            "end": end,
-            "offset": offset,
-            "limit": limit,
-        },
-    )
-
-
-async def discovery_catalog(ctx: Context) -> dict[str, Any]:
-    """Read the assistant discovery catalog endpoint."""
-
-    return await proxy_get_json(ctx, "/v1/discovery/catalog")
-
-
-async def discovery_applications(
-    ctx: Context,
-    name: str | None = None,
-    environment: str | None = None,
-    region: str | None = None,
-    platform_id: int | None = None,
-    max_results: int = 25,
-) -> dict[str, Any]:
-    """Read assistant-friendly application summaries."""
-
-    return await proxy_get_json(
-        ctx,
-        "/v1/discovery/applications",
-        {
-            "name": name,
-            "environment": environment,
-            "region": region,
-            "platform_id": platform_id,
-            "max_results": max_results,
-        },
-    )
-
-
-async def discovery_application_overview(
-    ctx: Context,
-    application_id: int,
-    max_machines: int = 25,
-    max_optimizations: int = 25,
-) -> dict[str, Any]:
-    """Read the full assistant context for one application."""
-
-    return await proxy_get_json(
-        ctx,
-        f"/v1/discovery/applications/{application_id}/overview",
-        {
-            "max_machines": max_machines,
-            "max_optimizations": max_optimizations,
-        },
-    )
-
-
-async def discovery_machine_search(
-    ctx: Context,
-    q: str | None = None,
-    hostname: str | None = None,
-    external_id: str | None = None,
-    application: str | None = None,
-    environment: str | None = None,
-    region: str | None = None,
-    platform_id: int | None = None,
-    max_results: int = 25,
-) -> dict[str, Any]:
-    """Search assistant-friendly machine inventory."""
-
-    return await proxy_get_json(
-        ctx,
-        "/v1/discovery/machines/search",
-        {
-            "q": q,
-            "hostname": hostname,
-            "external_id": external_id,
-            "application": application,
-            "environment": environment,
-            "region": region,
-            "platform_id": platform_id,
-            "max_results": max_results,
-        },
-    )
-
-
-async def discovery_machine_context(ctx: Context, machine_id: int) -> dict[str, Any]:
-    """Read the full assistant context for one machine."""
-
-    return await proxy_get_json(ctx, f"/v1/discovery/machines/{machine_id}/context")
-
-
-async def discovery_current_optimizations(
-    ctx: Context,
-    platform_id: int | None = None,
-    application: str | None = None,
-    environment: str | None = None,
-    region: str | None = None,
-    status: str | None = None,
-    action: str | None = None,
-    max_results: int = 25,
-) -> dict[str, Any]:
-    """Read current assistant-friendly optimization recommendations."""
-
-    return await proxy_get_json(
-        ctx,
-        "/v1/discovery/optimizations/current",
-        {
-            "platform_id": platform_id,
-            "application": application,
-            "environment": environment,
-            "region": region,
-            "status": status,
-            "action": action,
-            "max_results": max_results,
-        },
-    )
-
-
-async def discovery_record(ctx: Context, record_id: str) -> dict[str, Any]:
-    """Read one fetchable discovery record."""
-
-    return await proxy_get_json(ctx, f"/v1/discovery/records/{quote(record_id, safe='')}")
+    return await proxy_get_optional_json(ctx, f"/v1/machines/{machine_id}/optimizations")
 
 
 def _clean_query_params(params: Mapping[str, Any]) -> dict[str, Any]:

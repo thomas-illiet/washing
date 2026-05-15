@@ -215,6 +215,7 @@ Behavior:
 - The Swagger HTML shell remains reachable with OIDC enabled so login can start.
 - The OpenAPI JSON route itself stays protected when OIDC is enabled.
 - MCP is read-only and forwards only the caller's `Authorization` header.
+- FastMCP clients can use an existing Bearer token directly; automatic MCP OAuth/OIDC discovery is not enabled yet.
 
 ## Suggested incident checks
 

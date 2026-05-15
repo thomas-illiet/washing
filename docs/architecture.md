@@ -121,9 +121,10 @@ See [Celery Task Map](./celery-task-map.md) for the full task-level breakdown.
 
 1. A caller invokes the MCP HTTP transport.
 2. The MCP gateway validates the Bearer token when OIDC is enabled.
-3. The gateway forwards only the `Authorization` header to the product API.
-4. The product API executes the read-only request.
-5. The MCP gateway relays the JSON payload back to the caller.
+3. The caller can list typed tools plus static catalog/reason-code resources and workflow prompts.
+4. Tool calls forward only the `Authorization` header to the product API.
+5. The product API executes the read-only request.
+6. The MCP gateway relays a typed envelope back to the caller and records per-tool status/latency metrics.
 
 ### API documentation flow
 

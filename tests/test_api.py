@@ -38,7 +38,6 @@ EXPECTED_OPENAPI_DESCRIPTION = (
 EXPECTED_OPENAPI_TAG_DESCRIPTIONS = {
     "Platforms": "Cycle programs and settings.",
     "Applications": "Loads to track in the drum.",
-    "Discovery": "Assistant-ready inventory and optimization discovery.",
     "Machines": "Main drum and inventory.",
     "Machine Optimizations": "Current machine capacity recommendations.",
     "Machine Metrics": "CPU, RAM, and disk spin cycle.",
@@ -135,11 +134,11 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     tags = [tag["name"] for tag in body["tags"]]
     assert "name" not in schemas["PlatformUpdate"]["properties"]
     assert "PlatformSummaryRead" in schemas
-    assert "DiscoveryCatalogRead" in schemas
-    assert "ApplicationOverviewRead" in schemas
-    assert "MachineContextRead" in schemas
-    assert "OptimizationRecommendationRead" in schemas
-    assert "DiscoveryRecordRead" in schemas
+    assert "ApplicationDimensionListRead" in schemas
+    assert "ApplicationStatsRead" in schemas
+    assert "ApplicationOptimizationSummaryRead" in schemas
+    assert "ApplicationOptimizationResourceSummaryRead" in schemas
+    assert "ApplicationResourceStatsRead" in schemas
     assert "ApplicationCreate" not in schemas
     assert "ApplicationUpdate" not in schemas
     assert {"sync_at", "sync_scheduled_at", "sync_error"} <= set(schemas["ApplicationRead"]["properties"])
@@ -193,13 +192,11 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/providers/{provider_id}/run" not in paths
     assert "/health" not in paths
     assert "/v1/platforms/{platform_id}/summary" in paths
-    assert "/v1/discovery/catalog" in paths
-    assert "/v1/discovery/applications" in paths
-    assert "/v1/discovery/applications/{application_id}/overview" in paths
-    assert "/v1/discovery/machines/search" in paths
-    assert "/v1/discovery/machines/{machine_id}/context" in paths
-    assert "/v1/discovery/optimizations/current" in paths
-    assert "/v1/discovery/records/{record_id}" in paths
+    assert not any(path.startswith("/v1/discovery/") for path in paths)
+    assert "/v1/applications/regions" in paths
+    assert "/v1/applications/environments" in paths
+    assert "/v1/applications/{application_id}/stats" in paths
+    assert "/v1/applications/{application_id}/optimizations/summary" in paths
     assert "/v1/machines/metrics" in paths
     assert "/v1/machines/{machine_id}/metrics" in paths
     assert "/v1/machines/{machine_id}/metrics/latest" in paths
@@ -238,18 +235,12 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "Health" not in tags
     assert tags == list(EXPECTED_OPENAPI_TAG_DESCRIPTIONS)
     assert tag_descriptions == EXPECTED_OPENAPI_TAG_DESCRIPTIONS
-    assert tags.index("Applications") < tags.index("Discovery")
-    assert tags.index("Discovery") < tags.index("Machines")
+    assert tags.index("Applications") < tags.index("Machines")
     assert tags.index("Machines") < tags.index("Machine Optimizations")
     assert tags.index("Machine Optimizations") < tags.index("Machine Metrics")
     assert tags.index("Machine Metrics") < tags.index("Machine Providers")
     assert tags.index("Machine Providers") < tags.index("Machine Provisioners")
     assert paths["/v1/machines"]["get"]["tags"] == ["Machines"]
-    assert paths["/v1/discovery/catalog"]["get"]["tags"] == ["Discovery"]
-    assert paths["/v1/discovery/applications"]["get"]["tags"] == ["Discovery"]
-    assert paths["/v1/discovery/machines/search"]["get"]["tags"] == ["Discovery"]
-    assert paths["/v1/discovery/optimizations/current"]["get"]["tags"] == ["Discovery"]
-    assert paths["/v1/discovery/records/{record_id}"]["get"]["tags"] == ["Discovery"]
     assert "post" not in paths["/v1/machines"]
     assert paths["/v1/machines/{machine_id}"]["get"]["tags"] == ["Machines"]
     assert paths["/v1/machines/{machine_id}"]["delete"]["tags"] == ["Machines"]
@@ -278,9 +269,13 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert paths["/v1/machines/provisioners/{provisioner_id}/dynatrace"]["get"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/machines/provisioners/{provisioner_id}/run"]["post"]["tags"] == ["Machine Provisioners"]
     assert paths["/v1/applications/sync"]["post"]["tags"] == ["Applications"]
+    assert paths["/v1/applications/regions"]["get"]["tags"] == ["Applications"]
+    assert paths["/v1/applications/environments"]["get"]["tags"] == ["Applications"]
     assert paths["/v1/applications/{application_id}/machines"]["get"]["tags"] == ["Applications"]
+    assert paths["/v1/applications/{application_id}/stats"]["get"]["tags"] == ["Applications"]
     assert paths["/v1/applications/{application_id}/metrics/sync"]["post"]["tags"] == ["Applications"]
     assert paths["/v1/applications/{application_id}/optimizations"]["get"]["tags"] == ["Applications"]
+    assert paths["/v1/applications/{application_id}/optimizations/summary"]["get"]["tags"] == ["Applications"]
     assert {param["name"] for param in paths["/v1/applications/sync"]["post"]["parameters"]} == {"type"}
     sync_responses = paths["/v1/applications/sync"]["post"]["responses"]
     assert "202" in sync_responses
@@ -310,6 +305,21 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "/v1/worker/tasks",
     ]:
         _assert_paginated_list_route(body, path)
+    assert {"q", "name", "environment", "region", "platform_id", "offset", "limit"} <= {
+        param["name"] for param in paths["/v1/applications"]["get"]["parameters"]
+    }
+    assert {
+        "q",
+        "platform_id",
+        "application_id",
+        "application_name",
+        "hostname",
+        "external_id",
+        "environment",
+        "region",
+        "offset",
+        "limit",
+    } <= {param["name"] for param in paths["/v1/machines"]["get"]["parameters"]}
     assert {"type", "offset", "limit"} <= {param["name"] for param in paths["/v1/machines/metrics"]["get"]["parameters"]}
     assert {"type", "offset", "limit"} <= {
         param["name"] for param in paths["/v1/machines/{machine_id}/metrics"]["get"]["parameters"]
@@ -495,9 +505,9 @@ def test_platform_summary_counts_inventory_connectors_and_current_optimizations(
     assert missing.json()["detail"] == "platform not found"
 
 
-def test_discovery_endpoints_expose_assistant_ready_context(client: TestClient, db_session: Session) -> None:
-    """Discovery routes should expose bounded application, machine, and optimization context."""
-    platform = client.post("/v1/platforms", json={"name": "Discovery Platform"}).json()
+def test_chat_first_read_only_endpoints_expose_application_context(client: TestClient, db_session: Session) -> None:
+    """Read-only application and machine routes should expose chat-first context."""
+    platform = client.post("/v1/platforms", json={"name": "Chat Context Platform"}).json()
     billing_machine = _persist_machine(
         db_session,
         platform_id=platform["id"],
@@ -522,7 +532,7 @@ def test_discovery_endpoints_expose_assistant_ready_context(client: TestClient, 
     billing_application = db_session.query(Application).filter(Application.name == "BILLING").one()
     provider = MachineProvider(
         platform_id=platform["id"],
-        name="discovery cpu",
+        name="chat context cpu",
         type="prometheus",
         scope="cpu",
         enabled=True,
@@ -532,6 +542,24 @@ def test_discovery_endpoints_expose_assistant_ready_context(client: TestClient, 
     db_session.flush()
     db_session.add_all(
         [
+            MachineCPUMetric(
+                provider_id=provider.id,
+                machine_id=billing_machine.id,
+                date=date(2026, 4, 2),
+                value=10,
+            ),
+            MachineCPUMetric(
+                provider_id=provider.id,
+                machine_id=billing_machine.id,
+                date=date(2026, 4, 20),
+                value=20,
+            ),
+            MachineCPUMetric(
+                provider_id=provider.id,
+                machine_id=billing_machine.id,
+                date=date(2026, 4, 25),
+                value=50,
+            ),
             MachineCPUMetric(
                 provider_id=provider.id,
                 machine_id=billing_machine.id,
@@ -578,57 +606,81 @@ def test_discovery_endpoints_expose_assistant_ready_context(client: TestClient, 
     )
     db_session.commit()
 
-    catalog = client.get("/v1/discovery/catalog")
-    assert catalog.status_code == 200
-    assert catalog.json()["environments"] == ["DEV", "PROD"]
-    assert catalog.json()["regions"] == ["EU-WEST-1", "US-EAST-1"]
-    assert catalog.json()["metric_types"] == ["cpu", "ram", "disk"]
-    assert catalog.json()["totals"]["applications"] == 2
-    assert catalog.json()["totals"]["current_optimizations"] == 1
+    regions = client.get("/v1/applications/regions")
+    assert regions.status_code == 200
+    assert regions.json() == {"items": ["EU-WEST-1", "US-EAST-1"], "total": 2}
 
-    applications = client.get("/v1/discovery/applications", params={"max_results": 1})
+    environments = client.get("/v1/applications/environments", params={"platform_id": platform["id"]})
+    assert environments.status_code == 200
+    assert environments.json() == {"items": ["DEV", "PROD"], "total": 2}
+
+    applications = client.get("/v1/applications", params={"limit": 1})
     assert applications.status_code == 200
     assert applications.json()["total"] == 2
-    assert applications.json()["returned"] == 1
-    assert applications.json()["truncated"] is True
+    assert len(applications.json()["items"]) == 1
 
-    billing_summary = client.get("/v1/discovery/applications", params={"name": "billing"}).json()["items"][0]
-    assert billing_summary["application"]["id"] == billing_application.id
-    assert billing_summary["machine_count"] == 1
-    assert billing_summary["platform_ids"] == [platform["id"]]
-    assert billing_summary["current_optimization_count"] == 1
-    assert billing_summary["current_optimizations_by_action"] == {"scale_up": 1}
+    billing_search = client.get("/v1/applications", params={"q": "bill", "platform_id": platform["id"]})
+    assert billing_search.status_code == 200
+    assert billing_search.json()["total"] == 1
+    assert billing_search.json()["items"][0]["id"] == billing_application.id
 
-    overview = client.get(
-        f"/v1/discovery/applications/{billing_application.id}/overview",
-        params={"max_machines": 1, "max_optimizations": 1},
-    )
-    assert overview.status_code == 200
-    assert overview.json()["application"]["name"] == "BILLING"
-    assert overview.json()["machines"]["items"][0]["hostname"] == "BILLING-01"
-    assert overview.json()["current_optimizations"]["items"][0]["action"] == "scale_up"
+    machine_list = client.get(f"/v1/applications/{billing_application.id}/machines")
+    assert machine_list.status_code == 200
+    assert machine_list.json()["items"][0]["hostname"] == "BILLING-01"
 
-    machine_search = client.get("/v1/discovery/machines/search", params={"q": "billing"})
+    machine_search = client.get("/v1/machines", params={"q": "billing"})
     assert machine_search.status_code == 200
     assert machine_search.json()["total"] == 1
     assert machine_search.json()["items"][0]["external_id"] == "vm-billing-01"
 
-    context = client.get(f"/v1/discovery/machines/{billing_machine.id}/context")
-    assert context.status_code == 200
-    assert context.json()["application"]["id"] == billing_application.id
-    assert context.json()["latest_metrics"]["cpu"]["value"] == 91
-    assert context.json()["current_optimization"]["resources"]["cpu"]["recommended"] == 4
+    machine_by_application_id = client.get("/v1/machines", params={"application_id": billing_application.id})
+    assert machine_by_application_id.status_code == 200
+    assert machine_by_application_id.json()["items"][0]["id"] == billing_machine.id
 
-    recommendations = client.get("/v1/discovery/optimizations/current", params={"action": "scale_up"})
-    assert recommendations.status_code == 200
-    assert recommendations.json()["items"][0]["machine"]["hostname"] == "BILLING-01"
-    assert recommendations.json()["items"][0]["application"]["name"] == "BILLING"
+    machine_by_application_name = client.get("/v1/machines", params={"application_name": "billing"})
+    assert machine_by_application_name.status_code == 200
+    assert machine_by_application_name.json()["items"][0]["id"] == billing_machine.id
 
-    record = client.get(f"/v1/discovery/records/application:{billing_application.id}")
-    assert record.status_code == 200
-    assert record.json()["id"] == f"application:{billing_application.id}"
-    assert record.json()["metadata"]["name"] == "BILLING"
-    assert '"machine_count": 1' in record.json()["text"]
+    machine_by_hostname = client.get("/v1/machines", params={"hostname": "billing-01"})
+    assert machine_by_hostname.status_code == 200
+    assert machine_by_hostname.json()["items"][0]["id"] == billing_machine.id
+
+    machine_by_external_id = client.get("/v1/machines", params={"external_id": "VM-BILLING-01"})
+    assert machine_by_external_id.status_code == 200
+    assert machine_by_external_id.json()["items"][0]["id"] == billing_machine.id
+
+    latest_metrics = client.get(f"/v1/machines/{billing_machine.id}/metrics/latest")
+    assert latest_metrics.status_code == 200
+    assert latest_metrics.json()["cpu"]["value"] == 91
+
+    stats_7 = client.get(f"/v1/applications/{billing_application.id}/stats", params={"window_days": 7})
+    assert stats_7.status_code == 200
+    assert stats_7.json()["window_days"] == 7
+    assert stats_7.json()["start_date"] == "2026-04-25"
+    assert stats_7.json()["end_date"] == "2026-05-01"
+    assert stats_7.json()["resources"]["cpu"]["allocated"] == 2
+    assert stats_7.json()["resources"]["cpu"]["sample_count"] == 2
+    assert stats_7.json()["resources"]["cpu"]["average_usage_percent"] == 70.5
+
+    stats_15 = client.get(f"/v1/applications/{billing_application.id}/stats", params={"window_days": 15})
+    assert stats_15.status_code == 200
+    assert stats_15.json()["resources"]["cpu"]["sample_count"] == 3
+
+    stats_30 = client.get(f"/v1/applications/{billing_application.id}/stats", params={"window_days": 30})
+    assert stats_30.status_code == 200
+    assert stats_30.json()["resources"]["cpu"]["sample_count"] == 4
+
+    invalid_stats_window = client.get(f"/v1/applications/{billing_application.id}/stats", params={"window_days": 14})
+    assert invalid_stats_window.status_code == 422
+
+    summary = client.get(f"/v1/applications/{billing_application.id}/optimizations/summary")
+    assert summary.status_code == 200
+    assert summary.json()["recommendations_by_action"] == {"scale_up": 1}
+    assert summary.json()["resources"]["cpu"]["current_total"] == 2
+    assert summary.json()["resources"]["cpu"]["recommended_total"] == 4
+    assert summary.json()["resources"]["cpu"]["additional_capacity"] == 2
+    assert summary.json()["resources"]["cpu"]["reasons"] == ["pressure_high"]
+    assert summary.json()["confidence"] == "high"
 
 
 def test_named_fields_reject_blank_strings(client: TestClient) -> None:

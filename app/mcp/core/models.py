@@ -1,10 +1,8 @@
 """MCP-specific structured response models."""
 
-from typing import Any
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
-
-from internal.contracts.http.resources import MachineContextRead
 
 
 class MCPModel(BaseModel):
@@ -13,36 +11,30 @@ class MCPModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class SearchResult(MCPModel):
-    """One ChatGPT-compatible search result."""
+class MCPPagination(MCPModel):
+    """Short pagination block used by MCP list tools."""
 
-    id: str
-    title: str
-    url: str
-
-
-class SearchResponse(MCPModel):
-    """ChatGPT-compatible search response."""
-
-    results: list[SearchResult]
+    cursor: str | None = None
+    page_size: int
+    total: int
 
 
-class FetchResponse(MCPModel):
-    """ChatGPT-compatible fetch response."""
-
-    id: str
-    title: str
-    text: str
-    url: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
+ResourceT = TypeVar("ResourceT")
+EnvelopeDataT = TypeVar("EnvelopeDataT")
 
 
-class MachineOptimizationExplanation(MCPModel):
-    """Deterministic machine optimization explanation."""
+class MCPPaginatedData(MCPModel, Generic[ResourceT]):
+    """Paginated item block returned inside the common MCP envelope."""
 
-    machine_id: int
-    hostname: str
-    status: str | None = None
-    action: str | None = None
-    summary: str
-    context: MachineContextRead
+    items: list[ResourceT]
+    offset: int
+
+
+class MCPEnvelope(MCPModel, Generic[EnvelopeDataT]):
+    """Common MCP tool response envelope."""
+
+    status: Literal["success", "failed"]
+    message: str
+    data: EnvelopeDataT | dict[str, Any] = Field(default_factory=dict)
+    pagination: MCPPagination | None = None
+    error: str | None = None

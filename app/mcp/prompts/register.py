@@ -1,64 +1,75 @@
-"""Reusable prompts for assistant workflows."""
+"""Reusable MCP prompts for chat-first Metrics Collector workflows."""
 
 from fastmcp import FastMCP
 
+from app.mcp.core.shared import ApplicationId, MachineId, OptionalSearchQuery, StatsWindowDays
+
 
 def register_prompts(mcp: FastMCP) -> None:
-    """Register reusable assistant prompts."""
+    """Register reusable prompt templates for MCP clients."""
 
     @mcp.prompt(
-        name="discover_application",
-        title="Discover Application",
-        description="Guide the assistant through discovering an application and its machines.",
-        tags={"applications", "discovery"},
+        name="application_capacity_review",
+        title="Application Capacity Review",
+        description="Guide an application-level capacity and optimization review.",
+        tags={"applications", "metrics", "optimizations"},
     )
-    def discover_application(application_hint: str | None = None) -> str:
-        """Create an application discovery workflow prompt."""
+    def application_capacity_review(application_id: ApplicationId, window_days: StatsWindowDays = 7) -> str:
+        """Review one application's capacity, utilization, and optimization recommendation."""
 
-        hint = f" Start with this hint: {application_hint}." if application_hint else ""
-        return (
-            "Help the user discover an application in Metrics Collector."
-            f"{hint} Use discover_catalog to learn valid dimensions, then find_application or "
-            "list_applications to identify candidates. If there are multiple matches, present the "
-            "environment and region choices. Once a candidate is selected, use get_application_overview "
-            "and summarize machines, platforms, and available current optimizations."
+        return "\n".join(
+            [
+                "Review the application capacity posture with the Metrics Collector MCP tools.",
+                f"1. Call application_get with application_id={application_id}.",
+                f"2. Call application_stats_get with application_id={application_id} and window_days={window_days}.",
+                f"3. Call application_optimizations_get with application_id={application_id}.",
+                "Summarize allocated CPU/RAM/disk, utilization, current recommendation, confidence, and caveats.",
+                "Do not suggest write, sync, enable, disable, or worker-task actions through MCP.",
+            ]
         )
 
     @mcp.prompt(
-        name="explain_application_optimizations",
-        title="Explain Application Optimizations",
-        description="Guide the assistant through explaining current recommendations for one application.",
-        tags={"applications", "optimizations"},
+        name="machine_optimization_explanation",
+        title="Machine Optimization Explanation",
+        description="Guide a machine-level recommendation explanation.",
+        tags={"machines", "metrics", "optimizations"},
     )
-    def explain_application_optimizations(application_name: str, environment: str | None = None, region: str | None = None) -> str:
-        """Create an application optimization explanation prompt."""
+    def machine_optimization_explanation(machine_id: MachineId) -> str:
+        """Explain the latest metrics and current optimization for one machine."""
 
-        filters = [f"name={application_name}"]
-        if environment:
-            filters.append(f"environment={environment}")
-        if region:
-            filters.append(f"region={region}")
-        return (
-            "Explain optimization recommendations for an application. Find the application using "
-            f"{', '.join(filters)}, call get_application_overview, and group recommendations by action "
-            "and status. Highlight machines needing scale_up or scale_down first, then partial or error "
-            "recommendations that need provider or metric attention. Avoid inventing missing metrics."
+        return "\n".join(
+            [
+                "Explain the current optimization recommendation for one machine.",
+                f"1. Call machine_get with machine_id={machine_id}.",
+                "2. Compare current CPU/RAM/disk allocation with recommended values.",
+                "3. Explain each resource reason code in plain language.",
+                "Call out missing providers, ambiguous providers, or insufficient data when present.",
+                "Do not suggest write, sync, enable, disable, or worker-task actions through MCP.",
+            ]
         )
 
     @mcp.prompt(
-        name="investigate_machine_capacity",
-        title="Investigate Machine Capacity",
-        description="Guide the assistant through investigating one machine's capacity recommendation.",
-        tags={"machines", "optimizations"},
+        name="inventory_scope_discovery",
+        title="Inventory Scope Discovery",
+        description="Guide discovery of inventory scope before drilling into machines or applications.",
+        tags={"applications", "machines", "search"},
     )
-    def investigate_machine_capacity(machine_hint: str) -> str:
-        """Create a machine capacity investigation prompt."""
+    def inventory_scope_discovery(search_term: OptionalSearchQuery = None) -> str:
+        """Discover application and machine inventory scope for a user's question."""
 
-        return (
-            f"Investigate machine capacity for: {machine_hint}. Use find_machine to identify the machine. "
-            "If there are multiple candidates, ask the user to choose by hostname, application, environment, "
-            "region, or platform. Then call get_machine_context and explain_machine_optimization. Explain "
-            "CPU, RAM, and disk separately using current capacity, recommended capacity, utilization, and reason."
+        search_guidance = (
+            f"Start with application_search and machine_search using query={search_term!r}."
+            if search_term
+            else "Start with application_list, application_regions_list, and application_environments_list."
+        )
+        return "\n".join(
+            [
+                "Discover the safest read-only inventory scope before answering.",
+                search_guidance,
+                "Use platform_id, environment, region, offset, and page_size filters to narrow broad result sets.",
+                "Once the scope is clear, use application_get, machine_get, stats, or optimization tools as needed.",
+                "Do not suggest write, sync, enable, disable, or worker-task actions through MCP.",
+            ]
         )
 
 

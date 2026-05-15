@@ -186,6 +186,7 @@ After startup, verify:
 - `GET /v1/platforms` works with a read role token
 - `POST /v1/platforms` is forbidden for the read role and allowed for the admin role
 - `POST /mcp` is rejected without a token and accepted with a read role token
+- `uv run fastmcp list http://localhost:8001/mcp --resources --prompts --auth "Bearer <token>"` returns tools, resources, and prompts
 
 ## Local cleanup
 

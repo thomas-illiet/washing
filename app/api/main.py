@@ -16,7 +16,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import applications, discovery, health, machines, platforms, tasks
+from app.api.routes import applications, health, machines, platforms, tasks
 from app.api.routes.machines import mock_providers, mock_provisioners
 from internal.infra.auth import (
     OIDCAuthenticationError,
@@ -44,7 +44,6 @@ Use this documentation to browse collection endpoints, operational actions, and 
 OPENAPI_TAGS = [
     {"name": "Platforms", "description": "Cycle programs and settings."},
     {"name": "Applications", "description": "Loads to track in the drum."},
-    {"name": "Discovery", "description": "Assistant-ready inventory and optimization discovery."},
     {"name": "Machines", "description": "Main drum and inventory."},
     {"name": "Machine Optimizations", "description": "Current machine capacity recommendations."},
     {"name": "Machine Metrics", "description": "CPU, RAM, and disk spin cycle."},
@@ -208,7 +207,6 @@ def create_app(*, validate_database_on_startup: bool = True) -> FastAPI:
     app.include_router(health.router)
     app.include_router(platforms.router, prefix=API_V1_PREFIX)
     app.include_router(applications.router, prefix=API_V1_PREFIX)
-    app.include_router(discovery.router, prefix=API_V1_PREFIX)
     app.include_router(machines.router, prefix=API_V1_PREFIX)
     if settings.is_dev:
         app.include_router(mock_providers.router, prefix=API_V1_PREFIX)

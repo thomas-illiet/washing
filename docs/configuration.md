@@ -68,6 +68,7 @@ The local Compose stack points Keycloak at the same `washing_machine` PostgreSQL
 | --- | --- | --- | --- |
 | `MCP_API_BASE_URL` | `http://api:8000` in Docker | MCP | Base URL of the product API that the MCP gateway proxies. |
 | `MCP_API_TIMEOUT_SECONDS` | `30` | MCP | Timeout for downstream API calls. |
+| `MCP_MASK_ERROR_DETAILS` | `true` | MCP | Masks unexpected FastMCP error details. Downstream product API errors are still returned as bounded public messages. |
 
 ## Scheduler and batching settings
 

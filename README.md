@@ -140,7 +140,7 @@ docker compose down -v
 ## Vue rapide du projet
 
 - `app/api` : API FastAPI
-- `app/mcp` : gateway MCP read-only, avec le runtime dans `core` et un module par tool dans `tools`
+- `app/mcp` : gateway MCP read-only, avec runtime dans `core`, tools typés, resources de catalogue et prompts de guidage
 - `app/worker` : worker Celery et tâches exécutables
 - `app/beat` : scheduler Celery Beat
 - `internal/usecases` : logique métier partagée

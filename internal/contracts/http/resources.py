@@ -14,6 +14,8 @@ TaskExecutionStatus = Literal["PENDING", "STARTED", "SUCCESS", "FAILURE", "RETRY
 ApplicationSyncType = Literal["inventory_discovery", "metrics"]
 MachineOptimizationStatus = Literal["ready", "partial", "error"]
 MachineOptimizationAction = Literal["scale_up", "scale_down", "mixed", "keep", "insufficient_data", "unavailable"]
+ApplicationStatsWindowDays = Literal[7, 15, 30]
+ApplicationOptimizationConfidence = Literal["high", "medium", "low", "none"]
 MachineOptimizationScopeStatus = Literal[
     "ok",
     "missing_provider",
@@ -22,7 +24,6 @@ MachineOptimizationScopeStatus = Literal[
     "missing_current_capacity",
 ]
 MachineOptimizationScopeAction = Literal["scale_up", "scale_down", "keep", "insufficient_data", "unavailable"]
-DiscoveryRecordType = Literal["catalog", "application", "machine", "optimization"]
 ResourceT = TypeVar("ResourceT")
 NonEmptyStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -377,73 +378,64 @@ class MachineOptimizationRead(ApiModel):
     updated_at: datetime
 
 
-# Discovery and assistant-friendly resources.
-class BoundedResponse(ApiModel, Generic[ResourceT]):
-    """Bounded list response that avoids exposing pagination controls."""
-    items: list[ResourceT]
+# Chat-first read-only application resources.
+class ApplicationDimensionListRead(ApiModel):
+    """Distinct application dimension values."""
+    items: list[str]
     total: int
-    returned: int
-    truncated: bool
 
 
-class DiscoveryCatalogRead(ApiModel):
-    """Top-level inventory catalog for assistant discovery."""
-    platforms: list[PlatformRead]
-    environments: list[str]
-    regions: list[str]
-    metric_types: list[Scope]
-    optimization_statuses: list[MachineOptimizationStatus]
-    optimization_actions: list[MachineOptimizationAction]
-    totals: dict[str, int]
+class ApplicationResourceStatsRead(ApiModel):
+    """Allocated capacity and observed utilization for one resource scope."""
+    allocated: float
+    allocated_unit: Literal["cores", "mb"]
+    average_usage_percent: float | None = None
+    peak_usage_percent: float | None = None
+    sample_count: int
 
 
-class ApplicationSummaryRead(ApiModel):
-    """Assistant-friendly application summary."""
+class ApplicationStatsRead(ApiModel):
+    """Application capacity and utilization stats over a supported rolling window."""
+    application: ApplicationRead
+    window_days: ApplicationStatsWindowDays
+    start_date: date | None = None
+    end_date: date | None = None
+    machine_count: int
+    resources: dict[Scope, ApplicationResourceStatsRead]
+
+
+class ApplicationOptimizationResourceSummaryRead(ApiModel):
+    """Aggregated optimization sizing for one resource scope."""
+    unit: Literal["cores", "mb"]
+    current_total: float | None = None
+    recommended_total: float | None = None
+    delta: float | None = None
+    reclaimable_capacity: float
+    additional_capacity: float
+    recommendations_by_status: dict[MachineOptimizationScopeStatus, int] = Field(default_factory=dict)
+    recommendations_by_action: dict[MachineOptimizationScopeAction, int] = Field(default_factory=dict)
+    average_utilization_percent: float | None = None
+    reasons: list[str] = Field(default_factory=list)
+
+
+class ApplicationOptimizationSummaryRead(ApiModel):
+    """Aggregated current optimization recommendations for one application."""
     application: ApplicationRead
     machine_count: int
-    platform_ids: list[int]
-    current_optimization_count: int
-    current_optimizations_by_status: dict[MachineOptimizationStatus, int] = Field(default_factory=dict)
-    current_optimizations_by_action: dict[MachineOptimizationAction, int] = Field(default_factory=dict)
+    optimization_count: int
+    recommendations_by_status: dict[MachineOptimizationStatus, int] = Field(default_factory=dict)
+    recommendations_by_action: dict[MachineOptimizationAction, int] = Field(default_factory=dict)
+    resources: dict[Scope, ApplicationOptimizationResourceSummaryRead]
+    confidence: ApplicationOptimizationConfidence
+    confidence_score: float
+    justification: str
 
 
-class ApplicationOverviewRead(ApiModel):
-    """Complete assistant context for one application projection row."""
-    application: ApplicationRead
-    machine_count: int
-    platform_ids: list[int]
-    current_optimization_count: int
-    current_optimizations_by_status: dict[MachineOptimizationStatus, int] = Field(default_factory=dict)
-    current_optimizations_by_action: dict[MachineOptimizationAction, int] = Field(default_factory=dict)
-    machines: BoundedResponse[MachineRead]
-    current_optimizations: BoundedResponse[MachineOptimizationRead]
-
-
-class MachineContextRead(ApiModel):
-    """Complete assistant context for one machine."""
+class MachineDetailRead(ApiModel):
+    """Machine detail used by chat-first MCP responses."""
     machine: MachineRead
-    platform: PlatformRead | None = None
-    application: ApplicationRead | None = None
     latest_metrics: MachineMetricLatestRead
     current_optimization: MachineOptimizationRead | None = None
-
-
-class OptimizationRecommendationRead(ApiModel):
-    """Current optimization with its machine and ownership context."""
-    optimization: MachineOptimizationRead
-    machine: MachineRead
-    platform: PlatformRead | None = None
-    application: ApplicationRead | None = None
-
-
-class DiscoveryRecordRead(ApiModel):
-    """Fetchable text record for MCP search/fetch compatibility."""
-    id: str
-    type: DiscoveryRecordType
-    title: str
-    text: str
-    url: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 # Shared envelopes and async task resources.
