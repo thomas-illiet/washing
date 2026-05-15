@@ -118,16 +118,13 @@ def enqueue_single_application_metrics_sync(
 @router.get("/{application_id}/optimizations", response_model=PaginatedResponse[MachineOptimizationRead])
 def list_application_optimizations(
     application_id: int,
-    current_only: bool = True,
     pagination: PaginationParams = Depends(PaginationParams),
     db: Session = Depends(get_db),
 ) -> PaginatedResponse[MachineOptimizationRead]:
-    """List optimization revisions for machines represented by one application row."""
+    """List optimizations for machines represented by one application row."""
     application = get_or_404(db, Application, application_id, "application not found")
     machine_query = _application_machine_query(db, application).with_entities(Machine.id)
     query = db.query(MachineOptimization).filter(MachineOptimization.machine_id.in_(machine_query))
-    if current_only:
-        query = query.filter(MachineOptimization.is_current.is_(True))
     return paginate_query(
         query,
         MachineOptimizationRead,

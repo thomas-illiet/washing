@@ -90,13 +90,9 @@ METRIC_PAYLOAD = {
 OPTIMIZATION_PAYLOAD = {
     "id": 99,
     "machine_id": 42,
-    "revision": 1,
-    "is_current": True,
     "status": "ready",
     "action": "scale_up",
     "computed_at": "2026-05-02T00:00:00",
-    "acknowledged_at": None,
-    "acknowledged_by": None,
     "resources": {
         "cpu": {
             "status": "ok",

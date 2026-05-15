@@ -2,7 +2,7 @@
 
 from datetime import date as date_value, datetime
 
-from sqlalchemy import CheckConstraint, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, text
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from internal.domain import (
@@ -252,30 +252,14 @@ class MachineFlavorHistory(Base):
 
 
 class MachineOptimization(TimestampMixin, Base):
-    """Versioned optimization snapshot for one machine."""
+    """Current optimization snapshot for one machine."""
     __tablename__ = "machine_optimizations"
     __table_args__ = (
-        UniqueConstraint("machine_id", "revision", name="uq_machine_optimizations_machine_revision"),
-        CheckConstraint(
-            "(is_current AND superseded_at IS NULL) OR ((NOT is_current) AND superseded_at IS NOT NULL)",
-            name="ck_machine_optimizations_current_state",
-        ),
-        Index(
-            "uq_machine_optimizations_current_machine",
-            "machine_id",
-            unique=True,
-            postgresql_where=text("is_current = TRUE"),
-            sqlite_where=text("is_current = 1"),
-        ),
-        Index("ix_machine_optimizations_machine_current", "machine_id", "is_current"),
-        Index("ix_machine_optimizations_superseded_at", "superseded_at"),
+        UniqueConstraint("machine_id", name="uq_machine_optimizations_machine_id"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     machine_id: Mapped[int] = mapped_column(ForeignKey("machines.id", ondelete="CASCADE"), nullable=False, index=True)
-    revision: Mapped[int] = mapped_column(Integer, nullable=False)
-    is_current: Mapped[bool] = mapped_column(nullable=False, default=True)
-    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     action: Mapped[str] = mapped_column(String(32), nullable=False)
     window_size: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -284,8 +268,6 @@ class MachineOptimization(TimestampMixin, Base):
     min_ram_mb: Mapped[int] = mapped_column(Integer, nullable=False)
     max_ram_mb: Mapped[int] = mapped_column(Integer, nullable=False)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    acknowledged_by: Mapped[str | None] = mapped_column(String(255))
     current_cpu: Mapped[float | None] = mapped_column(Float)
     current_ram_mb: Mapped[float | None] = mapped_column(Float)
     current_disk_mb: Mapped[float | None] = mapped_column(Float)

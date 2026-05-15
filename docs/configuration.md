@@ -92,10 +92,10 @@ The local Compose stack points Keycloak at the same `washing_machine` PostgreSQL
 
 Behavior notes:
 
-- the optimization projection stores the `window_size` and CPU/RAM bounds used for each revision
+- the optimization projection stores the `window_size` and CPU/RAM bounds used for the current recommendation
 - changing one of these variables only affects future recalculations
 - existing optimization rows are not backfilled automatically after a config change
-- a later refresh can create a new optimization revision even if the public API target stays the same, because the calculation context changed
+- a later refresh updates the stored optimization even if the public API target stays the same, because the calculation context changed
 
 ## Observability settings
 

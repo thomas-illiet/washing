@@ -106,7 +106,6 @@ def _current_optimization(db: Session, machine_id: int) -> MachineOptimizationRe
     optimization = (
         db.query(MachineOptimization)
         .filter(MachineOptimization.machine_id == machine_id)
-        .filter(MachineOptimization.is_current.is_(True))
         .one_or_none()
     )
     if optimization is None:
@@ -121,7 +120,6 @@ def _application_summary(db: Session, application: Application) -> ApplicationSu
     optimization_query = (
         db.query(MachineOptimization)
         .filter(MachineOptimization.machine_id.in_(machine_ids))
-        .filter(MachineOptimization.is_current.is_(True))
     )
     return ApplicationSummaryRead(
         application=ApplicationRead.model_validate(application),
@@ -168,7 +166,6 @@ def _application_overview(
     optimization_query = (
         db.query(MachineOptimization)
         .filter(MachineOptimization.machine_id.in_(machine_ids))
-        .filter(MachineOptimization.is_current.is_(True))
     )
     return ApplicationOverviewRead(
         application=summary.application,
@@ -252,7 +249,6 @@ def _catalog(db: Session) -> DiscoveryCatalogRead:
             "machines": db.query(func.count(Machine.id)).scalar() or 0,
             "current_optimizations": (
                 db.query(func.count(MachineOptimization.id))
-                .filter(MachineOptimization.is_current.is_(True))
                 .scalar()
                 or 0
             ),
@@ -273,7 +269,6 @@ def _optimization_query(
     query = (
         db.query(MachineOptimization)
         .join(Machine, MachineOptimization.machine_id == Machine.id)
-        .filter(MachineOptimization.is_current.is_(True))
     )
     normalized_application = normalize_application_code(application)
     normalized_environment = normalize_dimension(environment)

@@ -135,21 +135,18 @@ Useful endpoints:
 
 ### Machine optimization projection
 
-Machine optimizations are stored in a versioned `machine_optimizations` table.
+Machine optimizations are stored in `machine_optimizations` as one current projection row per machine.
 
 Behavior:
 
-- the current row is identified with `is_current=true`
-- older revisions stay in the same table with `is_current=false`
-- the optimization history endpoint includes the current row as well
+- each machine can have at most one optimization row
+- refreshes update that row in place
 - optimization refreshes happen automatically after metric collection and after machine flavor changes detected by inventory
 
 Useful endpoints:
 
 - list optimizations: `GET /v1/machines/optimizations`
-- acknowledge an optimization: `POST /v1/machines/optimizations/{optimization_id}/acknowledge`
 - read current optimization: `GET /v1/machines/{machine_id}/optimizations`
-- read optimization history: `GET /v1/machines/{machine_id}/optimizations/history`
 - list optimizations for one application projection row: `GET /v1/applications/{application_id}/optimizations`
 - enqueue a manual recalculation: `POST /v1/machines/{machine_id}/optimizations/recalculate`
 
@@ -184,7 +181,7 @@ Behavior:
 - the cleanup task deletes rows in `machines` whose `updated_at` is older than the retention window
 - the default retention is `15` days
 - the retention is configurable through `MACHINE_RETENTION_DAYS`
-- child machine rows such as flavor history, metric samples, and versioned machine optimizations follow the delete through database cascades
+- child machine rows such as flavor history, metric samples, and machine optimizations follow the delete through database cascades
 - the task does not clean or rebuild `applications`
 
 ### Stale application retention

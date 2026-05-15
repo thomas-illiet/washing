@@ -107,10 +107,6 @@ def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
         assert not any(column.startswith(("previous_", "new_")) for column in flavor_columns)
         assert {
             "machine_id",
-            "revision",
-            "is_current",
-            "acknowledged_at",
-            "acknowledged_by",
             "window_size",
             "min_cpu",
             "max_cpu",
@@ -118,9 +114,17 @@ def test_clean_initial_migration_creates_current_schema_on_sqlite(tmp_path: Path
             "max_ram_mb",
             "details",
         } <= set(optimization_columns)
+        assert not {"revision", "is_current", "superseded_at", "acknowledged_at", "acknowledged_by"} & set(
+            optimization_columns
+        )
         assert "current_machine_id" not in optimization_columns
         optimization_indexes = list(connection.execute("PRAGMA index_list(machine_optimizations)"))
-        assert any(row[1] == "uq_machine_optimizations_current_machine" and row[2] and row[4] for row in optimization_indexes)
+        unique_index_columns = [
+            [info[2] for info in connection.execute(f"PRAGMA index_info({row[1]!r})")]
+            for row in optimization_indexes
+            if row[2]
+        ]
+        assert ["machine_id"] in unique_index_columns
     finally:
         connection.close()
 

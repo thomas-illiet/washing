@@ -922,11 +922,11 @@ def test_application_metrics_sync_dispatches_machine_provider_pairs(db_session: 
     assert application.sync_error is None
 
 
-def test_provider_machine_collection_creates_optimization_and_keeps_single_revision_on_noop(
+def test_provider_machine_collection_creates_optimization_and_updates_on_noop(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Automatic optimization refreshes should create one current row and avoid duplicate revisions on no-op runs."""
+    """Automatic optimization refreshes should keep a single optimization row on no-op runs."""
     _configure_optimization_settings(monkeypatch, window_size=1)
 
     platform = Platform(name="Optimization Auto Refresh")
@@ -961,21 +961,20 @@ def test_provider_machine_collection_creates_optimization_and_keeps_single_revis
     optimizations = (
         db_session.query(MachineOptimization)
         .filter(MachineOptimization.machine_id == machine.id)
-        .order_by(MachineOptimization.revision.asc())
+        .order_by(MachineOptimization.id.asc())
         .all()
     )
     assert len(optimizations) == 1
-    assert optimizations[0].is_current is True
     assert optimizations[0].status == "partial"
     assert optimizations[0].details["cpu"]["action"] == "scale_up"
     assert optimizations[0].details["ram"]["status"] == "missing_provider"
 
 
-def test_refresh_machine_optimization_creates_new_revision_when_snapshot_changes(
+def test_refresh_machine_optimization_updates_existing_row_when_snapshot_changes(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A changed optimization snapshot should supersede the previous current row."""
+    """A changed optimization snapshot should update the existing projection row."""
     _configure_optimization_settings(monkeypatch, window_size=1)
 
     platform = Platform(name="Optimization Revisions")
@@ -1013,14 +1012,11 @@ def test_refresh_machine_optimization_creates_new_revision_when_snapshot_changes
     optimizations = (
         db_session.query(MachineOptimization)
         .filter(MachineOptimization.machine_id == machine.id)
-        .order_by(MachineOptimization.revision.asc())
+        .order_by(MachineOptimization.id.asc())
         .all()
     )
-    assert [optimization.revision for optimization in optimizations] == [1, 2]
-    assert optimizations[0].is_current is False
-    assert optimizations[0].superseded_at is not None
-    assert optimizations[1].is_current is True
-    assert optimizations[1].details["cpu"]["action"] == "scale_down"
+    assert len(optimizations) == 1
+    assert optimizations[0].details["cpu"]["action"] == "scale_down"
 
 
 def test_refresh_machine_optimization_averages_available_metric_window(
@@ -1386,7 +1382,7 @@ def test_inventory_refreshes_optimization_when_flavor_changes(
     db_session: Session,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Inventory flavor changes should create a new optimization revision."""
+    """Inventory flavor changes should refresh the existing optimization row."""
     _configure_optimization_settings(monkeypatch, window_size=1)
 
     platform = Platform(name="Inventory Optimization Refresh")
@@ -1426,8 +1422,8 @@ def test_inventory_refreshes_optimization_when_flavor_changes(
     optimizations = (
         db_session.query(MachineOptimization)
         .filter(MachineOptimization.machine_id == machine.id)
-        .order_by(MachineOptimization.revision.asc())
+        .order_by(MachineOptimization.id.asc())
         .all()
     )
-    assert len(optimizations) == 3
-    assert optimizations[-1].current_cpu == 4
+    assert len(optimizations) == 1
+    assert optimizations[0].current_cpu == 4

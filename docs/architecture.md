@@ -61,7 +61,7 @@ flowchart TD
 | `MachineProvisioner` | Inventory connector that discovers machines |
 | `MachineProvider` | Metric connector that collects daily samples |
 | `Machine` | Persisted machine inventory record |
-| `MachineOptimization` | Versioned optimization projection for one machine, including the current row and its history |
+| `MachineOptimization` | Current optimization projection for one machine |
 | `Application` | Projection derived from machines, grouped by name/environment/region |
 | `MachineCPUMetric` / `MachineRAMMetric` / `MachineDiskMetric` | Daily metric tables |
 | `CeleryTaskExecution` | Persisted task history used by the API |
@@ -72,7 +72,7 @@ flowchart TD
 - `machine_optimizations` is a projection, not the source of truth
 - machine application codes are normalized in uppercase
 - one provisioner can only be associated with one provider per metric scope
-- one machine can have only one current optimization revision at a time
+- one machine can have only one optimization projection row at a time
 - provider and provisioner configs are stored encrypted at rest
 - placeholder connectors are accepted and may legitimately produce zero data
 
@@ -93,7 +93,7 @@ flowchart TD
 2. The selected provisioner connector lists machines from its source.
 3. The worker upserts machine records.
 4. Flavor changes are captured in `machine_flavor_history`.
-5. Optimization revisions are refreshed for new machines and for machines whose flavor changed.
+5. Optimizations are refreshed for new machines and for machines whose flavor changed.
 6. The `applications` projection can then be rebuilt from the current machine snapshot.
 
 ### Application metrics flow
@@ -113,7 +113,7 @@ flowchart TD
 3. It loads up to the latest configured metric window per scope.
 4. It computes scope-level and global optimization decisions from average utilization, applying configured CPU and RAM bounds.
 5. It updates the current optimization row in place when the snapshot is unchanged.
-6. It supersedes the previous current row and inserts a new revision when the snapshot changes.
+6. It updates the same optimization row in place when the snapshot changes.
 
 See [Celery Task Map](./celery-task-map.md) for the full task-level breakdown.
 

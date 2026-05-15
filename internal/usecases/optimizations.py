@@ -1,4 +1,4 @@
-"""Machine optimization calculation and versioning use cases."""
+"""Machine optimization calculation use cases."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ CAPACITY_STEP_MB = 1024
 
 
 def refresh_machine_optimization(db: Session, machine_id: int) -> dict[str, int | str]:
-    """Recompute and version the stored optimization for one machine."""
+    """Recompute the stored optimization for one machine."""
     machine = db.get(Machine, machine_id)
     if machine is None:
         raise ValueError(f"machine {machine_id} not found")
@@ -53,9 +53,6 @@ def refresh_machine_optimization(db: Session, machine_id: int) -> dict[str, int 
         db.add(
             MachineOptimization(
                 machine_id=machine.id,
-                revision=1,
-                is_current=True,
-                superseded_at=None,
                 **snapshot,
             )
         )
@@ -65,20 +62,9 @@ def refresh_machine_optimization(db: Session, machine_id: int) -> dict[str, int 
         current.computed_at = now
         return {"machine_id": machine.id, "created": 0, "updated": 1, "status": "updated"}
 
-    current.is_current = False
-    current.superseded_at = now
-    db.flush()
-
-    db.add(
-        MachineOptimization(
-            machine_id=machine.id,
-            revision=current.revision + 1,
-            is_current=True,
-            superseded_at=None,
-            **snapshot,
-        )
-    )
-    return {"machine_id": machine.id, "created": 1, "updated": 1, "status": "revised"}
+    for field, value in snapshot.items():
+        setattr(current, field, value)
+    return {"machine_id": machine.id, "created": 0, "updated": 1, "status": "updated"}
 
 
 def _build_optimization_snapshot(db: Session, machine: Machine, now) -> dict[str, object]:
@@ -357,12 +343,8 @@ def _effective_target(current_capacity: float | None, scope: dict[str, object]) 
 
 
 def _current_optimization_query(db: Session, machine_id: int):
-    """Return the query used to load the current optimization row."""
-    query = (
-        db.query(MachineOptimization)
-        .filter(MachineOptimization.machine_id == machine_id)
-        .filter(MachineOptimization.is_current.is_(True))
-    )
+    """Return the query used to load the optimization row."""
+    query = db.query(MachineOptimization).filter(MachineOptimization.machine_id == machine_id)
     if db.get_bind().dialect.name != "sqlite":
         query = query.with_for_update()
     return query

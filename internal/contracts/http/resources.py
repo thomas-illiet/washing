@@ -366,16 +366,12 @@ class MachineOptimizationResourceRead(ApiModel):
 
 
 class MachineOptimizationRead(ApiModel):
-    """Public representation of one machine optimization revision."""
+    """Public representation of one machine optimization."""
     id: int
     machine_id: int
-    revision: int
-    is_current: bool
     status: MachineOptimizationStatus
     action: MachineOptimizationAction
     computed_at: datetime
-    acknowledged_at: datetime | None = None
-    acknowledged_by: str | None = None
     resources: dict[Scope, MachineOptimizationResourceRead]
     created_at: datetime
     updated_at: datetime

@@ -1,6 +1,6 @@
 # Machine Optimizations
 
-Machine optimizations are versioned capacity suggestions for one machine. They compare the current machine flavor with recent CPU, RAM, and disk utilization metrics, then expose a simple current recommendation plus historical revisions through the API.
+Machine optimizations are current capacity suggestions for one machine. They compare the current machine flavor with recent CPU, RAM, and disk utilization metrics, then expose one current recommendation through the API.
 
 ## What the feature answers
 
@@ -51,13 +51,11 @@ Manual recalculation enqueues the `machines.recalculate_optimizations` Celery ta
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/v1/machines/optimizations` | List optimization revisions across machines with pagination and filters. |
-| `POST` | `/v1/machines/optimizations/{optimization_id}/acknowledge` | Mark one optimization revision as acknowledged. |
-| `GET` | `/v1/machines/{machine_id}/optimizations` | Read the current optimization revision. |
-| `GET` | `/v1/machines/{machine_id}/optimizations/history` | Read all revisions, including the current one. |
+| `GET` | `/v1/machines/optimizations` | List current optimizations across machines with pagination and filters. |
+| `GET` | `/v1/machines/{machine_id}/optimizations` | Read the current optimization. |
 | `POST` | `/v1/machines/{machine_id}/optimizations/recalculate` | Enqueue an on-demand recalculation. |
 
-The optimization response is intentionally compact. Each response contains top-level revision metadata and a `resources` object keyed by `cpu`, `ram`, and `disk`.
+The optimization response is intentionally compact. Each response contains top-level recommendation metadata and a `resources` object keyed by `cpu`, `ram`, and `disk`.
 
 Each resource exposes:
 
@@ -75,9 +73,7 @@ With OIDC enabled, read endpoints require the read role. Acknowledgement and rec
 
 If a machine exists but no optimization has been computed yet, the current optimization endpoint returns `404` with `optimization not computed yet`.
 
-The global list endpoint returns current optimizations by default. Pass `current_only=false` to include older revisions. It supports filters for `platform_id`, `machine_id`, `application`, `environment`, `region`, `status`, `action`, and `acknowledged`.
-
-Acknowledgement is idempotent and records `acknowledged_at` plus `acknowledged_by` when an authenticated principal is available.
+The global list endpoint supports filters for `platform_id`, `machine_id`, `application`, `environment`, `region`, `status`, and `action`.
 
 ## Optimization Status
 
@@ -122,17 +118,16 @@ For each resource:
 
 For `keep`, the recommended capacity remains the current capacity. For unavailable or insufficient resources, the recommended capacity is `null`.
 
-## Versioning
+## Storage
 
 Optimizations are stored in `machine_optimizations`.
 
-- one machine has only one current row with `is_current=true`
-- old rows remain available as history with `is_current=false`
-- `revision` increases when the calculated snapshot changes
-- if a recalculation produces the same snapshot, the current row is updated in place with a new `computed_at`
-- each revision stores the window size and CPU/RAM bounds used internally to compute it
+- one machine has only one optimization row
+- if a recalculation produces the same snapshot, the row is updated in place with a new `computed_at`
+- if a recalculation changes the snapshot, the same row is updated in place
+- each row stores the window size and CPU/RAM bounds used internally to compute it
 
-This means configuration changes can create a new revision even if the visible recommendation stays the same.
+This means configuration changes apply to the next refresh and replace the stored recommendation for that machine.
 
 ## Operational Checklist
 
@@ -142,6 +137,5 @@ When optimizations are missing or partial:
 - confirm each needed scope has exactly one enabled visible provider
 - confirm metric collection has produced at least one sample for each calculable scope
 - run `POST /v1/machines/{machine_id}/optimizations/recalculate` after fixing provider visibility or optimization settings
-- inspect `GET /v1/machines/{machine_id}/optimizations/history` to compare revisions
 
 See [Configuration](./configuration.md#machine-optimization-settings), [Operations](./operations.md#machine-optimization-projection), and [Celery Task Map](./celery-task-map.md) for related runtime details.

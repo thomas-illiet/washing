@@ -94,7 +94,6 @@ def get_platform_summary(platform_id: int, db: Session = Depends(get_db)) -> Pla
         db.query(MachineOptimization)
         .join(Machine, MachineOptimization.machine_id == Machine.id)
         .filter(Machine.platform_id == platform_id)
-        .filter(MachineOptimization.is_current.is_(True))
     )
     current_optimizations = optimization_query.count()
     optimizations_by_status = {
@@ -103,7 +102,6 @@ def get_platform_summary(platform_id: int, db: Session = Depends(get_db)) -> Pla
             db.query(MachineOptimization.status, func.count(MachineOptimization.id))
             .join(Machine, MachineOptimization.machine_id == Machine.id)
             .filter(Machine.platform_id == platform_id)
-            .filter(MachineOptimization.is_current.is_(True))
             .group_by(MachineOptimization.status)
             .all()
         )
@@ -114,7 +112,6 @@ def get_platform_summary(platform_id: int, db: Session = Depends(get_db)) -> Pla
             db.query(MachineOptimization.action, func.count(MachineOptimization.id))
             .join(Machine, MachineOptimization.machine_id == Machine.id)
             .filter(Machine.platform_id == platform_id)
-            .filter(MachineOptimization.is_current.is_(True))
             .group_by(MachineOptimization.action)
             .all()
         )

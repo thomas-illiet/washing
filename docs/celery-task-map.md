@@ -71,7 +71,7 @@ flowchart TD
 | `maintenance.purge_old_task_executions` | `purge_old_task_executions_task` | Beat daily schedule only | Deletes `celery_task_executions` rows older than the configured retention window. |
 | `maintenance.purge_stale_applications` | `purge_stale_applications_task` | Beat daily schedule only | Deletes stale `applications` rows based on `updated_at`, without touching other tables. |
 | `maintenance.purge_stale_machines` | `purge_stale_machines_task` | Beat daily schedule only | Deletes stale `machines` rows based on `updated_at`, without cleaning the `applications` projection. |
-| `machines.recalculate_optimizations` | `recalculate_machine_optimizations_task` | `POST /v1/machines/{machine_id}/optimizations/recalculate` | Recomputes and versions the optimization projection for one machine. |
+| `machines.recalculate_optimizations` | `recalculate_machine_optimizations_task` | `POST /v1/machines/{machine_id}/optimizations/recalculate` | Recomputes the optimization projection for one machine. |
 | `providers.dispatch_enabled_syncs` | `dispatch_enabled_provider_syncs_task` | `POST /v1/machines/providers/sync` | Selects enabled providers, then enqueues `providers.run` once per provider. |
 | `providers.run` | `run_provider_task` | Provider dispatcher, `POST /v1/machines/providers/{provider_id}/run` | Resolves the provider scope, then enqueues `providers.run_machine` once per visible machine. |
 | `providers.run_machine` | `run_provider_machine_task` | Provider dispatcher only | Collects one machine metric sample for one `provider_id` / `machine_id` pair and upserts the daily metric row. |

@@ -24,7 +24,6 @@ from app.mcp.main import create_app as create_mcp_app
 from app.mcp.config import get_settings as get_mcp_settings
 from internal.infra.auth import clear_oidc_caches
 from internal.infra.config.settings import get_settings
-from internal.infra.db.models import Machine, MachineOptimization, Platform
 
 
 class LiveServer:
@@ -234,66 +233,6 @@ def test_oidc_supports_custom_role_names(
     created = client.post("/v1/platforms", json={"name": "GCP"}, headers=operator_headers)
     assert created.status_code == 201
     assert created.json()["name"] == "GCP"
-
-
-def test_oidc_acknowledge_optimization_records_principal(
-    db_session: Session,
-    monkeypatch: pytest.MonkeyPatch,
-    oidc_provider: FakeOIDCProvider,
-) -> None:
-    """Acknowledging an optimization should audit the authenticated principal."""
-    client = _build_api_client(db_session, monkeypatch, oidc_provider)
-    admin_headers = {"Authorization": f"Bearer {oidc_provider.issue_token(roles=['user', 'admin'])}"}
-    platform = Platform(name="OIDC Optimization Ack")
-    machine = Machine(platform=platform, hostname="node-auth-opt")
-    db_session.add_all([platform, machine])
-    db_session.commit()
-
-    optimization = MachineOptimization(
-        machine_id=machine.id,
-        revision=1,
-        is_current=True,
-        superseded_at=None,
-        status="partial",
-        action="insufficient_data",
-        window_size=30,
-        min_cpu=1,
-        max_cpu=64,
-        min_ram_mb=2048,
-        max_ram_mb=262144,
-        computed_at=machine.created_at,
-        current_cpu=None,
-        current_ram_mb=None,
-        current_disk_mb=None,
-        target_cpu=None,
-        target_ram_mb=None,
-        target_disk_mb=None,
-        details={
-            "cpu": {
-                "provider_id": None,
-                "status": "missing_provider",
-                "samples_used": 0,
-                "last_metric_date": None,
-                "utilization_percent": None,
-                "current_capacity": None,
-                "raw_target_capacity": None,
-                "bounded_target_capacity": None,
-                "action": "unavailable",
-                "reason_code": "no_provider",
-            }
-        },
-    )
-    db_session.add(optimization)
-    db_session.commit()
-
-    response = client.post(
-        f"/v1/machines/optimizations/{optimization.id}/acknowledge",
-        headers=admin_headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json()["acknowledged_at"] is not None
-    assert response.json()["acknowledged_by"] == "reader"
 
 
 def test_mcp_requires_a_user_token_when_oidc_is_enabled(

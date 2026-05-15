@@ -232,7 +232,7 @@ def test_machine_optimization_full_e2e_on_migrated_database(tmp_path: Path, monk
             full_window = full_window_response.json()
             assert full_window["status"] == "ready"
             assert full_window["action"] == "mixed"
-            assert full_window["revision"] > limited_history["revision"]
+            assert full_window["id"] == limited_history["id"]
             assert full_window["resources"]["cpu"]["utilization_percent"] == 90.0
             assert full_window["resources"]["cpu"]["reason"] == "pressure_high"
             assert full_window["resources"]["ram"]["utilization_percent"] == 35.0
@@ -248,30 +248,9 @@ def test_machine_optimization_full_e2e_on_migrated_database(tmp_path: Path, monk
             assert filtered_list.json()["total"] == 1
             assert filtered_list.json()["items"][0]["id"] == full_window["id"]
 
-            history = client.get(
-                f"/v1/machines/{machine.id}/optimizations/history",
-                params={"limit": 10},
-            )
-            assert history.status_code == 200
-            assert history.json()["total"] == 5
-            assert history.json()["items"][0]["id"] == full_window["id"]
-            assert history.json()["items"][0]["is_current"] is True
-            assert all(item["id"] != full_window["id"] or item["is_current"] for item in history.json()["items"])
-
-            acknowledged = client.post(f"/v1/machines/optimizations/{full_window['id']}/acknowledge")
-            assert acknowledged.status_code == 200
-            assert acknowledged.json()["acknowledged_at"] is not None
-            assert acknowledged.json()["resources"]["disk"]["recommended"] == 113664.0
-
-            acknowledged_list = client.get("/v1/machines/optimizations", params={"acknowledged": True})
-            assert acknowledged_list.status_code == 200
-            assert acknowledged_list.json()["total"] == 1
-            assert acknowledged_list.json()["items"][0]["id"] == full_window["id"]
-
             current_rows = (
                 db.query(MachineOptimization)
                 .filter(MachineOptimization.machine_id == machine.id)
-                .filter(MachineOptimization.is_current.is_(True))
                 .all()
             )
             assert len(current_rows) == 1

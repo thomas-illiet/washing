@@ -40,7 +40,7 @@ EXPECTED_OPENAPI_TAG_DESCRIPTIONS = {
     "Applications": "Loads to track in the drum.",
     "Discovery": "Assistant-ready inventory and optimization discovery.",
     "Machines": "Main drum and inventory.",
-    "Machine Optimizations": "Capacity advice and acknowledged wash labels.",
+    "Machine Optimizations": "Current machine capacity recommendations.",
     "Machine Metrics": "CPU, RAM, and disk spin cycle.",
     "Machine Providers": "Water inlets and metric sources.",
     "Machine Provisioners": "Detergent drawers and inventory connectors.",
@@ -148,8 +148,12 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "application_id" not in schemas["MachineRead"]["properties"]
     assert {"cpu", "ram", "disk"} <= set(schemas["MachineMetricLatestRead"]["properties"])
     optimization_properties = set(schemas["MachineOptimizationRead"]["properties"])
-    assert {"acknowledged_at", "acknowledged_by", "resources"} <= optimization_properties
+    assert {"resources"} <= optimization_properties
     assert not {
+        "revision",
+        "is_current",
+        "acknowledged_at",
+        "acknowledged_by",
         "window_size",
         "details",
         "current_cpu",
@@ -201,9 +205,9 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "/v1/machines/{machine_id}/metrics/latest" in paths
     assert "/v1/machines/{machine_id}" in paths
     assert "/v1/machines/optimizations" in paths
-    assert "/v1/machines/optimizations/{optimization_id}/acknowledge" in paths
+    assert "/v1/machines/optimizations/{optimization_id}/acknowledge" not in paths
     assert "/v1/machines/{machine_id}/optimizations" in paths
-    assert "/v1/machines/{machine_id}/optimizations/history" in paths
+    assert "/v1/machines/{machine_id}/optimizations/history" not in paths
     assert "/v1/machines/{machine_id}/optimizations/recalculate" in paths
     assert "/v1/machines/providers" in paths
     assert "/v1/machines/providers/{provider_id}" in paths
@@ -252,11 +256,7 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
     assert "patch" not in paths["/v1/machines/{machine_id}"]
     assert paths["/v1/machines/{machine_id}/flavor-history"]["get"]["tags"] == ["Machines"]
     assert paths["/v1/machines/optimizations"]["get"]["tags"] == ["Machine Optimizations"]
-    assert paths["/v1/machines/optimizations/{optimization_id}/acknowledge"]["post"]["tags"] == [
-        "Machine Optimizations"
-    ]
     assert paths["/v1/machines/{machine_id}/optimizations"]["get"]["tags"] == ["Machine Optimizations"]
-    assert paths["/v1/machines/{machine_id}/optimizations/history"]["get"]["tags"] == ["Machine Optimizations"]
     assert paths["/v1/machines/{machine_id}/optimizations/recalculate"]["post"]["tags"] == [
         "Machine Optimizations"
     ]
@@ -297,7 +297,6 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "/v1/machines",
         "/v1/machines/{machine_id}/flavor-history",
         "/v1/machines/optimizations",
-        "/v1/machines/{machine_id}/optimizations/history",
         "/v1/machines/metrics",
         "/v1/machines/{machine_id}/metrics",
         "/v1/machines/providers",
@@ -316,7 +315,6 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         param["name"] for param in paths["/v1/machines/{machine_id}/metrics"]["get"]["parameters"]
     }
     assert {
-        "current_only",
         "platform_id",
         "machine_id",
         "application",
@@ -324,7 +322,6 @@ def test_openapi_json_remains_available(client: TestClient) -> None:
         "region",
         "status",
         "action",
-        "acknowledged",
         "offset",
         "limit",
     } <= {param["name"] for param in paths["/v1/machines/optimizations"]["get"]["parameters"]}
@@ -459,9 +456,6 @@ def test_platform_summary_counts_inventory_connectors_and_current_optimizations(
     db_session.add(
         MachineOptimization(
             machine_id=machine_one.id,
-            revision=1,
-            is_current=True,
-            superseded_at=None,
             status="ready",
             action="scale_up",
             window_size=30,
@@ -546,9 +540,6 @@ def test_discovery_endpoints_expose_assistant_ready_context(client: TestClient, 
             ),
             MachineOptimization(
                 machine_id=billing_machine.id,
-                revision=1,
-                is_current=True,
-                superseded_at=None,
                 status="ready",
                 action="scale_up",
                 window_size=30,
@@ -1699,29 +1690,8 @@ def test_application_child_routes_list_machines_sync_metrics_and_optimizations(
     )
     db_session.add_all([application, machine, other_machine])
     db_session.flush()
-    historical = MachineOptimization(
+    optimization = MachineOptimization(
         machine_id=machine.id,
-        revision=1,
-        is_current=False,
-        superseded_at=machine.created_at,
-        status="partial",
-        action="insufficient_data",
-        window_size=30,
-        min_cpu=1,
-        max_cpu=64,
-        min_ram_mb=2048,
-        max_ram_mb=262144,
-        computed_at=machine.created_at,
-        current_cpu=2,
-        current_ram_mb=4096,
-        current_disk_mb=51200,
-        details={},
-    )
-    current = MachineOptimization(
-        machine_id=machine.id,
-        revision=2,
-        is_current=True,
-        superseded_at=None,
         status="ready",
         action="keep",
         window_size=30,
@@ -1738,7 +1708,7 @@ def test_application_child_routes_list_machines_sync_metrics_and_optimizations(
         target_disk_mb=51200,
         details={},
     )
-    db_session.add_all([historical, current])
+    db_session.add(optimization)
     db_session.commit()
 
     machines = client.get(f"/v1/applications/{application.id}/machines")
@@ -1758,18 +1728,10 @@ def test_application_child_routes_list_machines_sync_metrics_and_optimizations(
     assert sync.json() == {"task_id": "single-application-metrics-sync"}
     assert sent_tasks == [SYNC_APPLICATION_METRICS_TASK]
 
-    current_only = client.get(f"/v1/applications/{application.id}/optimizations")
-    assert current_only.status_code == 200
-    assert current_only.json()["total"] == 1
-    assert current_only.json()["items"][0]["id"] == current.id
-
-    all_revisions = client.get(
-        f"/v1/applications/{application.id}/optimizations",
-        params={"current_only": False},
-    )
-    assert all_revisions.status_code == 200
-    assert all_revisions.json()["total"] == 2
-    assert [item["revision"] for item in all_revisions.json()["items"]] == [2, 1]
+    optimizations = client.get(f"/v1/applications/{application.id}/optimizations")
+    assert optimizations.status_code == 200
+    assert optimizations.json()["total"] == 1
+    assert optimizations.json()["items"][0]["id"] == optimization.id
 
     assert client.get("/v1/applications/9999/machines").status_code == 404
     assert client.post("/v1/applications/9999/metrics/sync").status_code == 404
@@ -2074,8 +2036,8 @@ def test_machine_flavor_history_lists_initial_and_changed_inventory_snapshots(
     assert history.json()["items"][1]["disk_mb"] == 80 * 1024
 
 
-def test_machine_optimization_endpoints_read_current_and_history(client: TestClient, db_session: Session) -> None:
-    """Machines should expose a current optimization endpoint and its version history."""
+def test_machine_optimization_endpoint_reads_current_projection(client: TestClient, db_session: Session) -> None:
+    """Machines should expose the current optimization projection."""
     platform = Platform(name="Optimization API")
     machine = Machine(
         platform=platform,
@@ -2087,84 +2049,43 @@ def test_machine_optimization_endpoints_read_current_and_history(client: TestCli
     db_session.add_all([platform, machine])
     db_session.commit()
 
-    db_session.add_all(
-        [
-            MachineOptimization(
-                machine_id=machine.id,
-                revision=1,
-                is_current=False,
-                superseded_at=machine.created_at,
-                status="partial",
-                action="insufficient_data",
-                window_size=30,
-                min_cpu=1,
-                max_cpu=64,
-                min_ram_mb=2048,
-                max_ram_mb=262144,
-                computed_at=machine.created_at,
-                current_cpu=4,
-                current_ram_mb=8192,
-                current_disk_mb=80 * 1024,
-                target_cpu=None,
-                target_ram_mb=None,
-                target_disk_mb=None,
-                details={
-                    "cpu": {
-                        "provider_id": None,
-                        "status": "missing_provider",
-                        "samples_used": 0,
-                        "last_metric_date": None,
-                        "utilization_percent": None,
-                        "current_capacity": 4,
-                        "raw_target_capacity": None,
-                        "bounded_target_capacity": None,
-                        "action": "unavailable",
-                        "reason_code": "no_provider",
-                    }
-                },
-            ),
-            MachineOptimization(
-                machine_id=machine.id,
-                revision=2,
-                is_current=True,
-                superseded_at=None,
-                status="ready",
-                action="scale_up",
-                window_size=30,
-                min_cpu=1,
-                max_cpu=64,
-                min_ram_mb=2048,
-                max_ram_mb=262144,
-                computed_at=machine.updated_at,
-                current_cpu=4,
-                current_ram_mb=8192,
-                current_disk_mb=80 * 1024,
-                target_cpu=6,
-                target_ram_mb=8192,
-                target_disk_mb=80 * 1024,
-                details={
-                    "cpu": {
-                        "provider_id": 7,
-                        "status": "ok",
-                        "samples_used": 1,
-                        "last_metric_date": "2026-05-02",
-                        "utilization_percent": 92.0,
-                        "current_capacity": 4,
-                        "raw_target_capacity": 5.6615384615,
-                        "bounded_target_capacity": 6,
-                        "action": "scale_up",
-                        "reason_code": "limited_history",
-                    }
-                },
-            ),
-        ]
+    db_session.add(
+        MachineOptimization(
+            machine_id=machine.id,
+            status="ready",
+            action="scale_up",
+            window_size=30,
+            min_cpu=1,
+            max_cpu=64,
+            min_ram_mb=2048,
+            max_ram_mb=262144,
+            computed_at=machine.updated_at,
+            current_cpu=4,
+            current_ram_mb=8192,
+            current_disk_mb=80 * 1024,
+            target_cpu=6,
+            target_ram_mb=8192,
+            target_disk_mb=80 * 1024,
+            details={
+                "cpu": {
+                    "provider_id": 7,
+                    "status": "ok",
+                    "samples_used": 1,
+                    "last_metric_date": "2026-05-02",
+                    "utilization_percent": 92.0,
+                    "current_capacity": 4,
+                    "raw_target_capacity": 5.6615384615,
+                    "bounded_target_capacity": 6,
+                    "action": "scale_up",
+                    "reason_code": "limited_history",
+                }
+            },
+        )
     )
     db_session.commit()
 
     current = client.get(f"/v1/machines/{machine.id}/optimizations")
     assert current.status_code == 200
-    assert current.json()["revision"] == 2
-    assert current.json()["is_current"] is True
     assert current.json()["resources"]["cpu"] == {
         "status": "ok",
         "action": "scale_up",
@@ -2174,13 +2095,10 @@ def test_machine_optimization_endpoints_read_current_and_history(client: TestCli
         "utilization_percent": 92.0,
         "reason": "limited_history",
     }
+    assert "revision" not in current.json()
+    assert "is_current" not in current.json()
     assert "target_cpu" not in current.json()
     assert "details" not in current.json()
-
-    history = client.get(f"/v1/machines/{machine.id}/optimizations/history")
-    assert history.status_code == 200
-    assert history.json()["total"] == 2
-    assert [item["revision"] for item in history.json()["items"]] == [2, 1]
 
 
 def test_machine_optimization_endpoint_exposes_catalog_bound_reasons(
@@ -2257,11 +2175,11 @@ def test_machine_optimization_endpoint_exposes_catalog_bound_reasons(
     }
 
 
-def test_machine_optimization_collection_filters_and_acknowledges(
+def test_machine_optimization_collection_filters(
     client: TestClient,
     db_session: Session,
 ) -> None:
-    """Optimizations should be listable across machines and acknowledged by revision id."""
+    """Optimizations should be listable across machines."""
     primary_platform = Platform(name="Optimization Collection API")
     other_platform = Platform(name="Optimization Collection Other")
     current_machine = Machine(
@@ -2301,32 +2219,8 @@ def test_machine_optimization_collection_filters_and_acknowledges(
             "reason_code": "no_provider",
         }
     }
-    historical = MachineOptimization(
-        machine_id=current_machine.id,
-        revision=1,
-        is_current=False,
-        superseded_at=current_machine.created_at,
-        status="partial",
-        action="insufficient_data",
-        window_size=30,
-        min_cpu=1,
-        max_cpu=64,
-        min_ram_mb=2048,
-        max_ram_mb=262144,
-        computed_at=current_machine.created_at,
-        current_cpu=4,
-        current_ram_mb=8192,
-        current_disk_mb=80 * 1024,
-        target_cpu=None,
-        target_ram_mb=None,
-        target_disk_mb=None,
-        details=base_details,
-    )
     current = MachineOptimization(
         machine_id=current_machine.id,
-        revision=2,
-        is_current=True,
-        superseded_at=None,
         status="ready",
         action="scale_up",
         window_size=30,
@@ -2345,9 +2239,6 @@ def test_machine_optimization_collection_filters_and_acknowledges(
     )
     other_current = MachineOptimization(
         machine_id=other_machine.id,
-        revision=1,
-        is_current=True,
-        superseded_at=None,
         status="partial",
         action="insufficient_data",
         window_size=30,
@@ -2364,22 +2255,13 @@ def test_machine_optimization_collection_filters_and_acknowledges(
         target_disk_mb=None,
         details=base_details,
     )
-    db_session.add_all([historical, current, other_current])
+    db_session.add_all([current, other_current])
     db_session.commit()
 
     default_list = client.get("/v1/machines/optimizations")
     assert default_list.status_code == 200
     assert default_list.json()["total"] == 2
     assert {item["id"] for item in default_list.json()["items"]} == {current.id, other_current.id}
-    assert all(item["is_current"] for item in default_list.json()["items"])
-
-    all_revisions = client.get(
-        "/v1/machines/optimizations",
-        params={"machine_id": current_machine.id, "current_only": False},
-    )
-    assert all_revisions.status_code == 200
-    assert all_revisions.json()["total"] == 2
-    assert [item["revision"] for item in all_revisions.json()["items"]] == [2, 1]
 
     filtered = client.get(
         "/v1/machines/optimizations",
@@ -2401,29 +2283,6 @@ def test_machine_optimization_collection_filters_and_acknowledges(
     assert limited.json()["limit"] == 1
     assert len(limited.json()["items"]) == 1
 
-    acknowledged = client.post(f"/v1/machines/optimizations/{current.id}/acknowledge")
-    assert acknowledged.status_code == 200
-    assert acknowledged.json()["id"] == current.id
-    assert acknowledged.json()["acknowledged_at"] is not None
-    assert acknowledged.json()["acknowledged_by"] is None
-
-    repeated = client.post(f"/v1/machines/optimizations/{current.id}/acknowledge")
-    assert repeated.status_code == 200
-    assert repeated.json()["acknowledged_at"] == acknowledged.json()["acknowledged_at"]
-
-    acknowledged_list = client.get("/v1/machines/optimizations", params={"acknowledged": True})
-    assert acknowledged_list.status_code == 200
-    assert acknowledged_list.json()["total"] == 1
-    assert acknowledged_list.json()["items"][0]["id"] == current.id
-
-    unacknowledged_list = client.get("/v1/machines/optimizations", params={"acknowledged": False})
-    assert unacknowledged_list.status_code == 200
-    assert unacknowledged_list.json()["total"] == 1
-    assert unacknowledged_list.json()["items"][0]["id"] == other_current.id
-
-    missing = client.post("/v1/machines/optimizations/9999/acknowledge")
-    assert missing.status_code == 404
-
 
 def test_machine_optimization_endpoints_handle_missing_state_and_enqueue_recalculation(
     client: TestClient,
@@ -2439,10 +2298,6 @@ def test_machine_optimization_endpoints_handle_missing_state_and_enqueue_recalcu
     missing = client.get(f"/v1/machines/{machine.id}/optimizations")
     assert missing.status_code == 404
     assert missing.json()["detail"] == "optimization not computed yet"
-
-    history = client.get(f"/v1/machines/{machine.id}/optimizations/history")
-    assert history.status_code == 200
-    assert history.json() == {"items": [], "offset": 0, "limit": 100, "total": 0}
 
     monkeypatch.setattr(
         "internal.infra.queue.enqueue.celery_app.send_task",
