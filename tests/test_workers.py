@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from internal.infra.connectors.base import MetricRecord
 from internal.infra.connectors.providers import EmptyMetricCollector
 from internal.infra.connectors.providers import mock as mock_metrics
 from internal.infra.connectors.provisioners import CapsuleInventoryProvisioner, DynatraceInventoryProvisioner
@@ -332,6 +333,67 @@ def test_provider_machine_collection_writes_cpu_metric(db_session: Session) -> N
     assert sample.machine_id == machine.id
     assert sample.value == 75
     assert sample.date is not None
+
+
+def test_provider_machine_collection_writes_multiple_daily_samples(
+    db_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One provider/machine task should upsert every returned daily sample."""
+    platform = Platform(name="Historical Metrics")
+    provisioner = MachineProvisioner(platform=platform, name="inventory", type="mock_inventory", cron="* * * * *")
+    machine = Machine(
+        platform=platform,
+        source_provisioner=provisioner,
+        external_id="vm-history",
+        hostname="vm-history",
+    )
+    provider = MachineProvider(
+        platform=platform,
+        name="cpu history",
+        type="mock_metric",
+        scope="cpu",
+        provisioners=[provisioner],
+    )
+    db_session.add_all([machine, provider])
+    db_session.commit()
+
+    first_records = [
+        MetricRecord(value=42, date=date(2026, 5, 13), machine_id=machine.id),
+        MetricRecord(value=57, date=date(2026, 5, 14), machine_id=machine.id),
+    ]
+    second_records = [
+        MetricRecord(value=45, date=date(2026, 5, 13), machine_id=machine.id),
+        MetricRecord(value=60, date=date(2026, 5, 14), machine_id=machine.id),
+    ]
+    collections = iter([first_records, second_records])
+
+    class HistoricalMetricCollector:
+        def collect(self, _provider: MachineProvider, _machines: list[Machine]) -> list[MetricRecord]:
+            return next(collections)
+
+    monkeypatch.setattr(
+        "internal.usecases.metrics.get_metric_collector",
+        lambda _connector_type: HistoricalMetricCollector(),
+    )
+
+    result = run_provider_machine_collection(db_session, provider.id, machine.id)
+    assert result == {"provider_id": provider.id, "machine_id": machine.id, "created": 2, "updated": 0, "skipped": 0}
+
+    second_result = run_provider_machine_collection(db_session, provider.id, machine.id)
+    assert second_result == {
+        "provider_id": provider.id,
+        "machine_id": machine.id,
+        "created": 0,
+        "updated": 2,
+        "skipped": 0,
+    }
+
+    samples = db_session.query(MachineCPUMetric).order_by(MachineCPUMetric.date.asc()).all()
+    assert [(sample.date, sample.value) for sample in samples] == [
+        (date(2026, 5, 13), 45),
+        (date(2026, 5, 14), 60),
+    ]
 
 
 def test_provider_machine_collection_writes_daily_disk_usage_metric(db_session: Session) -> None:

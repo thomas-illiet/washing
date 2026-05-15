@@ -176,11 +176,17 @@ def run_provider_machine_collection(db: Session, provider_id: int, machine_id: i
     try:
         connector = get_metric_collector(provider.type)
         records = connector.collect(provider, [machine])
-        result = "skipped"
-        if records:
-            # One task is responsible for one provider/machine pair, so we persist
-            # at most the first returned daily sample for that pair.
-            result = _upsert_daily_metric(db, provider, records[0], [machine])
+        created = 0
+        updated = 0
+        skipped = 1 if not records else 0
+        for record in records:
+            result = _upsert_daily_metric(db, provider, record, [machine])
+            if result == "created":
+                created += 1
+            elif result == "updated":
+                updated += 1
+            elif result == "skipped":
+                skipped += 1
 
         provider.last_success_at = utcnow()
         refresh_machine_optimization(db, machine.id)
@@ -188,9 +194,9 @@ def run_provider_machine_collection(db: Session, provider_id: int, machine_id: i
         return {
             "provider_id": provider.id,
             "machine_id": machine.id,
-            "created": 1 if result == "created" else 0,
-            "updated": 1 if result == "updated" else 0,
-            "skipped": 1 if result == "skipped" else 0,
+            "created": created,
+            "updated": updated,
+            "skipped": skipped,
         }
     except Exception as exc:
         db.rollback()
