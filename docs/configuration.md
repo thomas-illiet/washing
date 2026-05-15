@@ -5,6 +5,7 @@ This page documents the main environment variables used by the application and t
 ## Configuration model
 
 - The API, worker, and beat use [../internal/infra/config/settings.py](../internal/infra/config/settings.py).
+- Flower uses the minimal Celery settings in [../app/flower/celery.py](../app/flower/celery.py).
 - The MCP gateway uses [../app/mcp/config/settings.py](../app/mcp/config/settings.py).
 - OIDC auth uses [../internal/infra/auth/settings.py](../internal/infra/auth/settings.py).
 - The local Keycloak stack consumes the same `.env` file through [../docker-compose.example.yml](../docker-compose.example.yml).
@@ -18,7 +19,7 @@ This page documents the main environment variables used by the application and t
 | `DATABASE_URL` | `postgresql+psycopg://postgres:postgres@db:5432/washing_machine` | API, worker, beat, migrations | Shared Postgres database used by the app and local Keycloak. |
 | `DATABASE_SCHEMA` | `app` | API, worker, beat, migrations | PostgreSQL schema selected for application tables and Alembic state. |
 | `DATABASE_ENCRYPTION_KEY` | required | API, worker, beat | Fernet key used for encrypted connector config at rest. |
-| `CELERY_BROKER_URL` | `redis://redis:6379/0` | API, worker, beat | Broker for task publication and delivery. |
+| `CELERY_BROKER_URL` | `redis://redis:6379/0` | API, worker, beat, Flower | Broker for task publication and delivery. |
 | `CELERY_RESULT_BACKEND` | `redis://redis:6379/1` | Worker, Flower | Celery result backend. |
 | `CELERY_TASK_EXECUTION_RETENTION_DAYS` | `90` | Worker maintenance task | Number of days to keep rows in `celery_task_executions`. |
 | `APPLICATION_RETENTION_DAYS` | `15` | Worker maintenance task | Number of days to keep application projection rows since their last `updated_at`. |

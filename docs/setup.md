@@ -147,7 +147,7 @@ uv run celery -A app.beat.celery.celery_app beat --loglevel=INFO
 9. Optional: start Flower.
 
 ```bash
-uv run celery -A app.worker.celery.celery_app flower
+uv run celery -A app.flower.celery.celery_app flower
 ```
 
 When using the local Python workflow, keep `MCP_API_BASE_URL=http://127.0.0.1:8000` or another host-visible API URL.
