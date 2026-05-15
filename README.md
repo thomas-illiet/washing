@@ -57,6 +57,7 @@ Le Postgres local utilise une seule base `washing_machine`, avec le schéma `app
 - MCP health : `http://localhost:8001/health`
 - Keycloak : `http://localhost:8080`
 - Flower : `http://localhost:5555`
+- Flower health : `http://localhost:5555/health`
 - Grafana : `http://localhost:3000`
 
 Grafana provisionne deux dashboards par défaut : `Celery Monitoring` sur Prometheus et `Product KPI Overview` sur Postgres.
@@ -74,7 +75,7 @@ Les usernames, prénoms, noms et emails sont définis dans l’import Keycloak l
 - Les noms de rôles sont configurables via `OIDC_USER_ROLE_NAME` et `OIDC_ADMIN_ROLE_NAME`.
 - L’auth valide la signature, l’issuer, `exp` et `nbf`.
 - L’audience est volontairement ignorée.
-- `/health` reste public sur l’API et le MCP.
+- `/health` reste public sur l’API, le MCP et Flower.
 - `/metrics` reste public côté API pour Prometheus.
 - `APP_ENV=dev` expose les routes mock dans Swagger.
 - Les connecteurs placeholder peuvent être valides et retourner zéro donnée sans erreur.

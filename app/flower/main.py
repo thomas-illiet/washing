@@ -7,7 +7,19 @@ Flower can start without worker task registration, DB tracking, or app settings.
 from functools import lru_cache
 
 from celery import Celery
+from flower.urls import handlers as flower_handlers
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from tornado.web import RequestHandler
+
+
+class HealthHandler(RequestHandler):
+    """Simple Flower health endpoint."""
+
+    async def get(self) -> None:
+        self.write("OK")
+
+
+flower_handlers.insert(-1, (r"/health", HealthHandler))
 
 
 class FlowerCelerySettings(BaseSettings):
@@ -39,4 +51,4 @@ celery_app.conf.update(
     task_track_started=True,
 )
 
-__all__ = ["celery_app", "get_flower_celery_settings"]
+__all__ = ["HealthHandler", "celery_app", "get_flower_celery_settings"]
